@@ -8,21 +8,20 @@ const DAMPING_FACTOR = 0.05; // Коэффициент затухания
 const MIN_DISTANCE = 1; // Минимальное расстояние зума
 const MAX_DISTANCE = 1000; // Максимальное расстояние зума
 const PAN_SPEED = 1.0; // Скорость панорамирования
-const ROTATE_SPEED = 1.0; // Скорость вращения
 const ZOOM_SPEED = 1.0; // Скорость зума
 
 // Кнопки мыши для управления
 const MOUSE_BUTTONS = {
-  LEFT: THREE.MOUSE.ROTATE, // Левая кнопка - вращение
+  LEFT: THREE.MOUSE.PAN, // Левая кнопка - панорамирование
   MIDDLE: THREE.MOUSE.PAN, // Средняя кнопка - панорамирование
-  RIGHT: THREE.MOUSE.PAN, // Правая кнопка - панорамирование (альтернатива)
+  RIGHT: THREE.MOUSE.PAN, // Правая кнопка - панорамирование
 };
 
 export function useOrbitControls() {
   let controls: OrbitControls | null = null;
 
-  // Инициализация OrbitControls
-  const initControls = (camera: THREE.PerspectiveCamera, domElement: HTMLElement) => {
+  // Инициализация OrbitControls (работает с любой камерой)
+  const initControls = (camera: THREE.Camera, domElement: HTMLElement) => {
     // Создаем controls
     controls = new OrbitControls(camera, domElement);
 
@@ -36,15 +35,14 @@ export function useOrbitControls() {
 
     // Скорости управления
     controls.panSpeed = PAN_SPEED;
-    controls.rotateSpeed = ROTATE_SPEED;
     controls.zoomSpeed = ZOOM_SPEED;
 
     // Назначение кнопок мыши
     controls.mouseButtons = MOUSE_BUTTONS;
 
-    // Включаем все типы управления
-    controls.enableRotate = true; // Вращение левой кнопкой
-    controls.enablePan = true; // Панорамирование средней кнопкой
+    // Включаем только pan и zoom (без вращения)
+    controls.enableRotate = false; // Вращение отключено
+    controls.enablePan = true; // Панорамирование любой кнопкой
     controls.enableZoom = true; // Зум колесом мыши
 
     return controls;

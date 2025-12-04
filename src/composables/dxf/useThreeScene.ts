@@ -2,7 +2,6 @@ import { ref } from "vue";
 import * as THREE from "three";
 import { useOrbitControls } from "./useOrbitControls";
 import {
-  CAMERA_FOV,
   CAMERA_NEAR_PLANE,
   CAMERA_FAR_PLANE,
   CAMERA_INITIAL_Z_POSITION,
@@ -34,7 +33,7 @@ export function useThreeScene() {
   const error = ref<string | null>(null);
 
   let scene: THREE.Scene | null = null;
-  let camera: THREE.PerspectiveCamera | null = null;
+  let camera: THREE.OrthographicCamera | null = null;
   let renderer: THREE.WebGLRenderer | null = null;
 
   const {
@@ -126,14 +125,20 @@ export function useThreeScene() {
 
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
+    const aspect = containerWidth / containerHeight;
 
-    camera = new THREE.PerspectiveCamera(
-      CAMERA_FOV,
-      containerWidth / containerHeight,
+    // Для ортогональной проекции используем фиксированную высоту видимой области
+    const frustumSize = 100;
+    camera = new THREE.OrthographicCamera(
+      (frustumSize * aspect) / -2, // left
+      (frustumSize * aspect) / 2, // right
+      frustumSize / 2, // top
+      frustumSize / -2, // bottom
       CAMERA_NEAR_PLANE,
       CAMERA_FAR_PLANE,
     );
     camera.position.set(0, 0, CAMERA_INITIAL_Z_POSITION);
+    camera.zoom = 1;
 
     try {
       renderer = new THREE.WebGLRenderer({
