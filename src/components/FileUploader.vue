@@ -22,7 +22,7 @@
           <polyline points="17 8 12 3 7 8" />
           <line x1="12" y1="3" x2="12" y2="15" />
         </svg>
-        <span>Выбрать DXF файл</span>
+        <span>Load DXF File</span>
       </div>
     </label>
   </div>

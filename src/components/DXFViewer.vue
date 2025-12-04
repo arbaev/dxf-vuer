@@ -10,7 +10,7 @@
       v-if="showResetButton && hasDXFData"
       class="reset-button-overlay"
       @click="handleResetView"
-      title="Сбросить вид"
+      title="Reset View"
     >
       <svg
         width="20"
@@ -43,8 +43,8 @@
           <line x1="12" y1="9" x2="12" y2="13" />
           <line x1="12" y1="17" x2="12.01" y2="17" />
         </svg>
-        <div class="message-title">WebGL не поддерживается</div>
-        <div class="message-text">Обновите браузер или включите аппаратное ускорение</div>
+        <div class="message-title">WebGL Not Supported</div>
+        <div class="message-text">Update your browser or enable hardware acceleration</div>
       </div>
     </div>
 
@@ -62,7 +62,7 @@
           <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
           <polyline points="13 2 13 9 20 9" />
         </svg>
-        <div class="message-text">Выберите DXF файл для просмотра</div>
+        <div class="message-text">Select a DXF file to view</div>
       </div>
     </div>
   </div>
@@ -83,7 +83,7 @@
       <line x1="12" y1="9" x2="12" y2="13" />
       <line x1="12" y1="17" x2="12.01" y2="17" />
     </svg>
-    <div><strong>Ошибка рендерера:</strong> {{ rendererError }}</div>
+    <div><strong>Renderer Error:</strong> {{ rendererError }}</div>
   </div>
 </template>
 

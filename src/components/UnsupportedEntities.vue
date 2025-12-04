@@ -15,9 +15,9 @@
         <line x1="12" y1="9" x2="12" y2="13" />
         <line x1="12" y1="17" x2="12.01" y2="17" />
       </svg>
-      <span class="warning-title">Неподдерживаемые элементы ({{ entities.length }})</span>
+      <span class="warning-title">Unsupported Elements ({{ entities.length }})</span>
       <button class="toggle-button" @click="isExpanded = !isExpanded">
-        {{ isExpanded ? "Скрыть" : "Показать" }}
+        {{ isExpanded ? "Hide" : "Show" }}
       </button>
     </div>
 
@@ -32,7 +32,7 @@
 
     <div class="warning-footer">
       <span class="warning-note">
-        ℹ️ Эти элементы не будут отображены на чертеже
+        ℹ️ These elements will not be displayed on the drawing
       </span>
     </div>
   </div>

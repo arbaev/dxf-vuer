@@ -82,7 +82,7 @@ const handleFileSelected = async (file: File) => {
       dxfViewerRef.value.loadDXFFromText(text);
     }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Ошибка загрузки файла";
+    error.value = err instanceof Error ? err.message : "Error loading file";
     dxfData.value = null;
     unsupportedEntities.value = [];
   }
