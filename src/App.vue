@@ -17,6 +17,23 @@
     </header>
 
     <main class="app-main">
+      <!-- Ошибки -->
+      <div v-if="error" class="error-message">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <span>{{ error }}</span>
+      </div>
+
       <!-- Список неподдерживаемых entity -->
       <UnsupportedEntities v-if="unsupportedEntities.length > 0" :entities="unsupportedEntities" />
 
@@ -33,23 +50,6 @@
           @dxf-loaded="handleDXFLoaded"
           @reset-view="resetView"
         />
-      </div>
-
-      <!-- Ошибки -->
-      <div v-if="error" class="error-message">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-        <span>{{ error }}</span>
       </div>
     </main>
   </div>
@@ -180,13 +180,14 @@ const resetView = () => {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  margin: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
   padding: var(--spacing-md);
   background-color: #f8d7da;
   color: #721c24;
   border: 1px solid #f5c6cb;
   border-radius: var(--border-radius);
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .error-message svg {
