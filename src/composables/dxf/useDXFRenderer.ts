@@ -54,8 +54,8 @@ export function useDXFRenderer() {
       const dxf = parser.parseSync(dxfText);
       return dxf as unknown as DxfData;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Неизвестная ошибка парсинга";
-      throw new Error(`Ошибка парсинга DXF файла: ${message}`);
+      const message = error instanceof Error ? error.message : "Unknown parsing error";
+      throw new Error(`DXF file parsing error: ${message}`);
     }
   };
 

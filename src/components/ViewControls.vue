@@ -1,6 +1,6 @@
 <template>
   <div class="view-controls">
-    <button class="control-button" @click="$emit('reset-view')" title="Сбросить вид">
+    <button class="control-button" @click="$emit('reset-view')" title="Reset View">
       <svg
         width="20"
         height="20"
@@ -13,7 +13,7 @@
         <polyline points="1 20 1 14 7 14" />
         <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
       </svg>
-      <span>Сбросить вид</span>
+      <span>Reset View</span>
     </button>
   </div>
 </template>

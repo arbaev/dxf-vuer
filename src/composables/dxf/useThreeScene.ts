@@ -115,7 +115,7 @@ export function useThreeScene() {
 
     if (!checkWebGLSupport()) {
       webGLSupported.value = false;
-      error.value = "WebGL не поддерживается в этом браузере";
+      error.value = "WebGL is not supported in this browser";
       container.innerHTML = "";
       return;
     }
@@ -151,9 +151,9 @@ export function useThreeScene() {
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     } catch (err) {
       const errorMessage =
-        err instanceof Error ? err.message : "Неизвестная ошибка при создании рендерера";
+        err instanceof Error ? err.message : "Unknown error creating renderer";
       webGLSupported.value = false;
-      error.value = `Ошибка инициализации WebGL: ${errorMessage}`;
+      error.value = `WebGL initialization error: ${errorMessage}`;
       return;
     }
 

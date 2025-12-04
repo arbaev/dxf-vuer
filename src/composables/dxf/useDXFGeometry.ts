@@ -366,7 +366,7 @@ const createBlockGroup = (insertEntity: DxfEntity, dxf: DxfData, depth = 0): THR
         }
       }
     } catch (error) {
-      console.warn(`⚠️ Ошибка при обработке entity в блоке "${blockName}":`, error);
+      console.warn(`⚠️ Error processing entity in block "${blockName}":`, error);
     }
   });
 
@@ -631,11 +631,11 @@ export function createThreeObjectsFromDXF(dxf: DxfData): {
           group.add(obj);
         }
       } else {
-        unsupportedTypes.push(`Entity ${index}: ${entity.type || "неизвестный тип"}`);
+        unsupportedTypes.push(`Entity ${index}: ${entity.type || "unknown type"}`);
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Неизвестная ошибка";
-      errors.push(`Entity ${index} (${entity.type || "неизвестный тип"}): ${errorMsg}`);
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      errors.push(`Entity ${index} (${entity.type || "unknown type"}): ${errorMsg}`);
     }
   });
 
@@ -646,17 +646,17 @@ export function createThreeObjectsFromDXF(dxf: DxfData): {
 
     if (errors.length > 0) {
       warningParts.push(
-        `${errors.length} ошибок: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? "..." : ""}`,
+        `${errors.length} errors: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? "..." : ""}`,
       );
     }
 
     if (unsupportedTypes.length > 0) {
       warningParts.push(
-        `${unsupportedTypes.length} неподдерживаемых типов: ${unsupportedTypes.slice(0, 2).join("; ")}${unsupportedTypes.length > 2 ? "..." : ""}`,
+        `${unsupportedTypes.length} unsupported types: ${unsupportedTypes.slice(0, 2).join("; ")}${unsupportedTypes.length > 2 ? "..." : ""}`,
       );
     }
 
-    const errorSummary = `Не удалось обработать ${totalIssues} из ${dxf.entities.length} объектов. ${warningParts.join(", ")}`;
+    const errorSummary = `Failed to process ${totalIssues} of ${dxf.entities.length} objects. ${warningParts.join(", ")}`;
 
     // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: возвращаем unsupportedEntities для отображения на странице
     return {

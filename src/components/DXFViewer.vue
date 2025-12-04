@@ -1,5 +1,46 @@
 <template>
   <div ref="dxfContainer" class="dxf-viewer">
+    <!-- Ошибка WebGL -->
+    <div v-if="!webGLSupported" class="message-overlay">
+      <div class="message-content error">
+        <svg
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+          />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        <div class="message-title">WebGL Not Supported</div>
+        <div class="message-text">Update your browser or enable hardware acceleration</div>
+      </div>
+    </div>
+
+    <!-- Отображение ошибок -->
+    <div v-if="rendererError" class="error-banner">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+        />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+      <div><strong>Renderer Error:</strong> {{ rendererError }}</div>
+    </div>
+
     <!-- Имя файла в левом верхнем углу -->
     <div v-if="fileName && hasDXFData" class="file-name-overlay">
       {{ fileName }}
@@ -26,28 +67,6 @@
       </svg>
     </button>
 
-    <!-- Ошибка WebGL -->
-    <div v-if="!webGLSupported" class="message-overlay">
-      <div class="message-content error">
-        <svg
-          width="48"
-          height="48"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path
-            d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-          />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-        <div class="message-title">WebGL Not Supported</div>
-        <div class="message-text">Update your browser or enable hardware acceleration</div>
-      </div>
-    </div>
-
     <!-- Placeholder когда нет данных -->
     <div v-else-if="!hasDXFData" class="message-overlay">
       <div class="message-content placeholder">
@@ -65,25 +84,6 @@
         <div class="message-text">Select a DXF file to view</div>
       </div>
     </div>
-  </div>
-
-  <!-- Отображение ошибок -->
-  <div v-if="rendererError" class="error-banner">
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-    >
-      <path
-        d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-      />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-    <div><strong>Renderer Error:</strong> {{ rendererError }}</div>
   </div>
 </template>
 
@@ -153,7 +153,7 @@ const loadDXFFromText = (dxfText: string) => {
       emit("unsupported-entities", unsupportedEntities);
     }
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Неизвестная ошибка при загрузке DXF";
+    const errorMsg = error instanceof Error ? error.message : "Unknown error loading DXF";
     emit("error", errorMsg);
     emit("dxf-loaded", false);
     emit("dxf-data", null);
@@ -172,7 +172,7 @@ const loadDXFFromData = (dxfData: DxfData) => {
     }
   } catch (error) {
     const errorMsg =
-      error instanceof Error ? error.message : "Неизвестная ошибка при отображении DXF";
+      error instanceof Error ? error.message : "Unknown error displaying DXF";
     emit("error", errorMsg);
     emit("dxf-loaded", false);
     emit("dxf-data", null);
