@@ -257,8 +257,7 @@ defineExpose({
 .dxf-viewer {
   position: relative;
   width: 100%;
-  min-height: 400px;
-  height: 100%;
+  flex: 1;
   background-color: var(--bg-color);
   border: 2px solid var(--border-color);
   border-radius: var(--border-radius);
@@ -376,10 +375,6 @@ defineExpose({
 }
 
 @media (max-width: 768px) {
-  .dxf-viewer {
-    min-height: 300px;
-  }
-
   .file-name-overlay {
     top: var(--spacing-sm);
     left: var(--spacing-sm);

@@ -165,16 +165,15 @@ const resetView = () => {
   display: flex;
   flex-direction: column;
   padding: var(--spacing-lg);
-  max-width: 1400px;
   width: 100%;
-  margin: 0 auto;
+  height: calc(100vh - var(--header-height) - var(--spacing-lg) * 2);
 }
 
 .viewer-container {
   flex: 1;
   display: flex;
-  min-height: 500px;
-  margin: 0 var(--spacing-md);
+  margin: 0;
+  height: 100%;
 }
 
 .error-message {
@@ -205,10 +204,10 @@ const resetView = () => {
 
   .app-main {
     padding: var(--spacing-md);
+    height: calc(100vh - var(--header-height) - var(--spacing-md) * 2);
   }
 
   .viewer-container {
-    min-height: 350px;
     margin: 0;
   }
 }
