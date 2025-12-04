@@ -86,8 +86,9 @@ const clearFile = () => {
 .file-uploader {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+  flex: 1;
+  max-width: 600px;
 }
 
 .file-input {
@@ -103,23 +104,25 @@ const clearFile = () => {
   align-items: center;
   justify-content: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-md) var(--spacing-lg);
-  background-color: var(--primary-color);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: rgba(255, 255, 255, 0.2);
   color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: var(--border-radius);
   font-weight: 500;
+  font-size: 14px;
   transition: all 0.2s;
   user-select: none;
+  backdrop-filter: blur(10px);
 }
 
 .file-button:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  background-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .file-button:active {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 
 .file-info {
@@ -127,8 +130,8 @@ const clearFile = () => {
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
-  background-color: white;
-  border: 2px solid var(--border-color);
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: var(--border-radius);
   color: var(--text-color);
 }
@@ -165,13 +168,21 @@ const clearFile = () => {
 }
 
 @media (max-width: 768px) {
+  .file-button span {
+    display: none;
+  }
+
   .file-button {
-    padding: var(--spacing-sm) var(--spacing-md);
-    font-size: 14px;
+    padding: var(--spacing-sm);
+    justify-content: center;
   }
 
   .file-name {
-    font-size: 13px;
+    font-size: 12px;
+  }
+
+  .file-info {
+    padding: 6px var(--spacing-sm);
   }
 }
 </style>
