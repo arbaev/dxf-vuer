@@ -1,0 +1,132 @@
+// Основной composable для рендеринга DXF файлов
+import { ref } from "vue";
+import type { Group } from "three";
+import DxfParser from "dxf-parser";
+import type { DxfData } from "@/types/dxf";
+import { useThreeScene, type ThreeJSOptions } from "./useThreeScene";
+import { useCamera } from "./useCamera";
+import { createThreeObjectsFromDXF } from "./useDXFGeometry";
+
+export function useDXFRenderer() {
+  const isLoading = ref(false);
+  let currentDXFGroup: Group | null = null;
+
+  const {
+    webGLSupported,
+    error,
+    initThreeJS: initThreeJSScene,
+    cleanup: cleanupScene,
+    disposeObject3D,
+    getScene,
+    getCamera,
+    getRenderer,
+    getControls,
+    saveOrbitState,
+    resetOrbitControls,
+  } = useThreeScene();
+
+  const { fitCameraToObject, handleResize: handleCameraResize, resetResizing } = useCamera();
+
+  const render = () => {
+    const scene = getScene();
+    const camera = getCamera();
+    const renderer = getRenderer();
+
+    if (renderer && scene && camera) {
+      renderer.render(scene, camera);
+    }
+  };
+
+  const initThreeJS = (container: HTMLDivElement, options: ThreeJSOptions = {}) => {
+    initThreeJSScene(container, options);
+
+    // Добавляем слушатель события change от OrbitControls для автоматического рендеринга
+    const controls = getControls();
+    if (controls) {
+      controls.addEventListener("change", render);
+    }
+  };
+
+  // Парсинг DXF из текста
+  const parseDXF = (dxfText: string): DxfData => {
+    try {
+      const parser = new DxfParser();
+      const dxf = parser.parseSync(dxfText);
+      return dxf as unknown as DxfData;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Неизвестная ошибка парсинга";
+      throw new Error(`Ошибка парсинга DXF файла: ${message}`);
+    }
+  };
+
+  // Отображение DXF данных на сцене
+  // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: возвращаем unsupportedEntities
+  const displayDXF = (dxf: DxfData): string[] | undefined => {
+    const scene = getScene();
+    const camera = getCamera();
+
+    if (!scene) {
+      return undefined;
+    }
+
+    // Удаляем предыдущий DXF объект если он есть
+    if (currentDXFGroup) {
+      disposeObject3D(currentDXFGroup);
+      scene.remove(currentDXFGroup);
+      currentDXFGroup = null;
+    }
+
+    const result = createThreeObjectsFromDXF(dxf);
+    scene.add(result.group);
+
+    // Сохраняем ссылку на текущий объект для resize
+    currentDXFGroup = result.group;
+
+    if (camera) {
+      fitCameraToObject(result.group, camera);
+      saveOrbitState();
+    }
+
+    render();
+
+    if (result.warnings) {
+      console.warn("⚠️ Предупреждения при обработке DXF:", result.warnings);
+    }
+
+    // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: возвращаем unsupportedEntities для отображения на странице
+    return result.unsupportedEntities;
+  };
+
+  // Обработка resize
+  const handleResize = (container: HTMLDivElement) => {
+    handleCameraResize(container, getCamera(), getRenderer(), getScene(), currentDXFGroup);
+  };
+
+  // Сброс камеры и объекта в исходное состояние
+  const resetView = () => {
+    if (currentDXFGroup && getCamera()) {
+      resetOrbitControls();
+      render();
+    }
+  };
+
+  // Полная очистка ресурсов
+  const cleanup = () => {
+    cleanupScene(currentDXFGroup);
+    currentDXFGroup = null;
+    resetResizing();
+  };
+
+  return {
+    isLoading,
+    webGLSupported,
+    error,
+
+    initThreeJS,
+    parseDXF,
+    displayDXF,
+    handleResize,
+    resetView,
+    cleanup,
+  };
+}
