@@ -1,0 +1,23 @@
+{
+  "name": "dxf-vuer",
+  "version": "1.0.0",
+  "description": "Lightweight DXF file viewer built with Vue 3 and Three.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.4.18",
+    "three": "^0.180.0",
+    "dxf-parser": "^1.1.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "@types/three": "^0.180.0",
+    "typescript": "~5.5.3",
+    "vite": "^5.0.0",
+    "vue-tsc": "^2.0.29"
+  }
+}
