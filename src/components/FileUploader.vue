@@ -25,27 +25,6 @@
         <span>Выбрать DXF файл</span>
       </div>
     </label>
-
-    <div v-if="fileName" class="file-info">
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
-        <polyline points="13 2 13 9 20 9" />
-      </svg>
-      <span class="file-name">{{ fileName }}</span>
-      <button class="clear-button" @click="clearFile" title="Очистить">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-    </div>
   </div>
 </template>
 
@@ -72,14 +51,6 @@ const handleFileChange = (event: Event) => {
     emit("file-selected", file);
   }
 };
-
-const clearFile = () => {
-  if (fileInput.value) {
-    fileInput.value.value = "";
-  }
-  fileName.value = "";
-  emit("file-cleared");
-};
 </script>
 
 <style scoped>
@@ -88,7 +59,7 @@ const clearFile = () => {
   flex-direction: column;
   gap: var(--spacing-sm);
   flex: 1;
-  max-width: 600px;
+  max-width: 420px;
 }
 
 .file-input {
@@ -125,64 +96,10 @@ const clearFile = () => {
   transform: scale(0.98);
 }
 
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background-color: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: var(--border-radius);
-  color: var(--text-color);
-}
-
-.file-info svg {
-  flex-shrink: 0;
-  color: var(--primary-color);
-}
-
-.file-name {
-  flex: 1;
-  font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.clear-button {
-  padding: 4px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--border-radius);
-  transition: all 0.2s;
-}
-
-.clear-button:hover {
-  background-color: var(--border-color);
-  color: var(--error-color);
-}
-
 @media (max-width: 768px) {
-  .file-button span {
-    display: none;
-  }
-
   .file-button {
     padding: var(--spacing-sm);
     justify-content: center;
-  }
-
-  .file-name {
-    font-size: 12px;
-  }
-
-  .file-info {
-    padding: 6px var(--spacing-sm);
   }
 }
 </style>

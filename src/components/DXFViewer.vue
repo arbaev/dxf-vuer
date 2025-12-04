@@ -1,8 +1,10 @@
 <template>
-  <div
-    ref="dxfContainer"
-    class="dxf-viewer"
-  >
+  <div ref="dxfContainer" class="dxf-viewer">
+    <!-- Имя файла в левом верхнем углу -->
+    <div v-if="fileName && hasDXFData" class="file-name-overlay">
+      {{ fileName }}
+    </div>
+
     <!-- Ошибка WebGL -->
     <div v-if="!webGLSupported" class="message-overlay">
       <div class="message-content error">
@@ -21,9 +23,7 @@
           <line x1="12" y1="17" x2="12.01" y2="17" />
         </svg>
         <div class="message-title">WebGL не поддерживается</div>
-        <div class="message-text">
-          Обновите браузер или включите аппаратное ускорение
-        </div>
+        <div class="message-text">Обновите браузер или включите аппаратное ускорение</div>
       </div>
     </div>
 
@@ -48,16 +48,21 @@
 
   <!-- Отображение ошибок -->
   <div v-if="rendererError" class="error-banner">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
       <path
         d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
       />
       <line x1="12" y1="9" x2="12" y2="13" />
       <line x1="12" y1="17" x2="12.01" y2="17" />
     </svg>
-    <div>
-      <strong>Ошибка рендерера:</strong> {{ rendererError }}
-    </div>
+    <div><strong>Ошибка рендерера:</strong> {{ rendererError }}</div>
   </div>
 </template>
 
@@ -70,11 +75,13 @@ import { DEBOUNCE_DELAY } from "@/constants";
 // Props
 interface Props {
   dxfData?: DxfData | null;
+  fileName?: string;
   autoFit?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   dxfData: null,
+  fileName: "",
   autoFit: true,
 });
 
@@ -156,7 +163,7 @@ watch(
       loadDXFFromData(newData);
     }
   },
-  { deep: true },
+  { deep: true }
 );
 
 watch(rendererError, (newError) => {
@@ -229,6 +236,24 @@ defineExpose({
   overflow: hidden;
 }
 
+.file-name-overlay {
+  position: absolute;
+  top: var(--spacing-sm);
+  left: var(--spacing-sm);
+  z-index: 10;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  font-size: 14px;
+  color: var(--text-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  max-width: calc(100% - var(--spacing-lg) * 2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dxf-viewer :deep(canvas) {
   display: block;
   max-width: 100%;
@@ -296,6 +321,14 @@ defineExpose({
 @media (max-width: 768px) {
   .dxf-viewer {
     min-height: 300px;
+  }
+
+  .file-name-overlay {
+    top: var(--spacing-sm);
+    left: var(--spacing-sm);
+    padding: 6px var(--spacing-sm);
+    font-size: 12px;
+    max-width: calc(100% - var(--spacing-md) * 2);
   }
 
   .message-title {

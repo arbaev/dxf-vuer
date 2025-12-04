@@ -26,6 +26,7 @@
         <DXFViewer
           ref="dxfViewerRef"
           :dxf-data="dxfData"
+          :file-name="currentFileName"
           @dxf-data="handleDXFData"
           @unsupported-entities="handleUnsupportedEntities"
           @error="handleError"
@@ -67,12 +68,14 @@ import type { DxfData } from "./types/dxf";
 const dxfData = ref<DxfData | null>(null);
 const unsupportedEntities = ref<string[]>([]);
 const error = ref<string | null>(null);
+const currentFileName = ref<string>("");
 const dxfViewerRef = ref<InstanceType<typeof DXFViewer> | null>(null);
 
 const handleFileSelected = async (file: File) => {
   try {
     error.value = null;
     unsupportedEntities.value = [];
+    currentFileName.value = file.name;
 
     const text = await file.text();
 
@@ -92,6 +95,7 @@ const handleFileCleared = () => {
   dxfData.value = null;
   unsupportedEntities.value = [];
   error.value = null;
+  currentFileName.value = "";
 };
 
 const handleUnsupportedEntities = (entities: string[]) => {
