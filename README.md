@@ -1,39 +1,39 @@
 # DXF Vuer
 
-Просмотрщик DXF файлов на Vue 3 + TypeScript + Three.js.
+Lightweight DXF file viewer built with Vue 3 + TypeScript + Three.js.
 
-## Возможности
+## Features
 
-- Поддержка основных типов entity: LINE, CIRCLE, ARC, POLYLINE, SPLINE, TEXT, DIMENSION, INSERT
-- Отображение неподдерживаемых элементов DXF на странице
-- Просмотр DXF чертежей с ортогональной проекцией
-- Zoom и панорамирование для удобной навигации
-- Минимальные зависимости и быстрая загрузка
+- Support for main entity types: LINE, CIRCLE, ARC, POLYLINE, SPLINE, TEXT, DIMENSION, INSERT
+- Display of unsupported DXF elements on the page
+- View DXF drawings with orthographic projection
+- Zoom and pan for easy navigation
+- Minimal dependencies and fast loading
 
-## Установка и запуск
+## Installation and Running
 
-1. Установите зависимости:
+1. Install dependencies:
 
 ```bash
 yarn install
-# или
+# or
 npm install
 ```
 
-### Режим разработки
+### Development Mode
 
 ```bash
 yarn dev
-# или
+# or
 npm run dev
 ```
 
-### Сборка для production
+### Production Build
 
 ```bash
 yarn build
-# или
+# or
 npm run build
 ```
 
-Собранные файлы будут в директории `dist/`
+Built files will be in the `dist/` directory
