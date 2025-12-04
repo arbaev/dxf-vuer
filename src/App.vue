@@ -26,15 +26,14 @@
           ref="dxfViewerRef"
           :dxf-data="dxfData"
           :file-name="currentFileName"
+          :show-reset-button="!!dxfData"
           @dxf-data="handleDXFData"
           @unsupported-entities="handleUnsupportedEntities"
           @error="handleError"
           @dxf-loaded="handleDXFLoaded"
+          @reset-view="resetView"
         />
       </div>
-
-      <!-- Управление просмотром -->
-      <ViewControls v-if="dxfData" @reset-view="resetView" />
 
       <!-- Ошибки -->
       <div v-if="error" class="error-message">
@@ -61,7 +60,6 @@ import { ref } from "vue";
 import FileUploader from "./components/FileUploader.vue";
 import UnsupportedEntities from "./components/UnsupportedEntities.vue";
 import DXFViewer from "./components/DXFViewer.vue";
-import ViewControls from "./components/ViewControls.vue";
 import type { DxfData } from "./types/dxf";
 
 const dxfData = ref<DxfData | null>(null);

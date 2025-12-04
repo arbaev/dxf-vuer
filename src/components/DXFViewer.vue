@@ -5,6 +5,27 @@
       {{ fileName }}
     </div>
 
+    <!-- Кнопка сброса вида в правом верхнем углу -->
+    <button
+      v-if="showResetButton && hasDXFData"
+      class="reset-button-overlay"
+      @click="handleResetView"
+      title="Сбросить вид"
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <polyline points="23 4 23 10 17 10" />
+        <polyline points="1 20 1 14 7 14" />
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+      </svg>
+    </button>
+
     <!-- Ошибка WebGL -->
     <div v-if="!webGLSupported" class="message-overlay">
       <div class="message-content error">
@@ -76,12 +97,14 @@ import { DEBOUNCE_DELAY } from "@/constants";
 interface Props {
   dxfData?: DxfData | null;
   fileName?: string;
+  showResetButton?: boolean;
   autoFit?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   dxfData: null,
   fileName: "",
+  showResetButton: false,
   autoFit: true,
 });
 
@@ -91,6 +114,7 @@ interface Emits {
   (e: "dxf-data", data: DxfData | null): void;
   (e: "error", error: string): void;
   (e: "unsupported-entities", entities: string[]): void;
+  (e: "reset-view"): void;
 }
 
 const emit = defineEmits<Emits>();
@@ -111,6 +135,11 @@ const {
 const hasDXFData = computed(() => {
   return props.dxfData && props.dxfData.entities && props.dxfData.entities.length > 0;
 });
+
+const handleResetView = () => {
+  resetView();
+  emit("reset-view");
+};
 
 const loadDXFFromText = (dxfText: string) => {
   try {
@@ -247,11 +276,39 @@ defineExpose({
   border-radius: var(--border-radius);
   font-size: 14px;
   color: var(--text-color);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   max-width: calc(100% - var(--spacing-lg) * 2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.reset-button-overlay {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-sm);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s;
+  user-select: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: rgba(255, 255, 255, 0.95);
+  cursor: pointer;
+}
+
+.reset-button-overlay:hover {
+  border-color: rgb(from var(--primary-color) r g b / 0.5);
+}
+
+.reset-button-overlay:active {
+  transform: scale(0.94);
 }
 
 .dxf-viewer :deep(canvas) {
@@ -328,7 +385,16 @@ defineExpose({
     left: var(--spacing-sm);
     padding: 6px var(--spacing-sm);
     font-size: 12px;
-    max-width: calc(100% - var(--spacing-md) * 2);
+    max-width: calc(100% - 80px);
+  }
+
+  .reset-button-overlay {
+    padding: 6px;
+  }
+
+  .reset-button-overlay svg {
+    width: 18px;
+    height: 18px;
   }
 
   .message-title {
