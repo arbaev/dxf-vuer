@@ -6,7 +6,8 @@
 
 :root {
   /* Цвета */
-  --primary-color: #1976d2;
+  --primary-color: #1040b0;
+  --secondary-color: #103080;
   --error-color: #f44336;
   --warning-color: #ff9800;
   --success-color: #4caf50;

@@ -17,7 +17,6 @@
     </header>
 
     <main class="app-main">
-
       <!-- Список неподдерживаемых entity -->
       <UnsupportedEntities v-if="unsupportedEntities.length > 0" :entities="unsupportedEntities" />
 
@@ -135,7 +134,7 @@ const resetView = () => {
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-md);
-  background: linear-gradient(135deg, var(--primary-color) 0%, #1565c0 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
   color: white;
   padding: var(--spacing-md) var(--spacing-lg);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
