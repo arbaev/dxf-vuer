@@ -8,10 +8,10 @@
 export const CAMERA_FOV = 75;
 
 // Ближняя плоскость отсечения камеры
-export const CAMERA_NEAR_PLANE = 0.1;
+export const CAMERA_NEAR_PLANE = -2000;
 
 // Дальняя плоскость отсечения камеры
-export const CAMERA_FAR_PLANE = 1000;
+export const CAMERA_FAR_PLANE = 2000;
 
 // Начальная Z-позиция камеры
 export const CAMERA_INITIAL_Z_POSITION = 100;

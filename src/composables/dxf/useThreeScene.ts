@@ -40,6 +40,7 @@ export function useThreeScene() {
     initControls,
     updateControls,
     getControls,
+    setTarget: setOrbitTarget,
     saveState: saveOrbitState,
     resetCamera: resetOrbitControls,
     cleanup: cleanupControls,
@@ -215,6 +216,7 @@ export function useThreeScene() {
     getRenderer,
     updateControls,
     getControls,
+    setOrbitTarget,
     saveOrbitState,
     resetOrbitControls,
   };

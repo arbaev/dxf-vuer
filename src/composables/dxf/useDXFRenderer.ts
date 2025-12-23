@@ -1,5 +1,6 @@
 // Основной composable для рендеринга DXF файлов
 import { ref } from "vue";
+import * as THREE from "three";
 import type { Group } from "three";
 import DxfParser from "dxf-parser";
 import type { DxfData } from "@/types/dxf";
@@ -21,6 +22,7 @@ export function useDXFRenderer() {
     getCamera,
     getRenderer,
     getControls,
+    setOrbitTarget,
     saveOrbitState,
     resetOrbitControls,
   } = useThreeScene();
@@ -83,7 +85,17 @@ export function useDXFRenderer() {
     currentDXFGroup = result.group;
 
     if (camera) {
+      // Получаем центр объекта для установки target
+      const box = new THREE.Box3().setFromObject(result.group);
+      const center = box.getCenter(new THREE.Vector3());
+
+      // Устанавливаем target OrbitControls на центр объекта (на плоскости z=0)
+      setOrbitTarget(center.x, center.y, 0);
+
+      // Подгоняем камеру под объект
       fitCameraToObject(result.group, camera);
+
+      // Сохраняем состояние
       saveOrbitState();
     }
 

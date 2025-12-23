@@ -19,9 +19,10 @@ export function useCamera() {
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
 
-    // Для ортогональной камеры позиционируем камеру на центр объекта
-    camera.position.set(center.x, center.y, center.z + CAMERA_INITIAL_Z_POSITION);
-    camera.lookAt(center);
+    // Для ортогональной камеры позиционируем камеру строго перпендикулярно к плоскости XY
+    // Камера всегда на фиксированной высоте
+    camera.position.set(center.x, center.y, CAMERA_INITIAL_Z_POSITION);
+    camera.lookAt(center.x, center.y, 0);
 
     // Вычисляем zoom для подгонки объекта в видимую область
     const visibleHeight = camera.top - camera.bottom;

@@ -5,8 +5,8 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 // Настройки OrbitControls
 const ENABLE_DAMPING = false; // Плавное затухание движения (отключено для экономии ресурсов)
 const DAMPING_FACTOR = 0.05; // Коэффициент затухания
-const MIN_DISTANCE = 1; // Минимальное расстояние зума
-const MAX_DISTANCE = 1000; // Максимальное расстояние зума
+const MIN_ZOOM = 0.1; // Минимальный zoom для OrthographicCamera
+const MAX_ZOOM = 50; // Максимальный zoom для OrthographicCamera
 const PAN_SPEED = 1.0; // Скорость панорамирования
 const ZOOM_SPEED = 1.0; // Скорость зума
 
@@ -29,9 +29,9 @@ export function useOrbitControls() {
     controls.enableDamping = ENABLE_DAMPING;
     controls.dampingFactor = DAMPING_FACTOR;
 
-    // Ограничения зума
-    controls.minDistance = MIN_DISTANCE;
-    controls.maxDistance = MAX_DISTANCE;
+    // Ограничения зума для OrthographicCamera
+    controls.minZoom = MIN_ZOOM;
+    controls.maxZoom = MAX_ZOOM;
 
     // Скорости управления
     controls.panSpeed = PAN_SPEED;
@@ -45,6 +45,14 @@ export function useOrbitControls() {
     controls.enablePan = true; // Панорамирование любой кнопкой
     controls.enableZoom = true; // Зум колесом мыши
 
+    // Фиксируем углы камеры для 2D отображения (вид строго сверху на плоскость XY)
+    // polarAngle = Math.PI/2 означает камера перпендикулярна к оси Y (вид сверху)
+    controls.minPolarAngle = Math.PI / 2;
+    controls.maxPolarAngle = Math.PI / 2;
+
+    // Включаем screenSpacePanning для естественного панорамирования в плоскости экрана
+    controls.screenSpacePanning = true;
+
     return controls;
   };
 
@@ -55,6 +63,14 @@ export function useOrbitControls() {
   };
 
   const getControls = () => controls;
+
+  // Установка target
+  const setTarget = (x: number, y: number, z: number) => {
+    if (controls) {
+      controls.target.set(x, y, z);
+      controls.update();
+    }
+  };
 
   // Сохранение текущего состояния камеры и контролов как исходного
   const saveState = () => {
@@ -81,6 +97,7 @@ export function useOrbitControls() {
     initControls,
     updateControls,
     getControls,
+    setTarget,
     saveState,
     resetCamera,
     cleanup,
