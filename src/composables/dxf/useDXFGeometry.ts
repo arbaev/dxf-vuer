@@ -1,5 +1,6 @@
 // Создание геометрии Three.js из DXF данных
 import * as THREE from "three";
+import { NURBSCurve } from "three/examples/jsm/curves/NURBSCurve.js";
 import type { DxfVertex, DxfEntity, DxfData, DxfDimensionEntity } from "@/types/dxf";
 import {
   isLineEntity,
@@ -27,6 +28,96 @@ import {
   EXTENSION_LINE_GAP_SIZE,
   DEGREES_TO_RADIANS_DIVISOR,
 } from "@/constants";
+
+/**
+ * Создание дуги из двух точек с коэффициентом bulge
+ * @param p1 - Начальная точка
+ * @param p2 - Конечная точка
+ * @param bulge - Коэффициент изгиба (bulge = tan(angle/4))
+ * @returns Массив точек для отрисовки дуги
+ */
+const createBulgeArc = (
+  p1: THREE.Vector3,
+  p2: THREE.Vector3,
+  bulge: number,
+): THREE.Vector3[] => {
+  // Если bulge близок к нулю - возвращаем прямую линию
+  if (Math.abs(bulge) < 0.0001) {
+    return [p1, p2];
+  }
+
+  // Вычисляем расстояние между точками (длина хорды)
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const chordLength = Math.sqrt(dx * dx + dy * dy);
+
+  // Если точки совпадают - возвращаем их
+  if (chordLength < 0.0001) {
+    return [p1, p2];
+  }
+
+  // Центральный угол дуги: bulge = tan(θ/4) => θ = 4 * atan(bulge)
+  const theta = 4 * Math.atan(bulge);
+
+  // Радиус окружности по формуле: r = L / (2 * sin(θ/2))
+  // где L - длина хорды, θ - центральный угол
+  const radius = chordLength / (2 * Math.sin(theta / 2));
+
+  // Расстояние от середины хорды до центра окружности
+  // h = r * cos(θ/2) или h = sqrt(r² - (L/2)²)
+  const h = Math.abs(radius * Math.cos(theta / 2));
+
+  // Середина хорды
+  const midX = (p1.x + p2.x) / 2;
+  const midY = (p1.y + p2.y) / 2;
+
+  // Единичный вектор вдоль хорды
+  const chordDirX = dx / chordLength;
+  const chordDirY = dy / chordLength;
+
+  // Перпендикулярный вектор к хорде (поворот на 90° против часовой стрелки)
+  const perpX = -chordDirY;
+  const perpY = chordDirX;
+
+  // Центр окружности (смещаем от середины хорды по перпендикуляру)
+  // Направление зависит от знака bulge
+  const centerX = midX + perpX * h * Math.sign(bulge);
+  const centerY = midY + perpY * h * Math.sign(bulge);
+
+  // Начальный и конечный углы относительно центра
+  const startAngle = Math.atan2(p1.y - centerY, p1.x - centerX);
+  const endAngle = Math.atan2(p2.y - centerY, p2.x - centerX);
+
+  // Определяем направление обхода дуги
+  let sweepAngle = endAngle - startAngle;
+
+  // Нормализуем угол в диапазон [-π, π]
+  while (sweepAngle > Math.PI) sweepAngle -= 2 * Math.PI;
+  while (sweepAngle < -Math.PI) sweepAngle += 2 * Math.PI;
+
+  // Корректируем направление в зависимости от знака bulge
+  if (bulge > 0 && sweepAngle < 0) {
+    sweepAngle += 2 * Math.PI;
+  } else if (bulge < 0 && sweepAngle > 0) {
+    sweepAngle -= 2 * Math.PI;
+  }
+
+  // Количество сегментов для дуги (пропорционально углу)
+  const segments = Math.max(8, Math.floor(Math.abs(sweepAngle) * CIRCLE_SEGMENTS / (2 * Math.PI)));
+
+  const points: THREE.Vector3[] = [];
+
+  // Генерируем точки дуги
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const currentAngle = startAngle + sweepAngle * t;
+    const x = centerX + Math.abs(radius) * Math.cos(currentAngle);
+    const y = centerY + Math.abs(radius) * Math.sin(currentAngle);
+    points.push(new THREE.Vector3(x, y, 0));
+  }
+
+  return points;
+};
 
 /**
  * Создание стрелки (треугольника) для размерных линий
@@ -509,10 +600,34 @@ const processEntity = (
     case "LWPOLYLINE":
     case "POLYLINE": {
       if (isPolylineEntity(entity) && entity.vertices.length > 1) {
-        const points = entity.vertices.map(
-          (vertex: DxfVertex) => new THREE.Vector3(vertex.x, vertex.y, 0),
-        );
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const allPoints: THREE.Vector3[] = [];
+
+        // Обрабатываем каждый сегмент POLYLINE
+        for (let i = 0; i < entity.vertices.length - 1; i++) {
+          const v1 = entity.vertices[i];
+          const v2 = entity.vertices[i + 1];
+
+          const p1 = new THREE.Vector3(v1.x, v1.y, 0);
+          const p2 = new THREE.Vector3(v2.x, v2.y, 0);
+
+          // Если у вершины есть bulge - создаём дугу, иначе прямую линию
+          if (v1.bulge && Math.abs(v1.bulge) > 0.0001) {
+            const arcPoints = createBulgeArc(p1, p2, v1.bulge);
+            // Добавляем все точки кроме последней (она будет первой в следующем сегменте)
+            allPoints.push(...arcPoints.slice(0, -1));
+          } else {
+            // Прямая линия - добавляем только первую точку
+            if (i === 0 || allPoints.length === 0) {
+              allPoints.push(p1);
+            }
+          }
+        }
+
+        // Добавляем последнюю точку
+        const lastVertex = entity.vertices[entity.vertices.length - 1];
+        allPoints.push(new THREE.Vector3(lastVertex.x, lastVertex.y, 0));
+
+        const geometry = new THREE.BufferGeometry().setFromPoints(allPoints);
         return new THREE.Line(geometry, lineMaterial);
       }
       break;
@@ -520,12 +635,48 @@ const processEntity = (
 
     case "SPLINE": {
       if (isSplineEntity(entity)) {
-        const splinePoints = entity.controlPoints || entity.fitPoints || entity.vertices;
+        // Если есть NURBS данные (degree, knots, controlPoints) - используем NURBSCurve
+        if (entity.controlPoints && entity.controlPoints.length > 1 &&
+            entity.degreeOfSplineCurve !== undefined &&
+            entity.knotValues && entity.knotValues.length > 0) {
+
+          const degree = entity.degreeOfSplineCurve;
+          const knots = entity.knotValues;
+
+          // Преобразуем controlPoints в Vector4 с весами (weights)
+          // Если weights нет - используем 1.0 для всех точек
+          const controlPoints = entity.controlPoints.map((vertex: DxfVertex, i: number) => {
+            const weight = entity.weights?.[i] ?? 1.0;
+            return new THREE.Vector4(vertex.x, vertex.y, 0, weight);
+          });
+
+          try {
+            // Создаём NURBS кривую
+            const curve = new NURBSCurve(degree, knots, controlPoints);
+
+            // Количество сегментов для отрисовки: пропорционально количеству контрольных точек
+            const segments = Math.max(controlPoints.length * 4, 100);
+            const interpolatedPoints = curve.getPoints(segments);
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(interpolatedPoints);
+            return new THREE.Line(geometry, lineMaterial);
+          } catch (error) {
+            console.warn("⚠️ Ошибка создания NURBS, используем fallback:", error);
+          }
+        }
+
+        // Fallback: если нет NURBS данных, используем fitPoints/vertices
+        const splinePoints = entity.fitPoints || entity.vertices || entity.controlPoints;
         if (splinePoints && splinePoints.length > 1) {
           const points = splinePoints.map(
             (vertex: DxfVertex) => new THREE.Vector3(vertex.x, vertex.y, 0),
           );
-          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+          const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
+          const segments = Math.max(points.length * 2, 50);
+          const interpolatedPoints = curve.getPoints(segments);
+
+          const geometry = new THREE.BufferGeometry().setFromPoints(interpolatedPoints);
           return new THREE.Line(geometry, lineMaterial);
         }
       }

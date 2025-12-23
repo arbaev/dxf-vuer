@@ -72,7 +72,10 @@ export const ARROW_BASE_WIDTH_DIVISOR = 4;
 export const CIRCLE_LINE_THICKNESS = 0.5;
 
 // Количество сегментов для окружности
-export const CIRCLE_SEGMENTS = 32;
+export const CIRCLE_SEGMENTS = 128;
+
+// Количество точек для интерполяции сплайнов
+export const SPLINE_SEGMENTS = 50;
 
 // Размер штриха пунктирной выносной линии
 export const EXTENSION_LINE_DASH_SIZE = 2;

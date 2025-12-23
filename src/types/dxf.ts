@@ -4,6 +4,7 @@ export interface DxfVertex {
   x: number;
   y: number;
   z?: number;
+  bulge?: number; // Коэффициент изгиба для создания дуг в POLYLINE (0 = прямая, ±1 = полукруг)
 }
 
 // Общие поля для всех entity
@@ -43,6 +44,15 @@ export interface DxfSplineEntity extends DxfEntityBase {
   fitPoints?: DxfVertex[];
   vertices?: DxfVertex[];
   degree?: number;
+  // NURBS данные
+  degreeOfSplineCurve?: number;
+  knotValues?: number[];
+  weights?: number[];
+  numberOfControlPoints?: number;
+  numberOfKnots?: number;
+  closed?: boolean;
+  periodic?: boolean;
+  planar?: boolean;
 }
 
 export interface DxfTextEntity extends DxfEntityBase {
