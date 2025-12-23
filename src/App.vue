@@ -55,6 +55,9 @@
           @reset-view="resetView"
         />
       </div>
+
+      <!-- Статистика файла -->
+      <DXFStatistics v-if="statistics" :statistics="statistics" />
     </main>
   </div>
 </template>
@@ -64,19 +67,25 @@ import { ref } from "vue";
 import FileUploader from "./components/FileUploader.vue";
 import UnsupportedEntities from "./components/UnsupportedEntities.vue";
 import DXFViewer from "./components/DXFViewer.vue";
-import type { DxfData } from "./types/dxf";
+import DXFStatistics from "./components/DXFStatistics.vue";
+import type { DxfData, DxfStatistics } from "./types/dxf";
+import { collectDXFStatistics } from "./utils/dxfStatistics";
 
 const dxfData = ref<DxfData | null>(null);
 const unsupportedEntities = ref<string[]>([]);
 const error = ref<string | null>(null);
 const currentFileName = ref<string>("");
+const currentFileSize = ref<number>(0);
+const statistics = ref<DxfStatistics | null>(null);
 const dxfViewerRef = ref<InstanceType<typeof DXFViewer> | null>(null);
 
 const handleFileSelected = async (file: File) => {
   try {
     error.value = null;
     unsupportedEntities.value = [];
+    statistics.value = null;
     currentFileName.value = file.name;
+    currentFileSize.value = file.size;
 
     const text = await file.text();
 
@@ -89,6 +98,7 @@ const handleFileSelected = async (file: File) => {
     error.value = err instanceof Error ? err.message : "Error loading file";
     dxfData.value = null;
     unsupportedEntities.value = [];
+    statistics.value = null;
   }
 };
 
@@ -97,6 +107,8 @@ const handleFileCleared = () => {
   unsupportedEntities.value = [];
   error.value = null;
   currentFileName.value = "";
+  currentFileSize.value = 0;
+  statistics.value = null;
 };
 
 const handleUnsupportedEntities = (entities: string[]) => {
@@ -115,6 +127,13 @@ const handleDXFLoaded = (success: boolean) => {
 
 const handleDXFData = (data: DxfData | null) => {
   dxfData.value = data;
+
+  // Собираем статистику после загрузки DXF данных
+  if (data && currentFileName.value) {
+    statistics.value = collectDXFStatistics(data, currentFileName.value, currentFileSize.value);
+  } else {
+    statistics.value = null;
+  }
 };
 
 const resetView = () => {

@@ -176,3 +176,13 @@ export interface DxfData {
   tables?: Record<string, unknown>;
   blocks?: Record<string, DxfBlock>;
 }
+
+export interface DxfStatistics {
+  fileName: string;
+  fileSize: number; // в байтах
+  totalEntities: number;
+  entitiesByType: Record<string, number>;
+  layersCount: number;
+  blocksCount: number;
+  autocadVersion?: string;
+}
