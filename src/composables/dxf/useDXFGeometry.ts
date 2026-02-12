@@ -11,6 +11,7 @@ import {
   isTextEntity,
   isDimensionEntity,
   isInsertEntity,
+  isSolidEntity,
 } from "@/types/dxf";
 import {
   TEXT_COLOR,
@@ -22,11 +23,16 @@ import {
   DIM_TEXT_DECIMAL_PLACES,
   ARROW_SIZE,
   ARROW_BASE_WIDTH_DIVISOR,
-  CIRCLE_LINE_THICKNESS,
   CIRCLE_SEGMENTS,
   EXTENSION_LINE_DASH_SIZE,
   EXTENSION_LINE_GAP_SIZE,
   DEGREES_TO_RADIANS_DIVISOR,
+  EPSILON,
+  MIN_ARC_SEGMENTS,
+  NURBS_SEGMENTS_MULTIPLIER,
+  MIN_NURBS_SEGMENTS,
+  CATMULL_ROM_SEGMENTS_MULTIPLIER,
+  MIN_CATMULL_ROM_SEGMENTS,
 } from "@/constants";
 
 /**
@@ -42,7 +48,7 @@ const createBulgeArc = (
   bulge: number,
 ): THREE.Vector3[] => {
   // Если bulge близок к нулю - возвращаем прямую линию
-  if (Math.abs(bulge) < 0.0001) {
+  if (Math.abs(bulge) < EPSILON) {
     return [p1, p2];
   }
 
@@ -52,7 +58,7 @@ const createBulgeArc = (
   const chordLength = Math.sqrt(dx * dx + dy * dy);
 
   // Если точки совпадают - возвращаем их
-  if (chordLength < 0.0001) {
+  if (chordLength < EPSILON) {
     return [p1, p2];
   }
 
@@ -103,7 +109,7 @@ const createBulgeArc = (
   }
 
   // Количество сегментов для дуги (пропорционально углу)
-  const segments = Math.max(8, Math.floor(Math.abs(sweepAngle) * CIRCLE_SEGMENTS / (2 * Math.PI)));
+  const segments = Math.max(MIN_ARC_SEGMENTS, Math.floor(Math.abs(sweepAngle) * CIRCLE_SEGMENTS / (2 * Math.PI)));
 
   const points: THREE.Vector3[] = [];
 
@@ -560,39 +566,43 @@ const processEntity = (
 
     case "CIRCLE": {
       if (isCircleEntity(entity)) {
-        const geometry = new THREE.RingGeometry(
-          entity.radius - CIRCLE_LINE_THICKNESS,
-          entity.radius,
-          CIRCLE_SEGMENTS,
-        );
-        const material = new THREE.MeshBasicMaterial({
-          color: LINE_COLOR,
-          side: THREE.DoubleSide,
-        });
-        const circle = new THREE.Mesh(geometry, material);
-        circle.position.set(entity.center.x, entity.center.y, 0);
-        return circle;
+        const points: THREE.Vector3[] = [];
+        for (let i = 0; i <= CIRCLE_SEGMENTS; i++) {
+          const angle = (i / CIRCLE_SEGMENTS) * Math.PI * 2;
+          points.push(new THREE.Vector3(
+            entity.center.x + entity.radius * Math.cos(angle),
+            entity.center.y + entity.radius * Math.sin(angle),
+            0,
+          ));
+        }
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        return new THREE.Line(geometry, lineMaterial);
       }
       break;
     }
 
     case "ARC": {
       if (isArcEntity(entity)) {
-        const geometry = new THREE.RingGeometry(
-          entity.radius - CIRCLE_LINE_THICKNESS,
-          entity.radius,
-          CIRCLE_SEGMENTS,
-          1,
-          entity.startAngle,
-          entity.endAngle - entity.startAngle,
-        );
-        const material = new THREE.MeshBasicMaterial({
-          color: LINE_COLOR,
-          side: THREE.DoubleSide,
-        });
-        const arc = new THREE.Mesh(geometry, material);
-        arc.position.set(entity.center.x, entity.center.y, 0);
-        return arc;
+        const startAngle = entity.startAngle;
+        let endAngle = entity.endAngle;
+        // Нормализуем: если endAngle <= startAngle, добавляем полный оборот
+        if (endAngle <= startAngle) {
+          endAngle += Math.PI * 2;
+        }
+        const sweepAngle = endAngle - startAngle;
+        const segments = Math.max(MIN_ARC_SEGMENTS, Math.floor(sweepAngle * CIRCLE_SEGMENTS / (2 * Math.PI)));
+
+        const points: THREE.Vector3[] = [];
+        for (let i = 0; i <= segments; i++) {
+          const angle = startAngle + (i / segments) * sweepAngle;
+          points.push(new THREE.Vector3(
+            entity.center.x + entity.radius * Math.cos(angle),
+            entity.center.y + entity.radius * Math.sin(angle),
+            0,
+          ));
+        }
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        return new THREE.Line(geometry, lineMaterial);
       }
       break;
     }
@@ -606,26 +616,26 @@ const processEntity = (
         for (let i = 0; i < entity.vertices.length - 1; i++) {
           const v1 = entity.vertices[i];
           const v2 = entity.vertices[i + 1];
+          if (!v1 || !v2) continue;
 
           const p1 = new THREE.Vector3(v1.x, v1.y, 0);
           const p2 = new THREE.Vector3(v2.x, v2.y, 0);
 
+          // Всегда добавляем первую точку первого сегмента
+          if (i === 0) {
+            allPoints.push(p1);
+          }
+
           // Если у вершины есть bulge - создаём дугу, иначе прямую линию
-          if (v1.bulge && Math.abs(v1.bulge) > 0.0001) {
+          if (v1.bulge && Math.abs(v1.bulge) > EPSILON) {
             const arcPoints = createBulgeArc(p1, p2, v1.bulge);
-            // Добавляем все точки кроме последней (она будет первой в следующем сегменте)
-            allPoints.push(...arcPoints.slice(0, -1));
+            // Пропускаем первую точку дуги (она уже добавлена как p1 или конец предыдущего сегмента)
+            allPoints.push(...arcPoints.slice(1));
           } else {
-            // Прямая линия - добавляем только первую точку
-            if (i === 0 || allPoints.length === 0) {
-              allPoints.push(p1);
-            }
+            // Прямая линия - добавляем конечную точку сегмента
+            allPoints.push(p2);
           }
         }
-
-        // Добавляем последнюю точку
-        const lastVertex = entity.vertices[entity.vertices.length - 1];
-        allPoints.push(new THREE.Vector3(lastVertex.x, lastVertex.y, 0));
 
         const geometry = new THREE.BufferGeometry().setFromPoints(allPoints);
         return new THREE.Line(geometry, lineMaterial);
@@ -655,7 +665,7 @@ const processEntity = (
             const curve = new NURBSCurve(degree, knots, controlPoints);
 
             // Количество сегментов для отрисовки: пропорционально количеству контрольных точек
-            const segments = Math.max(controlPoints.length * 4, 100);
+            const segments = Math.max(controlPoints.length * NURBS_SEGMENTS_MULTIPLIER, MIN_NURBS_SEGMENTS);
             const interpolatedPoints = curve.getPoints(segments);
 
             const geometry = new THREE.BufferGeometry().setFromPoints(interpolatedPoints);
@@ -673,7 +683,7 @@ const processEntity = (
           );
 
           const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
-          const segments = Math.max(points.length * 2, 50);
+          const segments = Math.max(points.length * CATMULL_ROM_SEGMENTS_MULTIPLIER, MIN_CATMULL_ROM_SEGMENTS);
           const interpolatedPoints = curve.getPoints(segments);
 
           const geometry = new THREE.BufferGeometry().setFromPoints(interpolatedPoints);
@@ -736,6 +746,38 @@ const processEntity = (
         }
 
         return objects;
+      }
+      break;
+    }
+
+    case "SOLID": {
+      if (isSolidEntity(entity)) {
+        const pts = entity.points;
+        if (!pts || pts.length < 3) break;
+
+        const geometry = new THREE.BufferGeometry();
+        const vertices: number[] = [];
+        const indices: number[] = [];
+
+        for (const p of pts) {
+          vertices.push(p.x, p.y, p.z || 0);
+        }
+
+        // Треугольник или четырёхугольник (два треугольника)
+        indices.push(0, 1, 2);
+        if (pts.length >= 4) {
+          indices.push(0, 2, 3);
+        }
+
+        geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
+        const material = new THREE.MeshBasicMaterial({
+          color: LINE_COLOR,
+          side: THREE.DoubleSide,
+        });
+        return new THREE.Mesh(geometry, material);
       }
       break;
     }

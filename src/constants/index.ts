@@ -68,20 +68,32 @@ export const ARROW_SIZE = 6;
 // Делитель для расчета ширины основания стрелки (длина стрелки / 4)
 export const ARROW_BASE_WIDTH_DIVISOR = 4;
 
-// Толщина линии окружности/дуги
-export const CIRCLE_LINE_THICKNESS = 0.5;
-
 // Количество сегментов для окружности
 export const CIRCLE_SEGMENTS = 128;
-
-// Количество точек для интерполяции сплайнов
-export const SPLINE_SEGMENTS = 50;
 
 // Размер штриха пунктирной выносной линии
 export const EXTENSION_LINE_DASH_SIZE = 2;
 
 // Размер промежутка пунктирной выносной линии
 export const EXTENSION_LINE_GAP_SIZE = 1;
+
+// Порог для проверки близости к нулю (для bulge и длин)
+export const EPSILON = 0.0001;
+
+// Минимальное количество сегментов для отрисовки дуги
+export const MIN_ARC_SEGMENTS = 8;
+
+// Множитель для расчёта сегментов NURBS (controlPoints * NURBS_SEGMENTS_MULTIPLIER)
+export const NURBS_SEGMENTS_MULTIPLIER = 4;
+
+// Минимальное количество сегментов для NURBS кривой
+export const MIN_NURBS_SEGMENTS = 100;
+
+// Множитель для расчёта сегментов CatmullRom (points * CATMULL_ROM_SEGMENTS_MULTIPLIER)
+export const CATMULL_ROM_SEGMENTS_MULTIPLIER = 2;
+
+// Минимальное количество сегментов для CatmullRom сплайна
+export const MIN_CATMULL_ROM_SEGMENTS = 50;
 
 // ============================================================================
 // TIMING - временные константы

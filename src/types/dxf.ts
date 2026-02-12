@@ -108,6 +108,11 @@ export interface DxfInsertEntity extends DxfEntityBase {
   rowSpacing?: number;
 }
 
+export interface DxfSolidEntity extends DxfEntityBase {
+  type: "SOLID";
+  points: [DxfVertex, DxfVertex, DxfVertex, DxfVertex];
+}
+
 // Для неизвестных или неподдерживаемых типов
 export interface DxfUnknownEntity extends DxfEntityBase {
   type: string;
@@ -123,6 +128,7 @@ export type DxfEntity =
   | DxfTextEntity
   | DxfDimensionEntity
   | DxfInsertEntity
+  | DxfSolidEntity
   | DxfUnknownEntity;
 
 export function isLineEntity(entity: DxfEntity): entity is DxfLineEntity {
@@ -155,6 +161,10 @@ export function isDimensionEntity(entity: DxfEntity): entity is DxfDimensionEnti
 
 export function isInsertEntity(entity: DxfEntity): entity is DxfInsertEntity {
   return entity.type === "INSERT";
+}
+
+export function isSolidEntity(entity: DxfEntity): entity is DxfSolidEntity {
+  return entity.type === "SOLID";
 }
 
 export interface DxfBlock {
