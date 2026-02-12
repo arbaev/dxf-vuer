@@ -4,7 +4,7 @@ Lightweight DXF file viewer built with Vue 3 + TypeScript + Three.js.
 
 ## Features
 
-- Support for main entity types: LINE, CIRCLE, ARC, POLYLINE, SPLINE, TEXT, DIMENSION, INSERT
+- Support for main entity types: LINE, CIRCLE, ARC, POLYLINE, SPLINE, TEXT, DIMENSION, INSERT, SOLID
 - Display of unsupported DXF elements on the page
 - View DXF drawings with orthographic projection
 - Zoom and pan for easy navigation
