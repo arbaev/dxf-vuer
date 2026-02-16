@@ -88,9 +88,10 @@ const createBulgeArc = (
   // где L - длина хорды, θ - центральный угол
   const radius = chordLength / (2 * Math.sin(theta / 2));
 
-  // Расстояние от середины хорды до центра окружности
-  // h = r * cos(θ/2) или h = sqrt(r² - (L/2)²)
-  const h = Math.abs(radius * Math.cos(theta / 2));
+  // Расстояние от середины хорды до центра окружности (со знаком)
+  // При θ < π: h > 0, при θ > π: h < 0 (центр по другую сторону хорды)
+  // Знак автоматически корректен т.к. theta и radius вычислены с учётом знака bulge
+  const h = radius * Math.cos(theta / 2);
 
   // Середина хорды
   const midX = (p1.x + p2.x) / 2;
@@ -105,9 +106,10 @@ const createBulgeArc = (
   const perpY = chordDirX;
 
   // Центр окружности (смещаем от середины хорды по перпендикуляру)
-  // Направление зависит от знака bulge
-  const centerX = midX + perpX * h * Math.sign(bulge);
-  const centerY = midY + perpY * h * Math.sign(bulge);
+  // Знак h уже учитывает направление: для bulge > 0 и θ < π центр справа от хорды,
+  // для bulge > 0 и θ > π центр слева (и наоборот для отрицательного bulge)
+  const centerX = midX + perpX * h;
+  const centerY = midY + perpY * h;
 
   // Начальный и конечный углы относительно центра
   const startAngle = Math.atan2(p1.y - centerY, p1.x - centerX);
