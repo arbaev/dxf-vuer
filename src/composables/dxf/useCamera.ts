@@ -1,6 +1,6 @@
 // Управление камерой Three.js
 import * as THREE from "three";
-import { CAMERA_PADDING, CAMERA_INITIAL_Z_POSITION, DEBOUNCE_DELAY } from "@/constants";
+import { CAMERA_PADDING, CAMERA_INITIAL_Z_POSITION } from "@/constants";
 
 export function useCamera() {
   let isResizing = false;
@@ -38,12 +38,12 @@ export function useCamera() {
   };
 
   // Обработка изменения размера контейнера (для ортогональной камеры)
+  // Обновляем только frustum aspect ratio и размер renderer, zoom и позиция камеры сохраняются
   const handleResize = (
     container: HTMLDivElement,
     camera: THREE.OrthographicCamera | null,
     renderer: THREE.WebGLRenderer | null,
     scene: THREE.Scene | null,
-    currentObject: THREE.Object3D | null
   ) => {
     if (isResizing) {
       return;
@@ -52,41 +52,31 @@ export function useCamera() {
     isResizing = true;
 
     requestAnimationFrame(() => {
-      try {
-        // Проверяем что Three.js всё ещё инициализирован
-        if (!camera || !renderer || !scene) {
-          return;
-        }
+      isResizing = false;
 
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
-
-        if (containerWidth <= 0 || containerHeight <= 0) {
-          return;
-        }
-
-        // Для ортогональной камеры обновляем границы frustum при изменении размера
-        const aspect = containerWidth / containerHeight;
-        const frustumSize = 100;
-
-        camera.left = (frustumSize * aspect) / -2;
-        camera.right = (frustumSize * aspect) / 2;
-        camera.top = frustumSize / 2;
-        camera.bottom = frustumSize / -2;
-        camera.updateProjectionMatrix();
-
-        renderer.setSize(containerWidth, containerHeight, false);
-
-        if (currentObject) {
-          fitCameraToObject(currentObject, camera);
-        }
-
-        renderer.render(scene, camera);
-      } finally {
-        setTimeout(() => {
-          isResizing = false;
-        }, DEBOUNCE_DELAY);
+      if (!camera || !renderer || !scene) {
+        return;
       }
+
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+
+      if (containerWidth <= 0 || containerHeight <= 0) {
+        return;
+      }
+
+      const aspect = containerWidth / containerHeight;
+      const frustumSize = 100;
+
+      camera.left = (frustumSize * aspect) / -2;
+      camera.right = (frustumSize * aspect) / 2;
+      camera.top = frustumSize / 2;
+      camera.bottom = frustumSize / -2;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(containerWidth, containerHeight);
+
+      renderer.render(scene, camera);
     });
   };
 

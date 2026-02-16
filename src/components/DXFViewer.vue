@@ -82,7 +82,6 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { useDXFRenderer } from "@/composables/dxf/useDXFRenderer";
 import { useLayers } from "@/composables/dxf/useLayers";
 import type { DxfData, DxfLayer } from "@/types/dxf";
-import { DEBOUNCE_DELAY } from "@/constants";
 import LayerPanel from "./LayerPanel.vue";
 
 // Props
@@ -139,6 +138,9 @@ const hasDXFData = computed(() => {
   return props.dxfData && props.dxfData.entities && props.dxfData.entities.length > 0;
 });
 
+// Ссылка на данные, загруженные через loadDXFFromText, чтобы watch не загружал их повторно
+let lastLoadedDxf: DxfData | null = null;
+
 const handleResetView = () => {
   resetView();
   emit("reset-view");
@@ -175,6 +177,7 @@ const handleHideAllLayers = () => {
 const loadDXFFromText = (dxfText: string) => {
   try {
     const dxf = parseDXF(dxfText);
+    lastLoadedDxf = dxf;
     const unsupportedEntities = displayDXF(dxf);
     initLayersFromDXF(dxf);
     emit("dxf-loaded", true);
@@ -223,11 +226,11 @@ const resize = () => {
 watch(
   () => props.dxfData,
   (newData) => {
-    if (newData && hasDXFData.value) {
+    // Пропускаем если данные уже загружены через loadDXFFromText
+    if (newData && hasDXFData.value && newData !== lastLoadedDxf) {
       loadDXFFromData(newData);
     }
   },
-  { deep: true }
 );
 
 watch(rendererError, (newError) => {
@@ -237,17 +240,6 @@ watch(rendererError, (newError) => {
 });
 
 let resizeObserver: ResizeObserver | null = null;
-let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
-
-const debouncedResize = () => {
-  if (resizeTimeout) {
-    clearTimeout(resizeTimeout);
-  }
-
-  resizeTimeout = setTimeout(() => {
-    resize();
-  }, DEBOUNCE_DELAY);
-};
 
 onMounted(() => {
   setTimeout(() => {
@@ -259,7 +251,7 @@ onMounted(() => {
       }
 
       resizeObserver = new ResizeObserver(() => {
-        debouncedResize();
+        resize();
       });
       resizeObserver.observe(dxfContainer.value);
     }
@@ -267,11 +259,6 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  if (resizeTimeout) {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = null;
-  }
-
   if (resizeObserver) {
     resizeObserver.disconnect();
     resizeObserver = null;
@@ -347,8 +334,6 @@ defineExpose({
 
 .dxf-viewer :deep(canvas) {
   display: block;
-  width: 100%;
-  height: 100%;
 }
 
 .message-overlay {

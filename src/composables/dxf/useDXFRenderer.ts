@@ -109,7 +109,7 @@ export function useDXFRenderer() {
 
   // Обработка resize
   const handleResize = (container: HTMLDivElement) => {
-    handleCameraResize(container, getCamera(), getRenderer(), getScene(), currentDXFGroup);
+    handleCameraResize(container, getCamera(), getRenderer(), getScene());
   };
 
   // Сброс камеры и объекта в исходное состояние
