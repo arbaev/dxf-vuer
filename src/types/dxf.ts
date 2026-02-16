@@ -71,6 +71,7 @@ export interface DxfTextEntity extends DxfEntityBase {
   rotation?: number;
   halign?: number;
   valign?: number;
+  attachmentPoint?: number; // MTEXT: 1-9 (TopLeft..BottomRight)
 }
 
 export interface DxfDimensionEntity extends DxfEntityBase {

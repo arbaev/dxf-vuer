@@ -35,7 +35,8 @@ import {
   MIN_CATMULL_ROM_SEGMENTS,
   POINT_MARKER_SIZE,
 } from "@/constants";
-import { resolveEntityColor } from "@/utils/colorResolver";
+import { resolveEntityColor, rgbNumberToHex } from "@/utils/colorResolver";
+import ACI_PALETTE from "@/parser/acadColorIndex";
 
 /** Контекст цвета для передачи в processEntity */
 interface EntityColorContext {
@@ -526,12 +527,157 @@ const createBlockGroup = (
   return blockGroup;
 };
 
+/** Строка MTEXT с опциональным переопределением цвета, высоты и стиля */
+interface MTextLine {
+  text: string;
+  color?: string;
+  height?: number;
+  bold?: boolean;
+  italic?: boolean;
+  fontFamily?: string;
+}
+
+/**
+ * Замена DXF спецсимволов: %%d → °, %%p → ±, %%c → Ø
+ */
+const replaceSpecialChars = (text: string): string =>
+  text
+    .replace(/%%[dD]/g, "°")
+    .replace(/%%[pP]/g, "±")
+    .replace(/%%[cC]/g, "Ø");
+
+/**
+ * Парсинг MTEXT форматирования в массив строк с цветом и высотой.
+ * Обрабатывает: \P (перенос), \C<n>; (цвет ACI), \H<n>; (высота),
+ * \f...; (шрифт), %%d/%%p/%%c (спецсимволы), {}, \L/\O/\K и др.
+ */
+const parseMTextContent = (rawText: string): MTextLine[] => {
+  // Спецсимволы до разбора форматирования
+  const text = replaceSpecialChars(rawText);
+
+  // Разбиваем по \P (перенос строки в MTEXT)
+  const rawLines = text.split(/\\P/);
+
+  const lines: MTextLine[] = [];
+  let currentColor: string | undefined;
+  let currentHeight: number | undefined;
+  let currentBold = false;
+  let currentItalic = false;
+  let currentFont: string | undefined;
+
+  for (const rawLine of rawLines) {
+    let clean = rawLine;
+
+    // Сохраняем стиль на начало строки (carry-over от предыдущей строки)
+    let lineFont = currentFont;
+    let lineBold = currentBold;
+    let lineItalic = currentItalic;
+    let firstFontInLine = true;
+
+    // Шрифт: \fFontName|b1|i0|c0|p0; — извлекаем имя шрифта, bold, italic
+    // Первый \f в строке определяет стиль видимого текста этой строки,
+    // последний \f обновляет carry-over состояние для следующих строк
+    clean = clean.replace(/\\f([^|;]*)\|?[^;]*;/g, (fullMatch, fontName) => {
+      if (fontName) currentFont = fontName;
+      const boldMatch = fullMatch.match(/\|b(\d)/);
+      const italicMatch = fullMatch.match(/\|i(\d)/);
+      if (boldMatch) currentBold = boldMatch[1] === "1";
+      if (italicMatch) currentItalic = italicMatch[1] === "1";
+      // Первый \f определяет стиль для текста этой строки
+      if (firstFontInLine) {
+        lineFont = currentFont;
+        lineBold = currentBold;
+        lineItalic = currentItalic;
+        firstFontInLine = false;
+      }
+      return "";
+    });
+
+    // Цвет ACI: \C<index>; или \c<index>;
+    clean = clean.replace(/\\[cC](\d+);/g, (_, indexStr) => {
+      const idx = parseInt(indexStr);
+      if (idx === 0 || idx === 256) {
+        currentColor = undefined; // ByBlock/ByLayer — используем цвет entity
+      } else if (idx >= 1 && idx <= 255) {
+        currentColor = rgbNumberToHex(ACI_PALETTE[idx]);
+      }
+      return "";
+    });
+
+    // Высота: \H<value>;
+    clean = clean.replace(/\\H([\d.]+);/gi, (_, val) => {
+      currentHeight = parseFloat(val);
+      return "";
+    });
+
+    // Ширина, трекинг, наклон, выравнивание: \W, \T, \Q, \A
+    clean = clean.replace(/\\[WTQA][\d.+-]+;/gi, "");
+    // Подчёркивание, надчёркивание, зачёркивание: \L/\l, \O/\o, \K/\k
+    clean = clean.replace(/\\[LOKlok]/g, "");
+    // Дроби: \S<text>^<text>;
+    clean = clean.replace(/\\S[^;]*;/g, "");
+    // Неразрывный пробел
+    clean = clean.replace(/\\~/g, " ");
+    // Фигурные скобки группировки
+    clean = clean.replace(/[{}]/g, "");
+    // Оставшиеся неизвестные escape-последовательности \X...;
+    clean = clean.replace(/\\[a-zA-Z][^;]*;/g, "");
+
+    if (clean.length > 0) {
+      lines.push({
+        text: clean,
+        color: currentColor,
+        height: currentHeight,
+        bold: lineBold,
+        italic: lineItalic,
+        fontFamily: lineFont,
+      });
+    }
+  }
+
+  return lines;
+};
+
+/**
+ * Определение горизонтального выравнивания из MTEXT attachmentPoint (code 71)
+ * 1,4,7 = Left; 2,5,8 = Center; 3,6,9 = Right
+ */
+const getMTextHAlign = (attachmentPoint?: number): "left" | "center" | "right" => {
+  if (!attachmentPoint) return "left";
+  const col = ((attachmentPoint - 1) % 3); // 0=left, 1=center, 2=right
+  if (col === 1) return "center";
+  if (col === 2) return "right";
+  return "left";
+};
+
+/**
+ * Определение горизонтального выравнивания из TEXT halign (code 72)
+ * 0 = Left, 1 = Center, 2 = Right, 3 = Aligned, 4 = Middle, 5 = Fit
+ */
+const getTextHAlign = (halign?: number): "left" | "center" | "right" => {
+  if (halign === 1 || halign === 4) return "center";
+  if (halign === 2) return "right";
+  return "left";
+};
+
 /**
  * Создание текстового меша с использованием Canvas текстуры
  * @param color - Цвет текста (hex строка)
+ * @param bold - Жирный шрифт
+ * @param italic - Курсив
+ * @param hAlign - Горизонтальное выравнивание: 'left' | 'center' | 'right'
+ * @param fontFamily - Имя шрифта (по умолчанию Arial)
  */
-const createTextMesh = (text: string, height: number, color: string): THREE.Mesh => {
-  const CANVAS_SCALE = 10; // коэффициент увеличения разрешения для четкости текстуры
+const createTextMesh = (
+  text: string,
+  height: number,
+  color: string,
+  bold = false,
+  italic = false,
+  hAlign: "left" | "center" | "right" = "center",
+  fontFamily = "Arial",
+): THREE.Mesh => {
+  const CANVAS_SCALE = 10;
   const TEXT_CANVAS_PADDING = 4;
   const TEXT_HEIGHT_MULTIPLIER = 1.2;
 
@@ -539,8 +685,8 @@ const createTextMesh = (text: string, height: number, color: string): THREE.Mesh
   const context = canvas.getContext("2d")!;
 
   const fontSize = Math.max(height * CANVAS_SCALE, TEXT_HEIGHT);
-  const font = `${fontSize}px Arial, sans-serif`;
-  context.font = font;
+  const fontStyle = `${italic ? "italic " : ""}${bold ? "bold " : ""}${fontSize}px '${fontFamily}', Arial, sans-serif`;
+  context.font = fontStyle;
   const textMetrics = context.measureText(text);
 
   const canvasWidth = Math.ceil(textMetrics.width) + TEXT_CANVAS_PADDING * 2;
@@ -549,7 +695,7 @@ const createTextMesh = (text: string, height: number, color: string): THREE.Mesh
   canvas.width = canvasWidth;
   canvas.height = canvasHeight;
 
-  context.font = font;
+  context.font = fontStyle;
   context.fillStyle = color;
   context.textAlign = "left";
   context.textBaseline = "middle";
@@ -564,7 +710,15 @@ const createTextMesh = (text: string, height: number, color: string): THREE.Mesh
   });
 
   const aspectRatio = canvasWidth / canvasHeight;
-  const geometry = new THREE.PlaneGeometry(height * aspectRatio, height);
+  const meshWidth = height * aspectRatio;
+  const geometry = new THREE.PlaneGeometry(meshWidth, height);
+
+  // Сдвигаем геометрию для выравнивания: origin = точка привязки текста
+  if (hAlign === "left") {
+    geometry.translate(meshWidth / 2, 0, 0);
+  } else if (hAlign === "right") {
+    geometry.translate(-meshWidth / 2, 0, 0);
+  }
 
   const mesh = new THREE.Mesh(geometry, material);
 
@@ -804,15 +958,15 @@ const processEntity = (
       break;
     }
 
-    case "TEXT":
-    case "MTEXT": {
+    case "TEXT": {
       if (isTextEntity(entity)) {
         const textPosition = entity.position || entity.startPoint;
         const textContent = entity.text;
         const textHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
+        const hAlign = getTextHAlign(entity.halign);
 
         if (textPosition && textContent) {
-          const textMesh = createTextMesh(textContent, textHeight, entityColor);
+          const textMesh = createTextMesh(replaceSpecialChars(textContent), textHeight, entityColor, false, false, hAlign);
           textMesh.position.set(textPosition.x, textPosition.y, 0);
 
           if (entity.rotation) {
@@ -821,6 +975,59 @@ const processEntity = (
           }
 
           return textMesh;
+        }
+      }
+      break;
+    }
+
+    case "MTEXT": {
+      if (isTextEntity(entity)) {
+        const textPosition = entity.position || entity.startPoint;
+        const textContent = entity.text;
+        const defaultHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
+        const hAlign = getMTextHAlign(entity.attachmentPoint);
+
+        if (textPosition && textContent) {
+          const lines = parseMTextContent(textContent);
+
+          if (lines.length === 1) {
+            // Одна строка — простой меш
+            const line = lines[0];
+            const h = line.height || defaultHeight;
+            const c = line.color || entityColor;
+            const textMesh = createTextMesh(line.text, h, c, line.bold, line.italic, hAlign, line.fontFamily);
+            textMesh.position.set(textPosition.x, textPosition.y, 0);
+
+            if (entity.rotation) {
+              const rotationRadians = (entity.rotation * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
+              textMesh.rotation.z = rotationRadians;
+            }
+
+            return textMesh;
+          }
+
+          // Многострочный текст — Group с мешем на каждую строку
+          const textGroup = new THREE.Group();
+          const LINE_SPACING = 1.4; // межстрочный интервал (множитель высоты)
+          let yOffset = 0;
+
+          for (const line of lines) {
+            const h = line.height || defaultHeight;
+            const c = line.color || entityColor;
+            const mesh = createTextMesh(line.text, h, c, line.bold, line.italic, hAlign, line.fontFamily);
+            mesh.position.set(0, yOffset, 0);
+            textGroup.add(mesh);
+            yOffset -= h * LINE_SPACING;
+          }
+
+          textGroup.position.set(textPosition.x, textPosition.y, 0);
+
+          if (entity.rotation) {
+            const rotationRadians = (entity.rotation * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
+            textGroup.rotation.z = rotationRadians;
+          }
+
+          return textGroup;
         }
       }
       break;
