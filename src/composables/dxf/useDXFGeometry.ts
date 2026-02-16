@@ -538,13 +538,16 @@ interface MTextLine {
 }
 
 /**
- * Замена DXF спецсимволов: %%d → °, %%p → ±, %%c → Ø
+ * Замена DXF спецсимволов:
+ * %%d → °, %%p → ±, %%c → Ø, %%nnn → символ по коду, %%u/%%o → убираем
  */
 const replaceSpecialChars = (text: string): string =>
   text
     .replace(/%%[dD]/g, "°")
     .replace(/%%[pP]/g, "±")
-    .replace(/%%[cC]/g, "Ø");
+    .replace(/%%[cC]/g, "Ø")
+    .replace(/%%[uUoO]/g, "") // toggle underline/overline — убираем
+    .replace(/%%(\d{3})/g, (_, code) => String.fromCharCode(parseInt(code)));
 
 /**
  * Парсинг MTEXT форматирования в массив строк с цветом и высотой.
@@ -552,10 +555,22 @@ const replaceSpecialChars = (text: string): string =>
  * \f...; (шрифт), %%d/%%p/%%c (спецсимволы), {}, \L/\O/\K и др.
  */
 const parseMTextContent = (rawText: string): MTextLine[] => {
-  // Спецсимволы до разбора форматирования
-  const text = replaceSpecialChars(rawText);
+  // 1. Защищаем литеральные escape-последовательности placeholder'ами,
+  //    чтобы они не были съедены парсером форматирования (\\ → \, \{ → {, \} → })
+  let text = rawText
+    .replace(/\\\\/g, "\x01")
+    .replace(/\\\{/g, "\x02")
+    .replace(/\\\}/g, "\x03");
 
-  // Разбиваем по \P (перенос строки в MTEXT)
+  // 2. Unicode символы по коду: \U+XXXX → символ
+  text = text.replace(/\\U\+([0-9A-Fa-f]{4})/g, (_, hex) =>
+    String.fromCodePoint(parseInt(hex, 16)),
+  );
+
+  // 3. Спецсимволы %%d, %%p, %%c, %%nnn
+  text = replaceSpecialChars(text);
+
+  // 4. Разбиваем по \P (перенос строки в MTEXT)
   const rawLines = text.split(/\\P/);
 
   const lines: MTextLine[] = [];
@@ -610,6 +625,8 @@ const parseMTextContent = (rawText: string): MTextLine[] => {
       return "";
     });
 
+    // Отступы абзаца: \pi<indent>,l<left>,r<right>,t<tabs>;
+    clean = clean.replace(/\\p[^;]*;/g, "");
     // Ширина, трекинг, наклон, выравнивание: \W, \T, \Q, \A
     clean = clean.replace(/\\[WTQA][\d.+-]+;/gi, "");
     // Подчёркивание, надчёркивание, зачёркивание: \L/\l, \O/\o, \K/\k
@@ -618,10 +635,15 @@ const parseMTextContent = (rawText: string): MTextLine[] => {
     clean = clean.replace(/\\S[^;]*;/g, "");
     // Неразрывный пробел
     clean = clean.replace(/\\~/g, " ");
-    // Фигурные скобки группировки
+    // Разрыв колонки \N → пробел
+    clean = clean.replace(/\\N/g, " ");
+    // Фигурные скобки группировки (литеральные уже защищены placeholder'ами)
     clean = clean.replace(/[{}]/g, "");
     // Оставшиеся неизвестные escape-последовательности \X...;
     clean = clean.replace(/\\[a-zA-Z][^;]*;/g, "");
+
+    // Восстанавливаем литеральные символы из placeholder'ов
+    clean = clean.replace(/\x01/g, "\\").replace(/\x02/g, "{").replace(/\x03/g, "}");
 
     if (clean.length > 0) {
       lines.push({
@@ -661,12 +683,35 @@ const getTextHAlign = (halign?: number): "left" | "center" | "right" => {
 };
 
 /**
+ * Определение вертикального выравнивания из MTEXT attachmentPoint (code 71)
+ * 1-3 = Top; 4-6 = Middle; 7-9 = Bottom
+ */
+const getMTextVAlign = (attachmentPoint?: number): "top" | "middle" | "bottom" => {
+  if (!attachmentPoint) return "top";
+  const row = Math.ceil(attachmentPoint / 3); // 1=top, 2=middle, 3=bottom
+  if (row === 2) return "middle";
+  if (row === 3) return "bottom";
+  return "top";
+};
+
+/**
+ * Определение вертикального выравнивания из TEXT valign (code 73)
+ * 0 = Baseline, 1 = Bottom, 2 = Middle, 3 = Top
+ */
+const getTextVAlign = (valign?: number): "top" | "middle" | "bottom" => {
+  if (valign === 3) return "top";
+  if (valign === 2) return "middle";
+  return "bottom"; // 0=Baseline ≈ bottom, 1=Bottom
+};
+
+/**
  * Создание текстового меша с использованием Canvas текстуры
  * @param color - Цвет текста (hex строка)
  * @param bold - Жирный шрифт
  * @param italic - Курсив
  * @param hAlign - Горизонтальное выравнивание: 'left' | 'center' | 'right'
  * @param fontFamily - Имя шрифта (по умолчанию Arial)
+ * @param vAlign - Вертикальное выравнивание: 'top' | 'middle' | 'bottom'
  */
 const createTextMesh = (
   text: string,
@@ -676,6 +721,7 @@ const createTextMesh = (
   italic = false,
   hAlign: "left" | "center" | "right" = "center",
   fontFamily = "Arial",
+  vAlign: "top" | "middle" | "bottom" = "middle",
 ): THREE.Mesh => {
   const CANVAS_SCALE = 10;
   const TEXT_CANVAS_PADDING = 4;
@@ -714,10 +760,10 @@ const createTextMesh = (
   const geometry = new THREE.PlaneGeometry(meshWidth, height);
 
   // Сдвигаем геометрию для выравнивания: origin = точка привязки текста
-  if (hAlign === "left") {
-    geometry.translate(meshWidth / 2, 0, 0);
-  } else if (hAlign === "right") {
-    geometry.translate(-meshWidth / 2, 0, 0);
+  const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
+  const ty = vAlign === "top" ? -height / 2 : vAlign === "bottom" ? height / 2 : 0;
+  if (tx !== 0 || ty !== 0) {
+    geometry.translate(tx, ty, 0);
   }
 
   const mesh = new THREE.Mesh(geometry, material);
@@ -964,9 +1010,10 @@ const processEntity = (
         const textContent = entity.text;
         const textHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
         const hAlign = getTextHAlign(entity.halign);
+        const vAlign = getTextVAlign(entity.valign);
 
         if (textPosition && textContent) {
-          const textMesh = createTextMesh(replaceSpecialChars(textContent), textHeight, entityColor, false, false, hAlign);
+          const textMesh = createTextMesh(replaceSpecialChars(textContent), textHeight, entityColor, false, false, hAlign, "Arial", vAlign);
           textMesh.position.set(textPosition.x, textPosition.y, 0);
 
           if (entity.rotation) {
@@ -986,6 +1033,7 @@ const processEntity = (
         const textContent = entity.text;
         const defaultHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
         const hAlign = getMTextHAlign(entity.attachmentPoint);
+        const vAlign = getMTextVAlign(entity.attachmentPoint);
 
         if (textPosition && textContent) {
           const lines = parseMTextContent(textContent);
@@ -995,7 +1043,7 @@ const processEntity = (
             const line = lines[0];
             const h = line.height || defaultHeight;
             const c = line.color || entityColor;
-            const textMesh = createTextMesh(line.text, h, c, line.bold, line.italic, hAlign, line.fontFamily);
+            const textMesh = createTextMesh(line.text, h, c, line.bold, line.italic, hAlign, line.fontFamily, vAlign);
             textMesh.position.set(textPosition.x, textPosition.y, 0);
 
             if (entity.rotation) {
@@ -1007,20 +1055,35 @@ const processEntity = (
           }
 
           // Многострочный текст — Group с мешем на каждую строку
+          // Все строки выравниваем с vAlign="top": origin каждого меша на верхнем крае
           const textGroup = new THREE.Group();
-          const LINE_SPACING = 1.4; // межстрочный интервал (множитель высоты)
+          const LINE_SPACING = 1.4;
           let yOffset = 0;
+          let totalHeight = 0;
 
           for (const line of lines) {
             const h = line.height || defaultHeight;
             const c = line.color || entityColor;
-            const mesh = createTextMesh(line.text, h, c, line.bold, line.italic, hAlign, line.fontFamily);
+            const mesh = createTextMesh(line.text, h, c, line.bold, line.italic, hAlign, line.fontFamily, "top");
             mesh.position.set(0, yOffset, 0);
             textGroup.add(mesh);
             yOffset -= h * LINE_SPACING;
+            totalHeight += h * LINE_SPACING;
           }
+          // Корректируем totalHeight: последняя строка без trailing spacing
+          const lastLineHeight = lines[lines.length - 1].height || defaultHeight;
+          totalHeight = totalHeight - lastLineHeight * LINE_SPACING + lastLineHeight;
 
-          textGroup.position.set(textPosition.x, textPosition.y, 0);
+          // Вертикальное смещение группы в зависимости от vAlign
+          let groupYOffset = 0;
+          if (vAlign === "middle") {
+            groupYOffset = totalHeight / 2;
+          } else if (vAlign === "bottom") {
+            groupYOffset = totalHeight;
+          }
+          // Top: без смещения (строки идут вниз от позиции)
+
+          textGroup.position.set(textPosition.x, textPosition.y + groupYOffset, 0);
 
           if (entity.rotation) {
             const rotationRadians = (entity.rotation * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
