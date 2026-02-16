@@ -27,11 +27,19 @@ interface IHatchBoundaryPath {
   polylineVertices?: (IPoint & { bulge?: number })[];
 }
 
+interface IHatchPatternLine {
+  angle: number;
+  basePoint: IPoint;
+  offset: IPoint;
+  dashes: number[];
+}
+
 export interface IHatchEntity extends IEntityBase {
   type: "HATCH";
   patternName: string;
   solid: boolean;
   boundaryPaths: IHatchBoundaryPath[];
+  patternLines?: IHatchPatternLine[];
 }
 
 /**
@@ -162,6 +170,66 @@ function parsePolylineBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatc
   return { path: { polylineVertices: vertices }, curr };
 }
 
+/**
+ * Парсит секцию определения паттерна (pattern definition lines).
+ * code 78 — количество линий, для каждой: 53, 43, 44, 45, 46, 79, 49×N
+ */
+function parsePatternLines(scanner: DxfScanner, curr: IGroup, numLines: number): { lines: IHatchPatternLine[]; curr: IGroup } {
+  const lines: IHatchPatternLine[] = [];
+
+  for (let i = 0; i < numLines; i++) {
+    const pl: IHatchPatternLine = {
+      angle: 0,
+      basePoint: { x: 0, y: 0 },
+      offset: { x: 0, y: 0 },
+      dashes: [],
+    };
+    let numDashes = 0;
+
+    // code 53 — угол линии
+    if (curr.code === 53) {
+      pl.angle = curr.value as number;
+      curr = scanner.next();
+    }
+    // code 43 — base point X
+    if (curr.code === 43) {
+      pl.basePoint.x = curr.value as number;
+      curr = scanner.next();
+    }
+    // code 44 — base point Y
+    if (curr.code === 44) {
+      pl.basePoint.y = curr.value as number;
+      curr = scanner.next();
+    }
+    // code 45 — offset X
+    if (curr.code === 45) {
+      pl.offset.x = curr.value as number;
+      curr = scanner.next();
+    }
+    // code 46 — offset Y
+    if (curr.code === 46) {
+      pl.offset.y = curr.value as number;
+      curr = scanner.next();
+    }
+    // code 79 — количество дэшей
+    if (curr.code === 79) {
+      numDashes = curr.value as number;
+      curr = scanner.next();
+    }
+    // code 49 × numDashes — длины дэшей
+    for (let d = 0; d < numDashes; d++) {
+      if (curr.code === 49) {
+        pl.dashes.push(curr.value as number);
+        curr = scanner.next();
+      }
+    }
+
+    lines.push(pl);
+  }
+
+  return { lines, curr };
+}
+
 export function parseHatch(scanner: DxfScanner, curr: IGroup): IHatchEntity {
   const entity: IHatchEntity = {
     type: "HATCH",
@@ -207,6 +275,18 @@ export function parseHatch(scanner: DxfScanner, curr: IGroup): IHatchEntity {
         }
         boundaryPathsParsed++;
         continue; // curr уже обновлён внутри парсера
+      }
+      case 78: {
+        // Секция определения паттерна
+        const numPatternLines = curr.value as number;
+        if (numPatternLines > 0) {
+          curr = scanner.next();
+          const result = parsePatternLines(scanner, curr, numPatternLines);
+          entity.patternLines = result.lines;
+          curr = result.curr;
+          continue; // curr уже обновлён
+        }
+        break;
       }
       default:
         helpers.checkCommonEntityProperties(entity, curr, scanner);

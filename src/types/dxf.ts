@@ -168,11 +168,19 @@ export interface HatchBoundaryPath {
   polylineVertices?: DxfVertex[];
 }
 
+export interface HatchPatternLine {
+  angle: number;        // градусы — code 53
+  basePoint: DxfVertex; // начало первой линии — codes 43/44
+  offset: DxfVertex;    // вектор смещения к следующей параллельной линии — codes 45/46
+  dashes: number[];     // длины дэшей — code 49 (+ = линия, - = пробел)
+}
+
 export interface DxfHatchEntity extends DxfEntityBase {
   type: "HATCH";
   patternName: string;
   solid: boolean; // code 70 = 1 → solid fill
   boundaryPaths: HatchBoundaryPath[];
+  patternLines?: HatchPatternLine[];
 }
 
 // Для неизвестных или неподдерживаемых типов
