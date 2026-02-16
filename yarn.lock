@@ -455,13 +455,6 @@ de-indent@^1.0.2:
   resolved "https://registry.yarnpkg.com/de-indent/-/de-indent-1.0.2.tgz#b2038e846dc33baa5796128d0804b455b8c1e21d"
   integrity sha512-e/1zu3xH5MQryN2zdVaF0OrdNLUbvWxzMbi+iNA6Bky7l1RoP8a2fIbRocyHclXt/arDrrR6lL3TqFD9pMQTsg==
 
-dxf-parser@^1.1.2:
-  version "1.1.2"
-  resolved "https://registry.yarnpkg.com/dxf-parser/-/dxf-parser-1.1.2.tgz#0b3ba561cd84b5945bee17403e235599bee8c50b"
-  integrity sha512-GPTumUvRkounlIazLIyJMmTWt+nlg+ksS0Hdm8jWvejmZKBTz6gvHTam76wRm4PQMma5sgKLThblQyeIJcH79Q==
-  dependencies:
-    loglevel "^1.7.1"
-
 entities@^4.5.0:
   version "4.5.0"
   resolved "https://registry.yarnpkg.com/entities/-/entities-4.5.0.tgz#5d268ea5e7113ec74c4d033b79ea5a35a488fb48"
@@ -515,11 +508,6 @@ he@^1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/he/-/he-1.2.0.tgz#84ae65fa7eafb165fddb61566ae14baf05664f0f"
   integrity sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==
-
-loglevel@^1.7.1:
-  version "1.9.2"
-  resolved "https://registry.yarnpkg.com/loglevel/-/loglevel-1.9.2.tgz#c2e028d6c757720107df4e64508530db6621ba08"
-  integrity sha512-HgMmCqIJSAKqo68l0rS2AanEWfkxaZ5wNiEFb5ggm08lDs9Xl2KxBlX3PTcaD2chBM1gXAYf491/M2Rv8Jwayg==
 
 magic-string@^0.30.21:
   version "0.30.21"

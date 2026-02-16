@@ -16,19 +16,10 @@ export function collectDXFStatistics(
     entitiesByType[type] = (entitiesByType[type] || 0) + 1;
   });
 
-  // Подсчитываем слои (из tables.LAYER)
+  // Подсчитываем слои (из tables.layer.layers)
   let layersCount = 0;
-  if (dxfData.tables?.LAYER) {
-    const layers = dxfData.tables.LAYER;
-    if (typeof layers === "object" && layers !== null) {
-      // tables.LAYER может быть объектом с layers или массивом
-      if (Array.isArray(layers)) {
-        layersCount = layers.length;
-      } else {
-        // Если это объект, считаем ключи
-        layersCount = Object.keys(layers).length;
-      }
-    }
+  if (dxfData.tables?.layer?.layers) {
+    layersCount = Object.keys(dxfData.tables.layer.layers).length;
   }
 
   // Подсчитываем блоки

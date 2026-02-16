@@ -16,8 +16,7 @@
   },
   "dependencies": {
     "vue": "^3.4.18",
-    "three": "^0.180.0",
-    "dxf-parser": "^1.1.2"
+    "three": "^0.180.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",

@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import * as THREE from "three";
 import type { Group } from "three";
-import DxfParser from "dxf-parser";
+import { parseDxf } from "@/parser";
 import type { DxfData } from "@/types/dxf";
 import { useThreeScene, type ThreeJSOptions } from "./useThreeScene";
 import { useCamera } from "./useCamera";
@@ -52,9 +52,7 @@ export function useDXFRenderer() {
   // Парсинг DXF из текста
   const parseDXF = (dxfText: string): DxfData => {
     try {
-      const parser = new DxfParser();
-      const dxf = parser.parseSync(dxfText);
-      return dxf as unknown as DxfData;
+      return parseDxf(dxfText);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown parsing error";
       throw new Error(`DXF file parsing error: ${message}`);
