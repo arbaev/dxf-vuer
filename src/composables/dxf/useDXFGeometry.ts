@@ -928,16 +928,17 @@ const processEntity = (
     case "POINT": {
       if (isPointEntity(entity)) {
         const pos = entity.position;
-        const size = POINT_MARKER_SIZE;
 
-        // Крестик: две линии (горизонтальная + вертикальная)
+        // Точка: одна вершина, рендерится как GL_POINTS
         const geometry = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(pos.x - size, pos.y, 0),
-          new THREE.Vector3(pos.x + size, pos.y, 0),
-          new THREE.Vector3(pos.x, pos.y - size, 0),
-          new THREE.Vector3(pos.x, pos.y + size, 0),
+          new THREE.Vector3(pos.x, pos.y, 0),
         ]);
-        return new THREE.LineSegments(geometry, lineMaterial);
+        const pointMaterial = new THREE.PointsMaterial({
+          color: entityColor,
+          size: POINT_MARKER_SIZE,
+          sizeAttenuation: false,
+        });
+        return new THREE.Points(geometry, pointMaterial);
       }
       break;
     }

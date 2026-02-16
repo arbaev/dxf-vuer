@@ -94,8 +94,8 @@ export const CATMULL_ROM_SEGMENTS_MULTIPLIER = 2;
 // Минимальное количество сегментов для CatmullRom сплайна
 export const MIN_CATMULL_ROM_SEGMENTS = 50;
 
-// Размер маркера точки POINT (крестик) в единицах DXF
-export const POINT_MARKER_SIZE = 1;
+// Размер маркера точки POINT в пикселях (sizeAttenuation: false)
+export const POINT_MARKER_SIZE = 3;
 
 // ============================================================================
 // TIMING - временные константы
