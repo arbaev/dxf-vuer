@@ -19,6 +19,7 @@ import { parseDimension } from "../entities/dimension";
 import { parseSpline } from "../entities/spline";
 import { parsePolyline } from "../entities/polyline";
 import { parseLWPolyline } from "../entities/lwpolyline";
+import { parseHatch } from "../entities/hatch";
 
 type EntityHandler = (scanner: DxfScanner, curr: IGroup) => IEntityBase;
 
@@ -38,6 +39,7 @@ const entityHandlers: Record<string, EntityHandler> = {
   SPLINE: parseSpline,
   POLYLINE: parsePolyline,
   LWPOLYLINE: parseLWPolyline,
+  HATCH: parseHatch,
 };
 
 /**

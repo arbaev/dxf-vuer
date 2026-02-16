@@ -143,6 +143,38 @@ export interface Dxf3DFaceEntity extends DxfEntityBase {
   hasContinuousLinetypePattern?: boolean;
 }
 
+// HATCH boundary edge типы
+export interface HatchLineEdge {
+  type: "line";
+  start: DxfVertex;
+  end: DxfVertex;
+}
+
+export interface HatchArcEdge {
+  type: "arc";
+  center: DxfVertex;
+  radius: number;
+  startAngle: number; // в градусах (из DXF)
+  endAngle: number;   // в градусах (из DXF)
+  ccw: boolean;
+}
+
+export type HatchEdge = HatchLineEdge | HatchArcEdge;
+
+export interface HatchBoundaryPath {
+  // Edge-based boundary
+  edges?: HatchEdge[];
+  // Polyline-based boundary
+  polylineVertices?: DxfVertex[];
+}
+
+export interface DxfHatchEntity extends DxfEntityBase {
+  type: "HATCH";
+  patternName: string;
+  solid: boolean; // code 70 = 1 → solid fill
+  boundaryPaths: HatchBoundaryPath[];
+}
+
 // Для неизвестных или неподдерживаемых типов
 export interface DxfUnknownEntity extends DxfEntityBase {
   type: string;
@@ -162,6 +194,7 @@ export type DxfEntity =
   | DxfEllipseEntity
   | DxfPointEntity
   | Dxf3DFaceEntity
+  | DxfHatchEntity
   | DxfUnknownEntity;
 
 export function isLineEntity(entity: DxfEntity): entity is DxfLineEntity {
@@ -210,6 +243,10 @@ export function isPointEntity(entity: DxfEntity): entity is DxfPointEntity {
 
 export function is3DFaceEntity(entity: DxfEntity): entity is Dxf3DFaceEntity {
   return entity.type === "3DFACE";
+}
+
+export function isHatchEntity(entity: DxfEntity): entity is DxfHatchEntity {
+  return entity.type === "HATCH";
 }
 
 // Слой DXF файла

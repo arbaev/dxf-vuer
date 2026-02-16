@@ -1,7 +1,7 @@
 // Создание геометрии Three.js из DXF данных
 import * as THREE from "three";
 import { NURBSCurve } from "three/examples/jsm/curves/NURBSCurve.js";
-import type { DxfVertex, DxfEntity, DxfData, DxfDimensionEntity, DxfLayer } from "@/types/dxf";
+import type { DxfVertex, DxfEntity, DxfData, DxfDimensionEntity, DxfLayer, HatchBoundaryPath, HatchEdge } from "@/types/dxf";
 import {
   isLineEntity,
   isCircleEntity,
@@ -15,6 +15,7 @@ import {
   isEllipseEntity,
   isPointEntity,
   is3DFaceEntity,
+  isHatchEntity,
 } from "@/types/dxf";
 import {
   TEXT_HEIGHT,
@@ -780,6 +781,166 @@ const createTextMesh = (
 };
 
 /**
+ * Конвертация boundary path HATCH в THREE.ShapePath (для Shape/Path)
+ */
+const boundaryPathToShapePath = (bp: HatchBoundaryPath): THREE.ShapePath | null => {
+  const shapePath = new THREE.ShapePath();
+
+  if (bp.edges && bp.edges.length > 0) {
+    // Edge-based boundary
+    const firstEdge = bp.edges[0];
+    if (firstEdge.type === "line") {
+      shapePath.moveTo(firstEdge.start.x, firstEdge.start.y);
+    } else {
+      // Для дуги — начальная точка на окружности
+      const startRad = (firstEdge.startAngle * Math.PI) / 180;
+      shapePath.moveTo(
+        firstEdge.center.x + firstEdge.radius * Math.cos(startRad),
+        firstEdge.center.y + firstEdge.radius * Math.sin(startRad),
+      );
+    }
+
+    for (const edge of bp.edges) {
+      addEdgeToPath(shapePath, edge);
+    }
+  } else if (bp.polylineVertices && bp.polylineVertices.length > 1) {
+    // Polyline-based boundary
+    const verts = bp.polylineVertices;
+    shapePath.moveTo(verts[0].x, verts[0].y);
+
+    for (let i = 0; i < verts.length - 1; i++) {
+      const v1 = verts[i];
+      const v2 = verts[i + 1];
+      if (!shapePath.currentPath) break;
+      if (v1.bulge && Math.abs(v1.bulge) > EPSILON) {
+        addBulgeArcToPath(shapePath, v1, v2, v1.bulge);
+      } else {
+        shapePath.currentPath.lineTo(v2.x, v2.y);
+      }
+    }
+  } else {
+    return null;
+  }
+
+  return shapePath;
+};
+
+/**
+ * Добавляет ребро HATCH (линия или дуга) в ShapePath
+ */
+const addEdgeToPath = (shapePath: THREE.ShapePath, edge: HatchEdge): void => {
+  if (!shapePath.currentPath) return;
+  if (edge.type === "line") {
+    shapePath.currentPath.lineTo(edge.end.x, edge.end.y);
+  } else {
+    // Arc edge — углы в градусах, конвертируем в радианы
+    const startRad = (edge.startAngle * Math.PI) / 180;
+    const endRad = (edge.endAngle * Math.PI) / 180;
+    shapePath.currentPath.absarc(
+      edge.center.x,
+      edge.center.y,
+      edge.radius,
+      startRad,
+      endRad,
+      !edge.ccw, // THREE.js: aClockwise=true означает CW, DXF ccw=true означает CCW
+    );
+  }
+};
+
+/**
+ * Добавляет bulge-дугу между двумя вершинами полилайна в ShapePath
+ */
+const addBulgeArcToPath = (
+  shapePath: THREE.ShapePath,
+  v1: DxfVertex,
+  v2: DxfVertex,
+  bulge: number,
+): void => {
+  if (!shapePath.currentPath) return;
+  const dx = v2.x - v1.x;
+  const dy = v2.y - v1.y;
+  const chordLength = Math.sqrt(dx * dx + dy * dy);
+  if (chordLength < EPSILON) {
+    shapePath.currentPath.lineTo(v2.x, v2.y);
+    return;
+  }
+
+  const theta = 4 * Math.atan(bulge);
+  const radius = chordLength / (2 * Math.sin(theta / 2));
+  const h = radius * Math.cos(theta / 2);
+
+  const midX = (v1.x + v2.x) / 2;
+  const midY = (v1.y + v2.y) / 2;
+  const perpX = -dy / chordLength;
+  const perpY = dx / chordLength;
+
+  const cx = midX + perpX * h;
+  const cy = midY + perpY * h;
+
+  const startAngle = Math.atan2(v1.y - cy, v1.x - cx);
+  const endAngle = Math.atan2(v2.y - cy, v2.x - cx);
+
+  // bulge > 0 → CCW, bulge < 0 → CW
+  // THREE.js absarc: aClockwise=true → CW
+  const clockwise = bulge < 0;
+
+  shapePath.currentPath!.absarc(cx, cy, Math.abs(radius), startAngle, endAngle, clockwise);
+};
+
+/**
+ * Конвертация boundary path в массив THREE.Vector3 для контурного отображения
+ */
+const boundaryPathToLinePoints = (bp: HatchBoundaryPath): THREE.Vector3[] => {
+  const points: THREE.Vector3[] = [];
+
+  if (bp.edges && bp.edges.length > 0) {
+    for (const edge of bp.edges) {
+      if (edge.type === "line") {
+        if (points.length === 0) {
+          points.push(new THREE.Vector3(edge.start.x, edge.start.y, 0));
+        }
+        points.push(new THREE.Vector3(edge.end.x, edge.end.y, 0));
+      } else {
+        const startRad = (edge.startAngle * Math.PI) / 180;
+        const endRad = (edge.endAngle * Math.PI) / 180;
+        let sweep = endRad - startRad;
+        if (edge.ccw) {
+          if (sweep < 0) sweep += 2 * Math.PI;
+        } else {
+          if (sweep > 0) sweep -= 2 * Math.PI;
+        }
+        const segments = Math.max(MIN_ARC_SEGMENTS, Math.floor(Math.abs(sweep) * CIRCLE_SEGMENTS / (2 * Math.PI)));
+        for (let i = 0; i <= segments; i++) {
+          const a = startRad + (i / segments) * sweep;
+          points.push(new THREE.Vector3(
+            edge.center.x + edge.radius * Math.cos(a),
+            edge.center.y + edge.radius * Math.sin(a),
+            0,
+          ));
+        }
+      }
+    }
+  } else if (bp.polylineVertices && bp.polylineVertices.length > 1) {
+    const verts = bp.polylineVertices;
+    points.push(new THREE.Vector3(verts[0].x, verts[0].y, 0));
+    for (let i = 0; i < verts.length - 1; i++) {
+      const v1 = verts[i];
+      const v2 = verts[i + 1];
+      if (v1.bulge && Math.abs(v1.bulge) > EPSILON) {
+        const p1 = new THREE.Vector3(v1.x, v1.y, 0);
+        const p2 = new THREE.Vector3(v2.x, v2.y, 0);
+        const arcPts = createBulgeArc(p1, p2, v1.bulge);
+        points.push(...arcPts.slice(1));
+      } else {
+        points.push(new THREE.Vector3(v2.x, v2.y, 0));
+      }
+    }
+  }
+
+  return points;
+};
+
+/**
  * Установить layerName в userData объекта
  */
 const setLayerName = (obj: THREE.Object3D | THREE.Object3D[], layerName: string) => {
@@ -1216,6 +1377,45 @@ const processEntity = (
     case "INSERT": {
       const blockGroup = createBlockGroup(entity, dxf, colorCtx, depth);
       return blockGroup;
+    }
+
+    case "HATCH": {
+      if (isHatchEntity(entity) && entity.boundaryPaths.length > 0) {
+        if (entity.solid) {
+          // Solid fill — ShapeGeometry + MeshBasicMaterial
+          const shapes: THREE.Shape[] = [];
+
+          for (let i = 0; i < entity.boundaryPaths.length; i++) {
+            const sp = boundaryPathToShapePath(entity.boundaryPaths[i]);
+            if (!sp) continue;
+            const pathShapes = sp.toShapes(false);
+            shapes.push(...pathShapes);
+          }
+
+          if (shapes.length === 0) break;
+
+          // Если несколько shapes — первый основной, остальные holes
+          // (Если в DXF отдельные контуры, ShapeGeometry обработает каждый)
+          const geometry = new THREE.ShapeGeometry(shapes);
+          const material = new THREE.MeshBasicMaterial({
+            color: entityColor,
+            side: THREE.DoubleSide,
+          });
+          return new THREE.Mesh(geometry, material);
+        } else {
+          // Pattern hatch — рендерим только контуры
+          const objects: THREE.Object3D[] = [];
+          for (const bp of entity.boundaryPaths) {
+            const pts = boundaryPathToLinePoints(bp);
+            if (pts.length > 1) {
+              const geometry = new THREE.BufferGeometry().setFromPoints(pts);
+              objects.push(new THREE.Line(geometry, lineMaterial));
+            }
+          }
+          return objects.length > 0 ? objects : null;
+        }
+      }
+      break;
     }
 
     default:
