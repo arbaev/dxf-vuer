@@ -1,7 +1,7 @@
 // Создание геометрии Three.js из DXF данных
 import * as THREE from "three";
 import { NURBSCurve } from "three/examples/jsm/curves/NURBSCurve.js";
-import type { DxfVertex, DxfEntity, DxfData, DxfDimensionEntity } from "@/types/dxf";
+import type { DxfVertex, DxfEntity, DxfData, DxfDimensionEntity, DxfLayer } from "@/types/dxf";
 import {
   isLineEntity,
   isCircleEntity,
@@ -12,11 +12,11 @@ import {
   isDimensionEntity,
   isInsertEntity,
   isSolidEntity,
+  isEllipseEntity,
+  isPointEntity,
+  is3DFaceEntity,
 } from "@/types/dxf";
 import {
-  TEXT_COLOR,
-  LINE_COLOR,
-  DIM_LINE_COLOR,
   TEXT_HEIGHT,
   DIM_TEXT_HEIGHT,
   DIM_TEXT_GAP,
@@ -33,7 +33,26 @@ import {
   MIN_NURBS_SEGMENTS,
   CATMULL_ROM_SEGMENTS_MULTIPLIER,
   MIN_CATMULL_ROM_SEGMENTS,
+  POINT_MARKER_SIZE,
 } from "@/constants";
+import { resolveEntityColor } from "@/utils/colorResolver";
+
+/** Контекст цвета для передачи в processEntity */
+interface EntityColorContext {
+  layers: Record<string, DxfLayer>;
+  blockColor?: string; // Цвет INSERT entity для ByBlock наследования
+  materialCache: Map<string, THREE.LineBasicMaterial>; // Кеш материалов по цвету
+}
+
+/** Получить LineBasicMaterial из кеша или создать новый */
+const getLineMaterial = (color: string, cache: Map<string, THREE.LineBasicMaterial>): THREE.LineBasicMaterial => {
+  let mat = cache.get(color);
+  if (!mat) {
+    mat = new THREE.LineBasicMaterial({ color });
+    cache.set(color, mat);
+  }
+  return mat;
+};
 
 /**
  * Создание дуги из двух точек с коэффициентом bulge
@@ -189,15 +208,6 @@ const createExtensionLine = (
 
 /**
  * Создание линий и стрелок для линейной размерности (горизонтальной или вертикальной)
- * @param point1 - Первая точка измерения
- * @param point2 - Вторая точка измерения
- * @param anchorPoint - Точка якоря (положение размерной линии)
- * @param textPos - Позиция текста (для разрыва линии)
- * @param dimLineMaterial - Материал для размерной линии
- * @param extensionLineMaterial - Материал для выносных линий
- * @param arrowMaterial - Материал для стрелок
- * @param isHorizontal - true для горизонтальной, false для вертикальной
- * @returns Массив объектов Three.js для добавления в группу
  */
 const createLinearDimensionLines = (
   point1: DxfVertex,
@@ -342,6 +352,7 @@ const extractDimensionData = (entity: DxfDimensionEntity) => {
 
 /**
  * Создание группы объектов для размерности
+ * @param color - Цвет размерной линии (hex строка)
  */
 const createDimensionGroup = (
   point1: DxfVertex,
@@ -350,17 +361,18 @@ const createDimensionGroup = (
   textPos: DxfVertex | undefined,
   _textHeight: number, // Параметр не используется, но оставлен для совместимости
   isRadial: boolean,
+  color: string,
 ): THREE.Group => {
   const dimGroup = new THREE.Group();
 
-  const dimLineMaterial = new THREE.LineBasicMaterial({ color: DIM_LINE_COLOR });
+  const dimLineMaterial = new THREE.LineBasicMaterial({ color });
   const extensionLineMaterial = new THREE.LineDashedMaterial({
-    color: DIM_LINE_COLOR,
+    color,
     dashSize: EXTENSION_LINE_DASH_SIZE,
     gapSize: EXTENSION_LINE_GAP_SIZE,
   });
   const arrowMaterial = new THREE.MeshBasicMaterial({
-    color: DIM_LINE_COLOR,
+    color,
     side: THREE.DoubleSide,
   });
 
@@ -421,10 +433,16 @@ const createDimensionGroup = (
  * Создание группы для INSERT entity (вставка блока)
  * @param insertEntity - INSERT entity с параметрами вставки
  * @param dxf - Данные DXF файла с блоками
+ * @param colorCtx - Контекст цвета
  * @param depth - Текущая глубина рекурсии (защита от бесконечной рекурсии)
  * @returns THREE.Group с отрендеренным блоком или null если блок не найден
  */
-const createBlockGroup = (insertEntity: DxfEntity, dxf: DxfData, depth = 0): THREE.Group | null => {
+const createBlockGroup = (
+  insertEntity: DxfEntity,
+  dxf: DxfData,
+  colorCtx: EntityColorContext,
+  depth = 0,
+): THREE.Group | null => {
   const MAX_RECURSION_DEPTH = 10;
 
   if (depth > MAX_RECURSION_DEPTH) {
@@ -449,12 +467,19 @@ const createBlockGroup = (insertEntity: DxfEntity, dxf: DxfData, depth = 0): THR
     return null;
   }
 
+  // Вычисляем цвет INSERT entity для ByBlock наследования
+  const insertColor = resolveEntityColor(insertEntity, colorCtx.layers, colorCtx.blockColor);
+  const blockColorCtx: EntityColorContext = {
+    layers: colorCtx.layers,
+    blockColor: insertColor,
+    materialCache: colorCtx.materialCache,
+  };
+
   const blockGroup = new THREE.Group();
-  const lineMaterial = new THREE.LineBasicMaterial({ color: LINE_COLOR });
 
   block.entities.forEach((entity: DxfEntity) => {
     try {
-      const obj = processEntity(entity, dxf, lineMaterial, depth + 1);
+      const obj = processEntity(entity, dxf, blockColorCtx, depth + 1);
       if (obj) {
         if (Array.isArray(obj)) {
           obj.forEach((o) => blockGroup.add(o));
@@ -485,8 +510,9 @@ const createBlockGroup = (insertEntity: DxfEntity, dxf: DxfData, depth = 0): THR
 
 /**
  * Создание текстового меша с использованием Canvas текстуры
+ * @param color - Цвет текста (hex строка)
  */
-const createTextMesh = (text: string, height: number): THREE.Mesh => {
+const createTextMesh = (text: string, height: number, color: string): THREE.Mesh => {
   const CANVAS_SCALE = 10; // коэффициент увеличения разрешения для четкости текстуры
   const TEXT_CANVAS_PADDING = 4;
   const TEXT_HEIGHT_MULTIPLIER = 1.2;
@@ -506,7 +532,7 @@ const createTextMesh = (text: string, height: number): THREE.Mesh => {
   canvas.height = canvasHeight;
 
   context.font = font;
-  context.fillStyle = TEXT_COLOR;
+  context.fillStyle = color;
   context.textAlign = "left";
   context.textBaseline = "middle";
   context.fillText(text, TEXT_CANVAS_PADDING, canvasHeight / 2);
@@ -536,19 +562,34 @@ const createTextMesh = (text: string, height: number): THREE.Mesh => {
 };
 
 /**
+ * Установить layerName в userData объекта
+ */
+const setLayerName = (obj: THREE.Object3D | THREE.Object3D[], layerName: string) => {
+  if (Array.isArray(obj)) {
+    obj.forEach((o) => { o.userData.layerName = layerName; });
+  } else {
+    obj.userData.layerName = layerName;
+  }
+};
+
+/**
  * Обработка entity
  * @param entity - Entity для обработки
  * @param dxf - Данные DXF файла
- * @param lineMaterial - Материал для линий
+ * @param colorCtx - Контекст цвета (слои, blockColor, кеш материалов)
  * @param depth - Глубина рекурсии для INSERT entities
  * @returns THREE.Object3D, массив объектов или null
  */
 const processEntity = (
   entity: DxfEntity,
   dxf: DxfData,
-  lineMaterial: THREE.LineBasicMaterial,
+  colorCtx: EntityColorContext,
   depth = 0,
 ): THREE.Object3D | THREE.Object3D[] | null => {
+  // Вычисляем цвет для этого entity
+  const entityColor = resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor);
+  const lineMaterial = getLineMaterial(entityColor, colorCtx.materialCache);
+
   switch (entity.type) {
     case "LINE": {
       if (isLineEntity(entity)) {
@@ -601,6 +642,55 @@ const processEntity = (
             0,
           ));
         }
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        return new THREE.Line(geometry, lineMaterial);
+      }
+      break;
+    }
+
+    case "ELLIPSE": {
+      if (isEllipseEntity(entity)) {
+        const majorX = entity.majorAxisEndPoint.x;
+        const majorY = entity.majorAxisEndPoint.y;
+
+        // Длина большой полуоси
+        const majorLength = Math.sqrt(majorX * majorX + majorY * majorY);
+        // Длина малой полуоси
+        const minorLength = majorLength * entity.axisRatio;
+
+        // Угол поворота эллипса (угол большой оси относительно оси X)
+        const rotation = Math.atan2(majorY, majorX);
+
+        let startAngle = entity.startAngle;
+        let endAngle = entity.endAngle;
+
+        // Полный эллипс: startAngle≈0 и endAngle≈2π, или оба≈0
+        const isFullEllipse =
+          Math.abs(endAngle - startAngle - 2 * Math.PI) < EPSILON ||
+          (Math.abs(startAngle) < EPSILON && Math.abs(endAngle) < EPSILON);
+
+        if (isFullEllipse) {
+          startAngle = 0;
+          endAngle = 2 * Math.PI;
+        }
+
+        const sweepAngle = endAngle - startAngle;
+        const segments = Math.max(
+          MIN_ARC_SEGMENTS,
+          Math.floor(Math.abs(sweepAngle) * CIRCLE_SEGMENTS / (2 * Math.PI)),
+        );
+
+        const points: THREE.Vector3[] = [];
+        for (let i = 0; i <= segments; i++) {
+          const t = startAngle + (i / segments) * sweepAngle;
+          // Параметрическое уравнение эллипса с поворотом
+          const localX = majorLength * Math.cos(t);
+          const localY = minorLength * Math.sin(t);
+          const worldX = entity.center.x + localX * Math.cos(rotation) - localY * Math.sin(rotation);
+          const worldY = entity.center.y + localX * Math.sin(rotation) + localY * Math.cos(rotation);
+          points.push(new THREE.Vector3(worldX, worldY, 0));
+        }
+
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         return new THREE.Line(geometry, lineMaterial);
       }
@@ -701,7 +791,7 @@ const processEntity = (
         const textHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
 
         if (textPosition && textContent) {
-          const textMesh = createTextMesh(textContent, textHeight);
+          const textMesh = createTextMesh(textContent, textHeight, entityColor);
           textMesh.position.set(textPosition.x, textPosition.y, 0);
 
           if (entity.rotation) {
@@ -729,12 +819,13 @@ const processEntity = (
           dimData.textPos,
           dimData.textHeight,
           dimData.isRadial,
+          entityColor,
         );
 
         const objects: THREE.Object3D[] = [dimGroup];
 
         if (dimData.textPos) {
-          const textMesh = createTextMesh(dimData.dimensionText, dimData.textHeight);
+          const textMesh = createTextMesh(dimData.dimensionText, dimData.textHeight, entityColor);
           textMesh.position.set(dimData.textPos.x, dimData.textPos.y, 0.2);
 
           if (dimData.angle !== 0) {
@@ -774,7 +865,7 @@ const processEntity = (
         geometry.computeVertexNormals();
 
         const material = new THREE.MeshBasicMaterial({
-          color: LINE_COLOR,
+          color: entityColor,
           side: THREE.DoubleSide,
         });
         return new THREE.Mesh(geometry, material);
@@ -782,8 +873,56 @@ const processEntity = (
       break;
     }
 
+    case "3DFACE": {
+      if (is3DFaceEntity(entity)) {
+        const pts = entity.vertices;
+        if (!pts || pts.length < 3) break;
+
+        const geometry = new THREE.BufferGeometry();
+        const vertices: number[] = [];
+        const indices: number[] = [];
+
+        for (const p of pts) {
+          vertices.push(p.x, p.y, p.z || 0);
+        }
+
+        indices.push(0, 1, 2);
+        if (pts.length >= 4) {
+          indices.push(0, 2, 3);
+        }
+
+        geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
+        const material = new THREE.MeshBasicMaterial({
+          color: entityColor,
+          side: THREE.DoubleSide,
+        });
+        return new THREE.Mesh(geometry, material);
+      }
+      break;
+    }
+
+    case "POINT": {
+      if (isPointEntity(entity)) {
+        const pos = entity.position;
+        const size = POINT_MARKER_SIZE;
+
+        // Крестик: две линии (горизонтальная + вертикальная)
+        const geometry = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(pos.x - size, pos.y, 0),
+          new THREE.Vector3(pos.x + size, pos.y, 0),
+          new THREE.Vector3(pos.x, pos.y - size, 0),
+          new THREE.Vector3(pos.x, pos.y + size, 0),
+        ]);
+        return new THREE.LineSegments(geometry, lineMaterial);
+      }
+      break;
+    }
+
     case "INSERT": {
-      const blockGroup = createBlockGroup(entity, dxf, depth);
+      const blockGroup = createBlockGroup(entity, dxf, colorCtx, depth);
       return blockGroup;
     }
 
@@ -807,17 +946,28 @@ export function createThreeObjectsFromDXF(dxf: DxfData): {
     return { group };
   }
 
-  const lineMaterial = new THREE.LineBasicMaterial({
-    color: LINE_COLOR,
-  });
+  // Извлекаем слои из tables
+  const layers: Record<string, DxfLayer> = {};
+  if (dxf.tables?.layer?.layers) {
+    Object.assign(layers, dxf.tables.layer.layers);
+  }
+
+  // Контекст цвета с кешем материалов
+  const colorCtx: EntityColorContext = {
+    layers,
+    materialCache: new Map(),
+  };
 
   const errors: string[] = [];
   const unsupportedTypes: string[] = [];
 
   dxf.entities.forEach((entity: DxfEntity, index: number) => {
     try {
-      const obj = processEntity(entity, dxf, lineMaterial, 0);
+      const obj = processEntity(entity, dxf, colorCtx, 0);
       if (obj) {
+        // Сохраняем имя слоя в userData для управления видимостью
+        setLayerName(obj, entity.layer || "0");
+
         if (Array.isArray(obj)) {
           obj.forEach((o) => group.add(o));
         } else {
@@ -851,7 +1001,6 @@ export function createThreeObjectsFromDXF(dxf: DxfData): {
 
     const errorSummary = `Failed to process ${totalIssues} of ${dxf.entities.length} objects. ${warningParts.join(", ")}`;
 
-    // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: возвращаем unsupportedEntities для отображения на странице
     return {
       group,
       warnings: errorSummary,

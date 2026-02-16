@@ -122,6 +122,18 @@ export function useDXFRenderer() {
     }
   };
 
+  // Применить видимость слоёв к объектам на сцене
+  const applyLayerVisibility = (visibleLayers: Set<string>) => {
+    if (!currentDXFGroup) return;
+    currentDXFGroup.traverse((child) => {
+      const layerName = child.userData?.layerName;
+      if (layerName !== undefined) {
+        child.visible = visibleLayers.has(layerName);
+      }
+    });
+    render();
+  };
+
   // Полная очистка ресурсов
   const cleanup = () => {
     cleanupScene(currentDXFGroup);
@@ -139,6 +151,7 @@ export function useDXFRenderer() {
     displayDXF,
     handleResize,
     resetView,
+    applyLayerVisibility,
     cleanup,
   };
 }

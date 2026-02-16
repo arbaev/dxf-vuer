@@ -12,6 +12,12 @@ interface DxfEntityBase {
   handle?: string | number;
   ownerHandle?: string | number;
   layer?: string;
+  // Цвет и стиль (из dxf-parser IEntity)
+  colorIndex?: number; // ACI индекс: 0=ByBlock, 1-255=цвет, 256=ByLayer
+  color?: number; // RGB truecolor (DXF code 420)
+  lineweight?: number; // -3=Standard, -2=ByLayer, -1=ByBlock, или значение в 0.01мм
+  lineType?: string; // Тип линии (CONTINUOUS, DASHED и т.д.)
+  visible?: boolean; // Видимость entity
 }
 
 export interface DxfLineEntity extends DxfEntityBase {
@@ -113,6 +119,29 @@ export interface DxfSolidEntity extends DxfEntityBase {
   points: [DxfVertex, DxfVertex, DxfVertex, DxfVertex];
 }
 
+export interface DxfEllipseEntity extends DxfEntityBase {
+  type: "ELLIPSE";
+  center: DxfVertex;
+  majorAxisEndPoint: DxfVertex; // Конец большой полуоси ОТНОСИТЕЛЬНО центра
+  axisRatio: number; // Отношение малой оси к большой (0 < ratio <= 1)
+  startAngle: number; // В радианах
+  endAngle: number; // В радианах
+}
+
+export interface DxfPointEntity extends DxfEntityBase {
+  type: "POINT";
+  position: DxfVertex;
+  thickness?: number;
+  extrusionDirection?: DxfVertex;
+}
+
+export interface Dxf3DFaceEntity extends DxfEntityBase {
+  type: "3DFACE";
+  vertices: DxfVertex[];
+  shape?: boolean;
+  hasContinuousLinetypePattern?: boolean;
+}
+
 // Для неизвестных или неподдерживаемых типов
 export interface DxfUnknownEntity extends DxfEntityBase {
   type: string;
@@ -129,6 +158,9 @@ export type DxfEntity =
   | DxfDimensionEntity
   | DxfInsertEntity
   | DxfSolidEntity
+  | DxfEllipseEntity
+  | DxfPointEntity
+  | Dxf3DFaceEntity
   | DxfUnknownEntity;
 
 export function isLineEntity(entity: DxfEntity): entity is DxfLineEntity {
@@ -167,6 +199,37 @@ export function isSolidEntity(entity: DxfEntity): entity is DxfSolidEntity {
   return entity.type === "SOLID";
 }
 
+export function isEllipseEntity(entity: DxfEntity): entity is DxfEllipseEntity {
+  return entity.type === "ELLIPSE";
+}
+
+export function isPointEntity(entity: DxfEntity): entity is DxfPointEntity {
+  return entity.type === "POINT";
+}
+
+export function is3DFaceEntity(entity: DxfEntity): entity is Dxf3DFaceEntity {
+  return entity.type === "3DFACE";
+}
+
+// Слой DXF файла
+export interface DxfLayer {
+  name: string;
+  visible: boolean;
+  colorIndex: number;
+  color: number; // RGB как число
+  frozen: boolean;
+}
+
+// Типизированные таблицы DXF
+export interface DxfTables {
+  layer?: {
+    handle?: string;
+    ownerHandle?: string;
+    layers: Record<string, DxfLayer>;
+  };
+  [key: string]: unknown;
+}
+
 export interface DxfBlock {
   entities: DxfEntity[];
   name?: string;
@@ -183,7 +246,7 @@ export interface DxfBlock {
 export interface DxfData {
   entities: DxfEntity[];
   header?: Record<string, unknown>;
-  tables?: Record<string, unknown>;
+  tables?: DxfTables;
   blocks?: Record<string, DxfBlock>;
 }
 

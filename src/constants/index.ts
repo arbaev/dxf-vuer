@@ -30,13 +30,12 @@ export const SCENE_BG_COLOR = "#fafafa";
 // COLORS - цвета для отрисовки DXF элементов
 // ============================================================================
 
-// Цвет текста
+// Цвет по умолчанию когда entity/layer цвет не определён (белый → чёрный на светлом фоне)
+export const DEFAULT_ENTITY_COLOR = "#000000";
+
+// Fallback цвета (используются когда colorResolver недоступен)
 export const TEXT_COLOR = "#1976d2";
-
-// Цвет линий
 export const LINE_COLOR = "#1976d2";
-
-// Цвет размерных линий
 export const DIM_LINE_COLOR = "#606060";
 
 // ============================================================================
@@ -94,6 +93,9 @@ export const CATMULL_ROM_SEGMENTS_MULTIPLIER = 2;
 
 // Минимальное количество сегментов для CatmullRom сплайна
 export const MIN_CATMULL_ROM_SEGMENTS = 50;
+
+// Размер маркера точки POINT (крестик) в единицах DXF
+export const POINT_MARKER_SIZE = 1;
 
 // ============================================================================
 // TIMING - временные константы

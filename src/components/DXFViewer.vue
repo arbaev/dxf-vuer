@@ -48,6 +48,15 @@
       </svg>
     </button>
 
+    <!-- Панель слоёв -->
+    <LayerPanel
+      v-if="hasDXFData && layerList.length > 0"
+      :layers="layerList"
+      @toggle-layer="handleToggleLayer"
+      @show-all="handleShowAllLayers"
+      @hide-all="handleHideAllLayers"
+    />
+
     <!-- Placeholder когда нет данных -->
     <div v-else-if="!hasDXFData" class="message-overlay">
       <div class="message-content placeholder">
@@ -71,8 +80,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { useDXFRenderer } from "@/composables/dxf/useDXFRenderer";
-import type { DxfData } from "@/types/dxf";
+import { useLayers } from "@/composables/dxf/useLayers";
+import type { DxfData, DxfLayer } from "@/types/dxf";
 import { DEBOUNCE_DELAY } from "@/constants";
+import LayerPanel from "./LayerPanel.vue";
 
 // Props
 interface Props {
@@ -110,8 +121,19 @@ const {
   displayDXF,
   handleResize,
   resetView,
+  applyLayerVisibility,
   cleanup,
 } = useDXFRenderer();
+
+const {
+  layerList,
+  visibleLayerNames,
+  initLayers,
+  toggleLayerVisibility,
+  showAllLayers,
+  hideAllLayers,
+  clearLayers,
+} = useLayers();
 
 const hasDXFData = computed(() => {
   return props.dxfData && props.dxfData.entities && props.dxfData.entities.length > 0;
@@ -122,10 +144,39 @@ const handleResetView = () => {
   emit("reset-view");
 };
 
+// Инициализация слоёв из DXF данных
+const initLayersFromDXF = (dxf: DxfData) => {
+  const dxfLayers = (dxf.tables?.layer?.layers || {}) as Record<string, DxfLayer>;
+  // Подсчёт entity по слоям
+  const entityLayerCounts: Record<string, number> = {};
+  for (const entity of dxf.entities) {
+    const layerName = entity.layer || "0";
+    entityLayerCounts[layerName] = (entityLayerCounts[layerName] || 0) + 1;
+  }
+  initLayers(dxfLayers, entityLayerCounts);
+};
+
+// Обработчики событий панели слоёв
+const handleToggleLayer = (layerName: string) => {
+  toggleLayerVisibility(layerName);
+  applyLayerVisibility(visibleLayerNames.value);
+};
+
+const handleShowAllLayers = () => {
+  showAllLayers();
+  applyLayerVisibility(visibleLayerNames.value);
+};
+
+const handleHideAllLayers = () => {
+  hideAllLayers();
+  applyLayerVisibility(visibleLayerNames.value);
+};
+
 const loadDXFFromText = (dxfText: string) => {
   try {
     const dxf = parseDXF(dxfText);
     const unsupportedEntities = displayDXF(dxf);
+    initLayersFromDXF(dxf);
     emit("dxf-loaded", true);
     emit("dxf-data", dxf);
 
@@ -134,6 +185,7 @@ const loadDXFFromText = (dxfText: string) => {
       emit("unsupported-entities", unsupportedEntities);
     }
   } catch (error) {
+    clearLayers();
     const errorMsg = error instanceof Error ? error.message : "Unknown error loading DXF";
     emit("error", errorMsg);
     emit("dxf-loaded", false);
@@ -144,6 +196,7 @@ const loadDXFFromText = (dxfText: string) => {
 const loadDXFFromData = (dxfData: DxfData) => {
   try {
     const unsupportedEntities = displayDXF(dxfData);
+    initLayersFromDXF(dxfData);
     emit("dxf-loaded", true);
     emit("dxf-data", dxfData);
 
@@ -152,6 +205,7 @@ const loadDXFFromData = (dxfData: DxfData) => {
       emit("unsupported-entities", unsupportedEntities);
     }
   } catch (error) {
+    clearLayers();
     const errorMsg =
       error instanceof Error ? error.message : "Unknown error displaying DXF";
     emit("error", errorMsg);
