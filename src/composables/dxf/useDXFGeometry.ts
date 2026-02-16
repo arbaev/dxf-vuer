@@ -767,8 +767,11 @@ const processEntity = (
           });
 
           try {
-            // Создаём NURBS кривую
-            const curve = new NURBSCurve(degree, knots, controlPoints);
+            // startKnot/endKnot — индексы в массиве knots, ограничивающие валидный диапазон
+            // Для периодических сплайнов knots[0] < knots[degree], и без ограничения кривая "улетает"
+            const startKnot = degree;
+            const endKnot = controlPoints.length;
+            const curve = new NURBSCurve(degree, knots, controlPoints, startKnot, endKnot);
 
             // Количество сегментов для отрисовки: пропорционально количеству контрольных точек
             const segments = Math.max(controlPoints.length * NURBS_SEGMENTS_MULTIPLIER, MIN_NURBS_SEGMENTS);
