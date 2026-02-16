@@ -323,14 +323,23 @@ const extractDimensionData = (entity: DxfDimensionEntity) => {
     dimensionText = entity.actualMeasurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
   }
 
-  if (dimensionText && !isNaN(parseFloat(dimensionText))) {
-    dimensionText = parseFloat(dimensionText).toFixed(DIM_TEXT_DECIMAL_PLACES);
-  }
-
   if (!point1 && !point2 && diameterOrRadiusPoint && anchorPoint) {
     point1 = diameterOrRadiusPoint;
     point2 = anchorPoint;
     isRadial = true;
+  }
+
+  // Вычислить измерение из координат если текст не задан в DXF
+  if (!dimensionText && point1 && point2) {
+    const dx = point2.x - point1.x;
+    const dy = point2.y - point1.y;
+    const dz = (point2.z || 0) - (point1.z || 0);
+    const measurement = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    dimensionText = measurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+  }
+
+  if (dimensionText && !isNaN(parseFloat(dimensionText))) {
+    dimensionText = parseFloat(dimensionText).toFixed(DIM_TEXT_DECIMAL_PLACES);
   }
 
   if (!point1 || !point2 || !anchorPoint || !dimensionText) {
@@ -407,10 +416,10 @@ const createDimensionGroup = (
     return dimGroup;
   }
 
-  // Определяем ориентацию размерности по положению точек
-  const anchorOffsetX = Math.abs(anchorPoint.x - point1.x);
-  const anchorOffsetY = Math.abs(anchorPoint.y - point1.y);
-  const isHorizontal = anchorOffsetY > anchorOffsetX;
+  // Определяем ориентацию размерности по разбросу точек измерения
+  const spreadX = Math.abs(point2.x - point1.x);
+  const spreadY = Math.abs(point2.y - point1.y);
+  const isHorizontal = spreadX >= spreadY;
 
   // Создаем линии и стрелки для линейной размерности
   const dimensionObjects = createLinearDimensionLines(
