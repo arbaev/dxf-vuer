@@ -462,9 +462,16 @@ const createBlockGroup = (
   const blockName = insertEntity.name;
   const block = dxf.blocks[blockName];
 
-  if (!block || !block.entities || block.entities.length === 0) {
-    console.warn(`⚠️ Блок "${blockName}" не найден или пуст`);
+  if (!block) {
     return null;
+  }
+
+  if (!block.entities || block.entities.length === 0) {
+    // Блок существует, но пуст — возвращаем пустую группу (не unsupported)
+    const emptyGroup = new THREE.Group();
+    const position = insertEntity.position;
+    emptyGroup.position.set(position.x, position.y, position.z || 0);
+    return emptyGroup;
   }
 
   // Вычисляем цвет INSERT entity для ByBlock наследования
