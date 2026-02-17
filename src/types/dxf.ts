@@ -85,6 +85,8 @@ export interface DxfDimensionEntity extends DxfEntityBase {
   linearOrAngularPoint2?: DxfVertex;
   // Точки для радиальных/диаметральных размерностей
   diameterOrRadiusPoint?: DxfVertex;
+  // Точка на дуге для angular dimension
+  arcPoint?: DxfVertex;
   // Общие точки
   anchorPoint?: DxfVertex;
   defPoint?: DxfVertex;

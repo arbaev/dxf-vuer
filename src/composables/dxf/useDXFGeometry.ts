@@ -160,32 +160,39 @@ const createBulgeArc = (p1: THREE.Vector3, p2: THREE.Vector3, bulge: number): TH
 };
 
 /**
- * Создание стрелки (треугольника) для размерных линий
+ * Создание стрелки (треугольника) для размерных линий.
+ * Направление вычисляется как from → tip (нормализованный вектор).
+ * @param from - Точка, откуда идёт линия (определяет направление стрелки)
  * @param tip - Острие стрелки (вершина треугольника)
- * @param direction - Направление стрелки (нормализованный вектор)
  * @param size - Длина стрелки
  * @param material - Материал для отрисовки
  */
 const createArrow = (
+  from: THREE.Vector3,
   tip: THREE.Vector3,
-  direction: THREE.Vector2,
   size: number,
   material: THREE.Material,
 ): THREE.Mesh => {
+  const dx = tip.x - from.x;
+  const dy = tip.y - from.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const dirX = len > EPSILON ? dx / len : 1;
+  const dirY = len > EPSILON ? dy / len : 0;
+
   const width = size / ARROW_BASE_WIDTH_DIVISOR;
 
-  const perpX = direction.y;
-  const perpY = -direction.x;
+  const perpX = dirY;
+  const perpY = -dirX;
 
   const base1 = new THREE.Vector3(
-    tip.x - direction.x * size + perpX * width,
-    tip.y - direction.y * size + perpY * width,
+    tip.x - dirX * size + perpX * width,
+    tip.y - dirY * size + perpY * width,
     tip.z,
   );
 
   const base2 = new THREE.Vector3(
-    tip.x - direction.x * size - perpX * width,
-    tip.y - direction.y * size - perpY * width,
+    tip.x - dirX * size - perpX * width,
+    tip.y - dirY * size - perpY * width,
     tip.z,
   );
 
@@ -257,8 +264,6 @@ const createLinearDimensionLines = (
   const getFixedCoord = (p: DxfVertex) => (isHorizontal ? p.y : p.x);
   const createVec3 = (main: number, fixed: number, z: number) =>
     isHorizontal ? new THREE.Vector3(main, fixed, z) : new THREE.Vector3(fixed, main, z);
-  const createArrowDir = (main: number, fixed: number) =>
-    isHorizontal ? new THREE.Vector2(main, fixed) : new THREE.Vector2(fixed, main);
 
   const min = Math.min(getMainCoord(point1), getMainCoord(point2));
   const max = Math.max(getMainCoord(point1), getMainCoord(point2));
@@ -320,16 +325,16 @@ const createLinearDimensionLines = (
 
   // 3. Стрелки
   const arrow1 = createArrow(
+    createVec3(max, anchorFixed, 0.1),
     createVec3(min, anchorFixed, 0.1),
-    createArrowDir(-1, 0),
     ARROW_SIZE,
     arrowMaterial,
   );
   objects.push(arrow1);
 
   const arrow2 = createArrow(
+    createVec3(min, anchorFixed, 0.1),
     createVec3(max, anchorFixed, 0.1),
-    createArrowDir(1, 0),
     ARROW_SIZE,
     arrowMaterial,
   );
@@ -444,16 +449,16 @@ const createRotatedDimensionLines = (
   // 3. Стрелки (направлены наружу)
   objects.push(
     createArrow(
+      new THREE.Vector3(maxPt.x, maxPt.y, 0.1),
       new THREE.Vector3(minPt.x, minPt.y, 0.1),
-      new THREE.Vector2(-dirX, -dirY),
       ARROW_SIZE,
       arrowMaterial,
     ),
   );
   objects.push(
     createArrow(
+      new THREE.Vector3(minPt.x, minPt.y, 0.1),
       new THREE.Vector3(maxPt.x, maxPt.y, 0.1),
-      new THREE.Vector2(dirX, dirY),
       ARROW_SIZE,
       arrowMaterial,
     ),
@@ -485,14 +490,14 @@ const extractDimensionData = (entity: DxfDimensionEntity) => {
   // Замена <> на измерение (с префиксом "R" для radial)
   if (dimensionText && typeof entity.actualMeasurement === "number") {
     const measStr =
-      (isRadial ? "R" : "") + entity.actualMeasurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+      (isRadial ? "R" : "") + formatDimNumber(entity.actualMeasurement);
     dimensionText = dimensionText.replace(/<>/g, measStr);
   }
 
   // Авто-текст если не задан в DXF
   if (!dimensionText && typeof entity.actualMeasurement === "number") {
     dimensionText =
-      (isRadial ? "R" : "") + entity.actualMeasurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+      (isRadial ? "R" : "") + formatDimNumber(entity.actualMeasurement);
   }
 
   // Вычислить измерение из координат если текст не задан в DXF
@@ -501,11 +506,11 @@ const extractDimensionData = (entity: DxfDimensionEntity) => {
     const dy = point2.y - point1.y;
     const dz = (point2.z || 0) - (point1.z || 0);
     const measurement = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    dimensionText = (isRadial ? "R" : "") + measurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+    dimensionText = (isRadial ? "R" : "") + formatDimNumber(measurement);
   }
 
   if (!isRadial && dimensionText && !isNaN(parseFloat(dimensionText))) {
-    dimensionText = parseFloat(dimensionText).toFixed(DIM_TEXT_DECIMAL_PLACES);
+    dimensionText = formatDimNumber(parseFloat(dimensionText));
   }
 
   if (!point1 || !point2 || !anchorPoint || !dimensionText) {
@@ -558,12 +563,6 @@ const createDimensionGroup = (
     const edgeX = point1.x;
     const edgeY = point1.y;
 
-    const dx = edgeX - centerX;
-    const dy = edgeY - centerY;
-    const length = Math.sqrt(dx * dx + dy * dy);
-    const directionX = dx / length;
-    const directionY = dy / length;
-
     dimGroup.add(
       createExtensionLine(
         new THREE.Vector3(centerX, centerY, 0),
@@ -573,8 +572,8 @@ const createDimensionGroup = (
     );
 
     const arrow = createArrow(
+      new THREE.Vector3(centerX, centerY, 0.1),
       new THREE.Vector3(edgeX, edgeY, 0.1),
-      new THREE.Vector2(directionX, directionY),
       ARROW_SIZE,
       arrowMaterial,
     );
@@ -620,6 +619,13 @@ const createDimensionGroup = (
 
   return dimGroup;
 };
+
+/**
+ * Форматирование числа для dimension текста: до DIM_TEXT_DECIMAL_PLACES знаков, без лишних нулей.
+ * 28 → "28", 28.28 → "28.28", 28.2842 → "28.2842", 28.10 → "28.1"
+ */
+const formatDimNumber = (value: number): string =>
+  parseFloat(value.toFixed(DIM_TEXT_DECIMAL_PLACES)).toString();
 
 /**
  * Очистка MTEXT форматирования из dimension текста (кроме \S).
@@ -841,11 +847,11 @@ const createOrdinateDimension = (
 
   // Замена <> на actualMeasurement
   if (dimensionText && typeof measurement === "number") {
-    dimensionText = dimensionText.replace(/<>/g, measurement.toFixed(DIM_TEXT_DECIMAL_PLACES));
+    dimensionText = dimensionText.replace(/<>/g, formatDimNumber(measurement));
   }
 
   if (!dimensionText && typeof measurement === "number") {
-    dimensionText = measurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+    dimensionText = formatDimNumber(measurement);
   }
 
   if (!dimensionText) return null;
@@ -988,12 +994,12 @@ const createRadialDimension = (
   const measurement = entity.actualMeasurement;
 
   if (dimensionText && typeof measurement === "number") {
-    const measStr = "R" + measurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+    const measStr = "R" + formatDimNumber(measurement);
     dimensionText = dimensionText.replace(/<>/g, measStr);
   }
 
   if (!dimensionText && typeof measurement === "number") {
-    dimensionText = "R" + measurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+    dimensionText = "R" + formatDimNumber(measurement);
   }
 
   if (!dimensionText) return null;
@@ -1054,9 +1060,10 @@ const createRadialDimension = (
   }
 
   // 2. Стрелка на точке дуги, направлена внутрь (к центру)
+  const arrowFrom = new THREE.Vector3(arcPt.x - dirX * ARROW_SIZE, arcPt.y - dirY * ARROW_SIZE, 0.1);
   const arrow = createArrow(
+    arrowFrom,
     new THREE.Vector3(arcPt.x, arcPt.y, 0.1),
-    new THREE.Vector2(dirX, dirY),
     ARROW_SIZE,
     arrowMat,
   );
@@ -1064,6 +1071,245 @@ const createRadialDimension = (
 
   // Текст
   if (textMesh) {
+    objects.push(textMesh);
+  }
+
+  return objects.length > 0 ? objects : null;
+};
+
+/**
+ * Вычисление пересечения двух линий (2D).
+ * Line1: p1 → p2, Line2: p3 → p4.
+ * Возвращает точку пересечения или null если линии параллельны.
+ */
+const intersectLines2D = (
+  p1x: number,
+  p1y: number,
+  p2x: number,
+  p2y: number,
+  p3x: number,
+  p3y: number,
+  p4x: number,
+  p4y: number,
+): { x: number; y: number } | null => {
+  const d1x = p2x - p1x;
+  const d1y = p2y - p1y;
+  const d2x = p4x - p3x;
+  const d2y = p4y - p3y;
+  const denom = d1x * d2y - d1y * d2x;
+  if (Math.abs(denom) < EPSILON) return null;
+  const t = ((p3x - p1x) * d2y - (p3y - p1y) * d2x) / denom;
+  return { x: p1x + t * d1x, y: p1y + t * d1y };
+};
+
+/**
+ * Нормализация угла в диапазон [0, 2π)
+ */
+const normalizeAngle = (a: number): number => {
+  const TWO_PI = Math.PI * 2;
+  return ((a % TWO_PI) + TWO_PI) % TWO_PI;
+};
+
+/**
+ * Проверка: лежит ли угол testAngle внутри дуги от startAngle до endAngle (CCW sweep).
+ */
+const isAngleInSweep = (startAngle: number, endAngle: number, testAngle: number): boolean => {
+  const s = normalizeAngle(startAngle);
+  const e = normalizeAngle(endAngle);
+  const t = normalizeAngle(testAngle);
+  if (s < e) {
+    return t >= s && t <= e;
+  }
+  // Дуга пересекает 0
+  return t >= s || t <= e;
+};
+
+/**
+ * Создание angular dimension (угловой размер между двумя линиями, тип 2).
+ * Рисует дугу между лучами, выносные линии, стрелки и текст с градусами.
+ */
+const createAngularDimension = (
+  entity: DxfDimensionEntity,
+  color: string,
+): THREE.Object3D[] | null => {
+  const p13 = entity.linearOrAngularPoint1; // code 13 — конец 1 первой линии
+  const p14 = entity.linearOrAngularPoint2; // code 14 — конец 2 первой линии
+  const p15 = entity.diameterOrRadiusPoint; // code 15 — конец 1 второй линии
+  const p10 = entity.anchorPoint; // code 10 — конец 2 второй линии
+  const p16 = entity.arcPoint; // code 16 — точка на дуге (определяет радиус и угол)
+  const textPos = entity.middleOfText || entity.textMidPoint; // code 11
+
+  if (!p13 || !p14 || !p15 || !p10) return null;
+
+  // 1. Найти вершину угла (пересечение двух линий)
+  let vertex: { x: number; y: number };
+  const dist14_15 = Math.sqrt((p14.x - p15.x) ** 2 + (p14.y - p15.y) ** 2);
+  if (dist14_15 < EPSILON) {
+    // Линии сходятся в одной точке
+    vertex = { x: p14.x, y: p14.y };
+  } else {
+    const v = intersectLines2D(p13.x, p13.y, p14.x, p14.y, p15.x, p15.y, p10.x, p10.y);
+    if (!v) return null; // Параллельные линии — не можем построить угловой размер
+    vertex = v;
+  }
+
+  // 2. Определить дальние концы лучей (дальние от вершины на каждой линии)
+  const dist13 = Math.sqrt((p13.x - vertex.x) ** 2 + (p13.y - vertex.y) ** 2);
+  const dist14 = Math.sqrt((p14.x - vertex.x) ** 2 + (p14.y - vertex.y) ** 2);
+  const farA = dist13 >= dist14 ? p13 : p14;
+
+  const dist15 = Math.sqrt((p15.x - vertex.x) ** 2 + (p15.y - vertex.y) ** 2);
+  const dist10 = Math.sqrt((p10.x - vertex.x) ** 2 + (p10.y - vertex.y) ** 2);
+  const farB = dist15 >= dist10 ? p15 : p10;
+
+  // 3. Углы лучей
+  const angleA = Math.atan2(farA.y - vertex.y, farA.x - vertex.x);
+  const angleB = Math.atan2(farB.y - vertex.y, farB.x - vertex.x);
+
+  // 4. Радиус дуги
+  const radius = p16
+    ? Math.sqrt((p16.x - vertex.x) ** 2 + (p16.y - vertex.y) ** 2)
+    : Math.max(dist13, dist14, dist15, dist10) * 0.8;
+
+  if (radius < EPSILON) return null;
+
+  // 5. Определить startAngle/endAngle по arcPoint
+  let startAngle: number;
+  let endAngle: number;
+
+  if (p16) {
+    const arcAngle = Math.atan2(p16.y - vertex.y, p16.x - vertex.x);
+    // Проверяем оба варианта sweep (A→B CCW и B→A CCW)
+    if (isAngleInSweep(angleA, angleB, arcAngle)) {
+      startAngle = angleA;
+      endAngle = angleB;
+    } else {
+      startAngle = angleB;
+      endAngle = angleA;
+    }
+  } else {
+    startAngle = angleA;
+    endAngle = angleB;
+  }
+
+  // Вычисляем sweep (всегда CCW)
+  let sweep = normalizeAngle(endAngle - startAngle);
+  if (sweep < EPSILON) sweep = Math.PI * 2;
+
+  // 6. Рисуем
+  const objects: THREE.Object3D[] = [];
+  const lineMat = new THREE.LineBasicMaterial({ color });
+  const dashedMat = new THREE.LineDashedMaterial({
+    color,
+    dashSize: EXTENSION_LINE_DASH_SIZE,
+    gapSize: EXTENSION_LINE_GAP_SIZE,
+  });
+  const arrowMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
+
+  // 6a. Дуга
+  const segments = Math.max(MIN_ARC_SEGMENTS, Math.floor((sweep * CIRCLE_SEGMENTS) / (Math.PI * 2)));
+  const arcPoints: THREE.Vector3[] = [];
+  for (let i = 0; i <= segments; i++) {
+    const a = startAngle + (i / segments) * sweep;
+    arcPoints.push(
+      new THREE.Vector3(vertex.x + radius * Math.cos(a), vertex.y + radius * Math.sin(a), 0),
+    );
+  }
+  const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPoints);
+  objects.push(new THREE.Line(arcGeom, lineMat));
+
+  // 6b. Выносные линии (от дальних концов к точкам на дуге)
+  const arcStartPt = new THREE.Vector3(
+    vertex.x + radius * Math.cos(startAngle),
+    vertex.y + radius * Math.sin(startAngle),
+    0,
+  );
+  const arcEndPt = new THREE.Vector3(
+    vertex.x + radius * Math.cos(endAngle),
+    vertex.y + radius * Math.sin(endAngle),
+    0,
+  );
+
+  const extLineA = createExtensionLine(
+    new THREE.Vector3(farA.x, farA.y, 0),
+    startAngle === angleA ? arcStartPt : arcEndPt,
+    dashedMat,
+  );
+  objects.push(extLineA);
+
+  const extLineB = createExtensionLine(
+    new THREE.Vector3(farB.x, farB.y, 0),
+    startAngle === angleA ? arcEndPt : arcStartPt,
+    dashedMat,
+  );
+  objects.push(extLineB);
+
+  // 6c. Стрелки — направление по хорде дуги (следует кривизне, а не чистой касательной)
+  const arrowArcAngle = ARROW_SIZE / radius;
+
+  // На startAngle: хорда от точки внутри дуги (startAngle + delta) к arcStartPt
+  const innerStartA = startAngle + arrowArcAngle;
+  const arrowStartFrom = new THREE.Vector3(
+    vertex.x + radius * Math.cos(innerStartA),
+    vertex.y + radius * Math.sin(innerStartA),
+    0.1,
+  );
+  objects.push(createArrow(arrowStartFrom, new THREE.Vector3(arcStartPt.x, arcStartPt.y, 0.1), ARROW_SIZE, arrowMat));
+
+  // На endAngle: хорда от точки внутри дуги (endAngle - delta) к arcEndPt
+  const innerEndA = endAngle - arrowArcAngle;
+  const arrowEndFrom = new THREE.Vector3(
+    vertex.x + radius * Math.cos(innerEndA),
+    vertex.y + radius * Math.sin(innerEndA),
+    0.1,
+  );
+  objects.push(createArrow(arrowEndFrom, new THREE.Vector3(arcEndPt.x, arcEndPt.y, 0.1), ARROW_SIZE, arrowMat));
+
+  // 6d. Текст
+  let dimensionText = entity.text;
+  const measurement = entity.actualMeasurement;
+
+  if (typeof measurement === "number") {
+    const degrees = (measurement * DEGREES_TO_RADIANS_DIVISOR) / Math.PI;
+    const measStr = formatDimNumber(degrees) + "°";
+    if (dimensionText) {
+      dimensionText = dimensionText.replace(/<>/g, measStr);
+    } else {
+      dimensionText = measStr;
+    }
+  }
+
+  if (dimensionText) {
+    const textHeight = entity.height || entity.textHeight || DIM_TEXT_HEIGHT;
+    const textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
+
+    // Угол от вершины к позиции текста — для поворота вдоль касательной
+    let textAngle: number;
+
+    if (textPos) {
+      textMesh.position.set(textPos.x, textPos.y, 0.2);
+      textAngle = Math.atan2(textPos.y - vertex.y, textPos.x - vertex.x);
+    } else {
+      // Разместить текст посередине дуги
+      const midAngle = startAngle + sweep / 2;
+      const textRadius = radius + textHeight * 0.8;
+      textMesh.position.set(
+        vertex.x + textRadius * Math.cos(midAngle),
+        vertex.y + textRadius * Math.sin(midAngle),
+        0.2,
+      );
+      textAngle = midAngle;
+    }
+
+    // Поворот текста вдоль касательной к дуге (перпендикулярно радиусу)
+    let textRotation = textAngle + Math.PI / 2;
+    // Нормализация: текст не должен быть вверх ногами
+    const norm = normalizeAngle(textRotation);
+    if (norm > Math.PI / 2 && norm < Math.PI * 1.5) {
+      textRotation += Math.PI;
+    }
+    textMesh.rotation.z = textRotation;
+
     objects.push(textMesh);
   }
 
@@ -2140,6 +2386,11 @@ const processEntity = (
         // Ordinate dimension (тип 6 = Y-ordinate, тип 7 = X-ordinate)
         if ((baseDimType & 0x0e) === 6) {
           return createOrdinateDimension(entity, entityColor);
+        }
+
+        // Angular dimension (тип 2)
+        if (baseDimType === 2) {
+          return createAngularDimension(entity, entityColor);
         }
 
         // Radial dimension (тип 4)

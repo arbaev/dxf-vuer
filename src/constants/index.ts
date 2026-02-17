@@ -54,8 +54,8 @@ export const DIM_TEXT_GAP_MULTIPLIER = 1.5;
 // Ширина разрыва размерной линии для текста
 export const DIM_TEXT_GAP = DIM_TEXT_HEIGHT * DIM_TEXT_GAP_MULTIPLIER;
 
-// Количество знаков после запятой для текста размерности
-export const DIM_TEXT_DECIMAL_PLACES = 2;
+// Максимальное количество знаков после запятой для текста размерности (лишние нули убираются)
+export const DIM_TEXT_DECIMAL_PLACES = 4;
 
 // ============================================================================
 // GEOMETRY - настройки геометрии
