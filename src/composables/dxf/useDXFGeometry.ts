@@ -206,12 +206,29 @@ const createArrow = (
 /**
  * Создание выносной линии для размерности
  */
+const EXTENSION_LINE_OVERSHOOT = 2; // Выступ выносной линии за размерную
+
 const createExtensionLine = (
   from: THREE.Vector3,
   to: THREE.Vector3,
   material: THREE.LineBasicMaterial | THREE.LineDashedMaterial,
 ): THREE.Line => {
-  const geometry = new THREE.BufferGeometry().setFromPoints([from, to]);
+  // Продлеваем пунктирные выносные линии за размерную на EXTENSION_LINE_OVERSHOOT
+  let endPoint = to;
+  if (material instanceof THREE.LineDashedMaterial) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len > EPSILON) {
+      endPoint = new THREE.Vector3(
+        to.x + (dx / len) * EXTENSION_LINE_OVERSHOOT,
+        to.y + (dy / len) * EXTENSION_LINE_OVERSHOOT,
+        to.z,
+      );
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry().setFromPoints([from, endPoint]);
   const line = new THREE.Line(geometry, material);
 
   if (material instanceof THREE.LineDashedMaterial) {
@@ -343,13 +360,15 @@ const extractDimensionData = (entity: DxfDimensionEntity) => {
 
   // Замена <> на измерение (с префиксом "R" для radial)
   if (dimensionText && typeof entity.actualMeasurement === "number") {
-    const measStr = (isRadial ? "R" : "") + entity.actualMeasurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+    const measStr =
+      (isRadial ? "R" : "") + entity.actualMeasurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
     dimensionText = dimensionText.replace(/<>/g, measStr);
   }
 
   // Авто-текст если не задан в DXF
   if (!dimensionText && typeof entity.actualMeasurement === "number") {
-    dimensionText = (isRadial ? "R" : "") + entity.actualMeasurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+    dimensionText =
+      (isRadial ? "R" : "") + entity.actualMeasurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
   }
 
   // Вычислить измерение из координат если текст не задан в DXF
@@ -551,7 +570,11 @@ const createDimensionTextMesh = (
     const baselineGap = height * 0.15;
     const bottomPaddingFrac = (PADDING - Math.ceil(descent)) / canvasHeight;
     const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
-    geometry.translate(tx, meshHeight / 2 - meshHeight * Math.max(0, bottomPaddingFrac) + baselineGap, 0);
+    geometry.translate(
+      tx,
+      meshHeight / 2 - meshHeight * Math.max(0, bottomPaddingFrac) + baselineGap,
+      0,
+    );
 
     return new THREE.Mesh(geometry, material);
   }
@@ -893,7 +916,7 @@ const createRadialDimension = (
   const arrow = createArrow(
     new THREE.Vector3(arcPt.x, arcPt.y, 0.1),
     new THREE.Vector2(dirX, dirY),
-    ARROW_SIZE / 2,
+    ARROW_SIZE,
     arrowMat,
   );
   objects.push(arrow);
@@ -2001,7 +2024,11 @@ const processEntity = (
         const objects: THREE.Object3D[] = [dimGroup];
 
         if (dimData.textPos) {
-          const textMesh = createDimensionTextMesh(dimData.dimensionText, dimData.textHeight, entityColor);
+          const textMesh = createDimensionTextMesh(
+            dimData.dimensionText,
+            dimData.textHeight,
+            entityColor,
+          );
           textMesh.position.set(dimData.textPos.x, dimData.textPos.y, 0.2);
 
           if (dimData.angle !== 0) {

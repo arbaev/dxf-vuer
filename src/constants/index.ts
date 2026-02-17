@@ -62,7 +62,7 @@ export const DIM_TEXT_DECIMAL_PLACES = 0;
 // ============================================================================
 
 // Длина стрелки размерных линий
-export const ARROW_SIZE = 6;
+export const ARROW_SIZE = 3;
 
 // Делитель для расчета ширины основания стрелки (длина стрелки / 4)
 export const ARROW_BASE_WIDTH_DIVISOR = 4;
