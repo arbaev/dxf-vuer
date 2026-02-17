@@ -334,14 +334,22 @@ const extractDimensionData = (entity: DxfDimensionEntity) => {
   let dimensionText = entity.text;
   let isRadial = false;
 
-  if (!dimensionText && typeof entity.actualMeasurement === "number") {
-    dimensionText = entity.actualMeasurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
-  }
-
+  // Определяем radial ДО генерации текста, чтобы добавить префикс "R"
   if (!point1 && !point2 && diameterOrRadiusPoint && anchorPoint) {
     point1 = diameterOrRadiusPoint;
     point2 = anchorPoint;
     isRadial = true;
+  }
+
+  // Замена <> на измерение (с префиксом "R" для radial)
+  if (dimensionText && typeof entity.actualMeasurement === "number") {
+    const measStr = (isRadial ? "R" : "") + entity.actualMeasurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+    dimensionText = dimensionText.replace(/<>/g, measStr);
+  }
+
+  // Авто-текст если не задан в DXF
+  if (!dimensionText && typeof entity.actualMeasurement === "number") {
+    dimensionText = (isRadial ? "R" : "") + entity.actualMeasurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
   }
 
   // Вычислить измерение из координат если текст не задан в DXF
@@ -350,10 +358,10 @@ const extractDimensionData = (entity: DxfDimensionEntity) => {
     const dy = point2.y - point1.y;
     const dz = (point2.z || 0) - (point1.z || 0);
     const measurement = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    dimensionText = measurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+    dimensionText = (isRadial ? "R" : "") + measurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
   }
 
-  if (dimensionText && !isNaN(parseFloat(dimensionText))) {
+  if (!isRadial && dimensionText && !isNaN(parseFloat(dimensionText))) {
     dimensionText = parseFloat(dimensionText).toFixed(DIM_TEXT_DECIMAL_PLACES);
   }
 
@@ -503,7 +511,8 @@ const createDimensionTextMesh = (
   const context = canvas.getContext("2d")!;
 
   const mainFontSize = Math.max(height * CANVAS_SCALE, TEXT_HEIGHT);
-  const mainFont = `${mainFontSize}px Arial, sans-serif`;
+  const DIM_FONT = `"Cascadia Code", "Consolas", "Liberation Mono", monospace`;
+  const mainFont = `100 ${mainFontSize}px ${DIM_FONT}`;
 
   // Эталонная высота canvas как в createTextMesh — для нормализации размера шрифта
   const refCanvasHeight = Math.ceil(mainFontSize * 1.2) + PADDING * 2;
@@ -538,10 +547,11 @@ const createDimensionTextMesh = (
     const meshWidth = meshHeight * aspectRatio;
     const geometry = new THREE.PlaneGeometry(meshWidth, meshHeight);
 
-    // bottom align: низ видимого текста на textPos.y
+    // baseline чуть выше textPos.y (зазор для подчёркивания)
+    const baselineGap = height * 0.15;
     const bottomPaddingFrac = (PADDING - Math.ceil(descent)) / canvasHeight;
     const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
-    geometry.translate(tx, meshHeight / 2 - meshHeight * Math.max(0, bottomPaddingFrac), 0);
+    geometry.translate(tx, meshHeight / 2 - meshHeight * Math.max(0, bottomPaddingFrac) + baselineGap, 0);
 
     return new THREE.Mesh(geometry, material);
   }
@@ -552,7 +562,7 @@ const createDimensionTextMesh = (
   const bottomText = stackedMatch[3].trim();
 
   const stackedFontSize = mainFontSize * STACKED_RATIO;
-  const stackedFont = `${stackedFontSize}px Arial, sans-serif`;
+  const stackedFont = `100 ${stackedFontSize}px ${DIM_FONT}`;
 
   // Измеряем ширины и метрики
   context.font = mainFont;
@@ -634,10 +644,11 @@ const createDimensionTextMesh = (
   const meshWidth = meshHeight * aspectRatio;
   const geometry = new THREE.PlaneGeometry(meshWidth, meshHeight);
 
-  // Сдвигаем меш: baseline основного текста стоит на textPos.y
+  // Сдвигаем меш: baseline основного текста чуть выше textPos.y (зазор для подчёркивания)
+  const baselineGap = height * 0.15;
   const belowBaselineFrac = (Math.ceil(bottomExtent) + PADDING) / canvasHeight;
   const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
-  geometry.translate(tx, meshHeight / 2 - meshHeight * belowBaselineFrac, 0);
+  geometry.translate(tx, meshHeight / 2 - meshHeight * belowBaselineFrac + baselineGap, 0);
 
   return new THREE.Mesh(geometry, material);
 };
@@ -683,8 +694,8 @@ const createOrdinateDimension = (
   let textMesh: THREE.Mesh | null = null;
   let actualTextWidth = 0;
   if (textPos) {
-    textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "left");
-    textMesh.position.set(textPos.x, textPos.y, 0.2);
+    textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
+    textMesh.position.set(textPos.x, textPos.y - textHeight / 2, 0.2);
     // Ширина из PlaneGeometry — реальная ширина меша в мировых координатах
     textMesh.geometry.computeBoundingBox();
     const bbox = textMesh.geometry.boundingBox;
@@ -705,7 +716,7 @@ const createOrdinateDimension = (
 
     if (Math.abs(dy) < EPSILON) {
       // Одна горизонтальная линия от feature до конца текста
-      const endX = textPos ? textPos.x + actualTextWidth : leader.x;
+      const endX = textPos ? textPos.x + actualTextWidth / 2 : leader.x;
       const points = [featureVec, new THREE.Vector3(Math.max(leader.x, endX), leader.y, 0)];
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       objects.push(new THREE.Line(geometry, material));
@@ -736,7 +747,7 @@ const createOrdinateDimension = (
       objects.push(new THREE.Line(geom2, material));
 
       // Сегмент 3: горизонтальный от leader до конца текста
-      const textEndX = textPos ? textPos.x + actualTextWidth : leader.x;
+      const textEndX = textPos ? textPos.x + actualTextWidth / 2 : leader.x;
       if (Math.abs(textEndX - leader.x) > EPSILON && dirX * (textEndX - leader.x) > 0) {
         const geom3 = new THREE.BufferGeometry().setFromPoints([
           leaderVec,
@@ -750,7 +761,7 @@ const createOrdinateDimension = (
     const dx = leader.x - feature.x;
 
     if (Math.abs(dx) < EPSILON) {
-      const endY = textPos ? textPos.y + actualTextWidth : leader.y;
+      const endY = textPos ? textPos.y + actualTextWidth / 2 : leader.y;
       const points = [featureVec, new THREE.Vector3(leader.x, Math.max(leader.y, endY), 0)];
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       objects.push(new THREE.Line(geometry, material));
@@ -775,7 +786,7 @@ const createOrdinateDimension = (
       const geom2 = new THREE.BufferGeometry().setFromPoints([kneeVec, leaderVec]);
       objects.push(new THREE.Line(geom2, material));
 
-      const textEndY = textPos ? textPos.y + actualTextWidth : leader.y;
+      const textEndY = textPos ? textPos.y + actualTextWidth / 2 : leader.y;
       if (Math.abs(textEndY - leader.y) > EPSILON && dirY * (textEndY - leader.y) > 0) {
         const geom3 = new THREE.BufferGeometry().setFromPoints([
           leaderVec,
@@ -787,6 +798,107 @@ const createOrdinateDimension = (
   }
 
   // Добавляем текстовый меш (создан выше для расчёта ширины)
+  if (textMesh) {
+    objects.push(textMesh);
+  }
+
+  return objects.length > 0 ? objects : null;
+};
+
+/**
+ * Создание радиального размера (radial dimension, тип 4).
+ * Линия от правого края текста до точки на дуге, стрелка на дуге направлена наружу.
+ */
+const createRadialDimension = (
+  entity: DxfDimensionEntity,
+  color: string,
+): THREE.Object3D[] | null => {
+  const center = entity.anchorPoint; // code 10 — центр дуги
+  const arcPt = entity.diameterOrRadiusPoint; // code 15 — точка на дуге
+  const textPos = entity.middleOfText || entity.textMidPoint; // code 11
+
+  if (!center || !arcPt) return null;
+
+  // Текст dimension
+  let dimensionText = entity.text;
+  const measurement = entity.actualMeasurement;
+
+  if (dimensionText && typeof measurement === "number") {
+    const measStr = "R" + measurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+    dimensionText = dimensionText.replace(/<>/g, measStr);
+  }
+
+  if (!dimensionText && typeof measurement === "number") {
+    dimensionText = "R" + measurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+  }
+
+  if (!dimensionText) return null;
+
+  const textHeight = entity.height || entity.textHeight || DIM_TEXT_HEIGHT;
+  const objects: THREE.Object3D[] = [];
+  const lineMat = new THREE.LineBasicMaterial({ color });
+  const arrowMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
+
+  const arcVec = new THREE.Vector3(arcPt.x, arcPt.y, 0);
+
+  // Направление стрелки: внутрь (к центру от точки на дуге)
+  const dx = center.x - arcPt.x;
+  const dy = center.y - arcPt.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const dirX = len > EPSILON ? dx / len : 1;
+  const dirY = len > EPSILON ? dy / len : 0;
+
+  let textMesh: THREE.Mesh | null = null;
+  if (textPos) {
+    // textPos — середина текста (по спецификации DXF "middle point of dimension text")
+    const underlineY = textPos.y - textHeight / 2;
+
+    // Вычисляем пересечение хвоста с горизонталью подчёркивания
+    let intersectX = textPos.x;
+    if (Math.abs(dirY) > EPSILON) {
+      const t = (underlineY - arcPt.y) / dirY;
+      intersectX = arcPt.x + t * dirX;
+    }
+
+    // Создаём текстовый меш (center-aligned по textPos.x, baseline на underlineY)
+    textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
+    textMesh.position.set(textPos.x, underlineY, 0.2);
+    textMesh.geometry.computeBoundingBox();
+    let textWidth = 0;
+    const bbox = textMesh.geometry.boundingBox;
+    if (bbox) {
+      textWidth = bbox.max.x - bbox.min.x;
+    }
+
+    // Координаты подчёркивания (текст центрирован по textPos.x)
+    const textLeft = textPos.x - textWidth / 2;
+    const textRight = textPos.x + textWidth / 2;
+
+    // Хвост стрелки — от arcPt в направлении стрелки до underlineY
+    const tailEnd = new THREE.Vector3(intersectX, underlineY, 0);
+    const tailGeom = new THREE.BufferGeometry().setFromPoints([arcVec, tailEnd]);
+    objects.push(new THREE.Line(tailGeom, lineMat));
+
+    // Подчёркивание — от точки пересечения с ножкой до дальнего края текста
+    const underlineLeft = intersectX <= textPos.x ? intersectX : textLeft;
+    const underlineRight = intersectX <= textPos.x ? textRight : intersectX;
+    const underlineGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(underlineLeft, underlineY, 0),
+      new THREE.Vector3(underlineRight, underlineY, 0),
+    ]);
+    objects.push(new THREE.Line(underlineGeom, lineMat));
+  }
+
+  // 2. Стрелка на точке дуги, направлена внутрь (к центру)
+  const arrow = createArrow(
+    new THREE.Vector3(arcPt.x, arcPt.y, 0.1),
+    new THREE.Vector2(dirX, dirY),
+    ARROW_SIZE / 2,
+    arrowMat,
+  );
+  objects.push(arrow);
+
+  // Текст
   if (textMesh) {
     objects.push(textMesh);
   }
@@ -1859,10 +1971,16 @@ const processEntity = (
 
     case "DIMENSION": {
       if (isDimensionEntity(entity)) {
-        // Ordinate dimension (тип 6 = Y-ordinate, тип 7 = X-ordinate)
         const baseDimType = (entity.dimensionType ?? 0) & 0x0f;
+
+        // Ordinate dimension (тип 6 = Y-ordinate, тип 7 = X-ordinate)
         if ((baseDimType & 0x0e) === 6) {
           return createOrdinateDimension(entity, entityColor);
+        }
+
+        // Radial dimension (тип 4)
+        if (baseDimType === 4) {
+          return createRadialDimension(entity, entityColor);
         }
 
         const dimData = extractDimensionData(entity);
@@ -1883,7 +2001,7 @@ const processEntity = (
         const objects: THREE.Object3D[] = [dimGroup];
 
         if (dimData.textPos) {
-          const textMesh = createTextMesh(dimData.dimensionText, dimData.textHeight, entityColor);
+          const textMesh = createDimensionTextMesh(dimData.dimensionText, dimData.textHeight, entityColor);
           textMesh.position.set(dimData.textPos.x, dimData.textPos.y, 0.2);
 
           if (dimData.angle !== 0) {

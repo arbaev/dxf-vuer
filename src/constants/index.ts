@@ -46,7 +46,7 @@ export const DIM_LINE_COLOR = "#606060";
 export const TEXT_HEIGHT = 16;
 
 // Высота текста размерных линий
-export const DIM_TEXT_HEIGHT = 7;
+export const DIM_TEXT_HEIGHT = 5;
 
 // Коэффициент для расчета ширины разрыва размерной линии для текста
 export const DIM_TEXT_GAP_MULTIPLIER = 1.5;
