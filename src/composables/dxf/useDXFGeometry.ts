@@ -1122,42 +1122,65 @@ const createDiametricDimension = (
   const dir10x = len10 > EPSILON ? dx10 / len10 : 1;
   const dir10y = len10 > EPSILON ? dy10 / len10 : 0;
 
-  // 1. Линия диаметра: от p15 до p10
-  const diamLineGeom = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(p15.x, p15.y, 0),
-    new THREE.Vector3(p10.x, p10.y, 0),
-  ]);
-  objects.push(new THREE.Line(diamLineGeom, lineMat));
+  // Определяем: текст вдоль линии диаметра или вынесен наружу
+  // Проекция textPos на линию p15→p10 (параметр t и перпендикулярное расстояние)
+  let textOnLine = false;
+  if (textPos) {
+    const fullLen = len10 * 2;
+    if (fullLen > EPSILON) {
+      const ldx = (p10.x - p15.x) / fullLen;
+      const ldy = (p10.y - p15.y) / fullLen;
+      const t = ((textPos.x - p15.x) * ldx + (textPos.y - p15.y) * ldy) / fullLen;
+      const perpDist = Math.abs(-(textPos.x - p15.x) * ldy + (textPos.y - p15.y) * ldx);
+      textOnLine = perpDist < textHeight && t >= 0 && t <= 1;
+    }
+  }
 
-  // 2. Стрелка на p10, направлена внутрь (к центру)
+  // Стрелки на обоих концах
+  // Тип 1 (текст внутри): стрелки наружу (от центра к окружности)
+  // Тип 2 (текст вынесен): стрелки внутрь (к центру)
+  const arrowSign = textOnLine ? 1 : -1;
   const arrow10From = new THREE.Vector3(
-    p10.x - dir10x * ARROW_SIZE,
-    p10.y - dir10y * ARROW_SIZE,
+    p10.x + arrowSign * dir10x * ARROW_SIZE,
+    p10.y + arrowSign * dir10y * ARROW_SIZE,
     0.1,
   );
   objects.push(
     createArrow(arrow10From, new THREE.Vector3(p10.x, p10.y, 0.1), ARROW_SIZE, arrowMat),
   );
-
-  // 3. Стрелка на p15, направлена внутрь (к центру) — направление противоположное
   const arrow15From = new THREE.Vector3(
-    p15.x + dir10x * ARROW_SIZE,
-    p15.y + dir10y * ARROW_SIZE,
+    p15.x - arrowSign * dir10x * ARROW_SIZE,
+    p15.y - arrowSign * dir10y * ARROW_SIZE,
     0.1,
   );
   objects.push(
     createArrow(arrow15From, new THREE.Vector3(p15.x, p15.y, 0.1), ARROW_SIZE, arrowMat),
   );
 
-  // 4. Текст с выноской — ножка идёт от ближайшего к тексту конца линии диаметра
+  // Линия диаметра: всегда сплошная от p15 до p10
+  const diamLineGeom = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(p15.x, p15.y, 0),
+    new THREE.Vector3(p10.x, p10.y, 0),
+  ]);
+  objects.push(new THREE.Line(diamLineGeom, lineMat));
+
   let textMesh: THREE.Mesh | null = null;
 
-  if (textPos) {
-    // Определяем ближайший конец линии диаметра к тексту
+  if (textPos && textOnLine) {
+    // Текст вдоль линии диаметра — повёрнут по углу линии, без выноски
+    textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
+    let angle = Math.atan2(p10.y - p15.y, p10.x - p15.x);
+    if (angle > Math.PI / 2) angle -= Math.PI;
+    if (angle < -Math.PI / 2) angle += Math.PI;
+    textMesh.position.set(textPos.x, textPos.y, 0.2);
+    textMesh.rotation.z = angle;
+  } else if (textPos) {
+
+    // Текст вынесен наружу — выноска (ножка + подчёркивание)
+    // Ножка идёт от ближайшего конца линии в направлении стрелки
     const dist10 = (textPos.x - p10.x) ** 2 + (textPos.y - p10.y) ** 2;
     const dist15 = (textPos.x - p15.x) ** 2 + (textPos.y - p15.y) ** 2;
     const nearPt = dist10 <= dist15 ? p10 : p15;
-    // Направление ножки: от nearPt к центру (совпадает с направлением стрелки)
     const dxN = cx - nearPt.x;
     const dyN = cy - nearPt.y;
     const lenN = Math.sqrt(dxN * dxN + dyN * dyN);
@@ -1166,7 +1189,6 @@ const createDiametricDimension = (
 
     const underlineY = textPos.y - textHeight / 2;
 
-    // Пересечение луча (nearPt → центр) с горизонталью подчёркивания
     let intersectX = textPos.x;
     if (Math.abs(dirNy) > EPSILON) {
       const t = (underlineY - nearPt.y) / dirNy;
@@ -1185,13 +1207,11 @@ const createDiametricDimension = (
     const textLeft = textPos.x - textWidth / 2;
     const textRight = textPos.x + textWidth / 2;
 
-    // Ножка: от nearPt в направлении стрелки до пересечения с underlineY
     const nearVec = new THREE.Vector3(nearPt.x, nearPt.y, 0);
     const tailEnd = new THREE.Vector3(intersectX, underlineY, 0);
     const tailGeom = new THREE.BufferGeometry().setFromPoints([nearVec, tailEnd]);
     objects.push(new THREE.Line(tailGeom, lineMat));
 
-    // Подчёркивание — от точки пересечения с ножкой до дальнего края текста
     const underlineLeft = intersectX <= textPos.x ? intersectX : textLeft;
     const underlineRight = intersectX <= textPos.x ? textRight : intersectX;
     const underlineGeom = new THREE.BufferGeometry().setFromPoints([
@@ -1200,7 +1220,12 @@ const createDiametricDimension = (
     ]);
     objects.push(new THREE.Line(underlineGeom, lineMat));
   } else {
-    // Fallback: текст в центре линии диаметра
+    // Fallback: сплошная линия + текст в центре
+    const diamLineGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(p15.x, p15.y, 0),
+      new THREE.Vector3(p10.x, p10.y, 0),
+    ]);
+    objects.push(new THREE.Line(diamLineGeom, lineMat));
     textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
     textMesh.position.set(cx, cy, 0.2);
   }
