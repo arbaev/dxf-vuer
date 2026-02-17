@@ -55,7 +55,7 @@ export const DIM_TEXT_GAP_MULTIPLIER = 1.5;
 export const DIM_TEXT_GAP = DIM_TEXT_HEIGHT * DIM_TEXT_GAP_MULTIPLIER;
 
 // Количество знаков после запятой для текста размерности
-export const DIM_TEXT_DECIMAL_PLACES = 0;
+export const DIM_TEXT_DECIMAL_PLACES = 2;
 
 // ============================================================================
 // GEOMETRY - настройки геометрии

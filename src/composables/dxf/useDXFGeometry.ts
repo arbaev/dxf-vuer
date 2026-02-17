@@ -339,6 +339,130 @@ const createLinearDimensionLines = (
 };
 
 /**
+ * Создание линий и стрелок для повёрнутой размерности (произвольный угол)
+ */
+const createRotatedDimensionLines = (
+  point1: DxfVertex,
+  point2: DxfVertex,
+  anchorPoint: DxfVertex,
+  textPos: DxfVertex | undefined,
+  dimLineMaterial: THREE.LineBasicMaterial,
+  extensionLineMaterial: THREE.LineDashedMaterial,
+  arrowMaterial: THREE.MeshBasicMaterial,
+  angleRad: number,
+): THREE.Object3D[] => {
+  const objects: THREE.Object3D[] = [];
+
+  // Направление размерной линии
+  const dirX = Math.cos(angleRad);
+  const dirY = Math.sin(angleRad);
+
+  // Проекция точек на размерную линию (anchorPoint лежит на ней)
+  const t1 = (point1.x - anchorPoint.x) * dirX + (point1.y - anchorPoint.y) * dirY;
+  const t2 = (point2.x - anchorPoint.x) * dirX + (point2.y - anchorPoint.y) * dirY;
+
+  // Точки пересечения выносных линий с размерной линией
+  const foot1 = new THREE.Vector3(
+    anchorPoint.x + t1 * dirX,
+    anchorPoint.y + t1 * dirY,
+    0,
+  );
+  const foot2 = new THREE.Vector3(
+    anchorPoint.x + t2 * dirX,
+    anchorPoint.y + t2 * dirY,
+    0,
+  );
+
+  const tMin = Math.min(t1, t2);
+  const tMax = Math.max(t1, t2);
+  const minPt = new THREE.Vector3(
+    anchorPoint.x + tMin * dirX,
+    anchorPoint.y + tMin * dirY,
+    0,
+  );
+  const maxPt = new THREE.Vector3(
+    anchorPoint.x + tMax * dirX,
+    anchorPoint.y + tMax * dirY,
+    0,
+  );
+
+  // 1. Размерная линия (с разрывом для текста если он на линии)
+  if (textPos) {
+    const tText = (textPos.x - anchorPoint.x) * dirX + (textPos.y - anchorPoint.y) * dirY;
+    const perpDist = Math.abs(
+      -(textPos.x - anchorPoint.x) * dirY + (textPos.y - anchorPoint.y) * dirX,
+    );
+
+    if (perpDist < 1) {
+      const gapStart = tText - DIM_TEXT_GAP / 2;
+      const gapEnd = tText + DIM_TEXT_GAP / 2;
+
+      if (tMin < gapStart) {
+        objects.push(
+          createExtensionLine(
+            minPt,
+            new THREE.Vector3(
+              anchorPoint.x + gapStart * dirX,
+              anchorPoint.y + gapStart * dirY,
+              0,
+            ),
+            dimLineMaterial,
+          ),
+        );
+      }
+      if (tMax > gapEnd) {
+        objects.push(
+          createExtensionLine(
+            new THREE.Vector3(
+              anchorPoint.x + gapEnd * dirX,
+              anchorPoint.y + gapEnd * dirY,
+              0,
+            ),
+            maxPt,
+            dimLineMaterial,
+          ),
+        );
+      }
+    } else {
+      objects.push(createExtensionLine(minPt, maxPt, dimLineMaterial));
+    }
+  } else {
+    objects.push(createExtensionLine(minPt, maxPt, dimLineMaterial));
+  }
+
+  // 2. Выносные линии (от точек измерения к размерной линии)
+  const p1 = new THREE.Vector3(point1.x, point1.y, 0);
+  const p2 = new THREE.Vector3(point2.x, point2.y, 0);
+
+  if (p1.distanceTo(foot1) > 0.1) {
+    objects.push(createExtensionLine(p1, foot1, extensionLineMaterial));
+  }
+  if (p2.distanceTo(foot2) > 0.1) {
+    objects.push(createExtensionLine(p2, foot2, extensionLineMaterial));
+  }
+
+  // 3. Стрелки (направлены наружу)
+  objects.push(
+    createArrow(
+      new THREE.Vector3(minPt.x, minPt.y, 0.1),
+      new THREE.Vector2(-dirX, -dirY),
+      ARROW_SIZE,
+      arrowMaterial,
+    ),
+  );
+  objects.push(
+    createArrow(
+      new THREE.Vector3(maxPt.x, maxPt.y, 0.1),
+      new THREE.Vector2(dirX, dirY),
+      ARROW_SIZE,
+      arrowMaterial,
+    ),
+  );
+
+  return objects;
+};
+
+/**
  * Извлечение данных из DIMENSION entity
  */
 const extractDimensionData = (entity: DxfDimensionEntity) => {
@@ -413,6 +537,7 @@ const createDimensionGroup = (
   _textHeight: number, // Параметр не используется, но оставлен для совместимости
   isRadial: boolean,
   color: string,
+  angle: number = 0,
 ): THREE.Group => {
   const dimGroup = new THREE.Group();
 
@@ -458,22 +583,38 @@ const createDimensionGroup = (
     return dimGroup;
   }
 
-  // Определяем ориентацию размерности по разбросу точек измерения
-  const spreadX = Math.abs(point2.x - point1.x);
-  const spreadY = Math.abs(point2.y - point1.y);
-  const isHorizontal = spreadX >= spreadY;
+  let dimensionObjects: THREE.Object3D[];
 
-  // Создаем линии и стрелки для линейной размерности
-  const dimensionObjects = createLinearDimensionLines(
-    point1,
-    point2,
-    anchorPoint,
-    textPos,
-    dimLineMaterial,
-    extensionLineMaterial,
-    arrowMaterial,
-    isHorizontal,
-  );
+  if (angle !== 0) {
+    // Повёрнутая размерность — используем векторную геометрию с произвольным углом
+    const angleRad = (angle * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
+    dimensionObjects = createRotatedDimensionLines(
+      point1,
+      point2,
+      anchorPoint,
+      textPos,
+      dimLineMaterial,
+      extensionLineMaterial,
+      arrowMaterial,
+      angleRad,
+    );
+  } else {
+    // Стандартная размерность — определяем ориентацию по разбросу точек
+    const spreadX = Math.abs(point2.x - point1.x);
+    const spreadY = Math.abs(point2.y - point1.y);
+    const isHorizontal = spreadX >= spreadY;
+
+    dimensionObjects = createLinearDimensionLines(
+      point1,
+      point2,
+      anchorPoint,
+      textPos,
+      dimLineMaterial,
+      extensionLineMaterial,
+      arrowMaterial,
+      isHorizontal,
+    );
+  }
 
   dimensionObjects.forEach((obj) => dimGroup.add(obj));
 
@@ -2019,6 +2160,7 @@ const processEntity = (
           dimData.textHeight,
           dimData.isRadial,
           entityColor,
+          dimData.angle,
         );
 
         const objects: THREE.Object3D[] = [dimGroup];
