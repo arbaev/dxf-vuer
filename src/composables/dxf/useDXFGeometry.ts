@@ -1,7 +1,16 @@
 // Создание геометрии Three.js из DXF данных
 import * as THREE from "three";
 import { NURBSCurve } from "three/examples/jsm/curves/NURBSCurve.js";
-import type { DxfVertex, DxfEntity, DxfData, DxfDimensionEntity, DxfLayer, HatchBoundaryPath, HatchEdge, HatchPatternLine } from "@/types/dxf";
+import type {
+  DxfVertex,
+  DxfEntity,
+  DxfData,
+  DxfDimensionEntity,
+  DxfLayer,
+  HatchBoundaryPath,
+  HatchEdge,
+  HatchPatternLine,
+} from "@/types/dxf";
 import {
   isLineEntity,
   isCircleEntity,
@@ -47,7 +56,10 @@ interface EntityColorContext {
 }
 
 /** Получить LineBasicMaterial из кеша или создать новый */
-const getLineMaterial = (color: string, cache: Map<string, THREE.LineBasicMaterial>): THREE.LineBasicMaterial => {
+const getLineMaterial = (
+  color: string,
+  cache: Map<string, THREE.LineBasicMaterial>,
+): THREE.LineBasicMaterial => {
   let mat = cache.get(color);
   if (!mat) {
     mat = new THREE.LineBasicMaterial({ color });
@@ -63,11 +75,7 @@ const getLineMaterial = (color: string, cache: Map<string, THREE.LineBasicMateri
  * @param bulge - Коэффициент изгиба (bulge = tan(angle/4))
  * @returns Массив точек для отрисовки дуги
  */
-const createBulgeArc = (
-  p1: THREE.Vector3,
-  p2: THREE.Vector3,
-  bulge: number,
-): THREE.Vector3[] => {
+const createBulgeArc = (p1: THREE.Vector3, p2: THREE.Vector3, bulge: number): THREE.Vector3[] => {
   // Если bulge близок к нулю - возвращаем прямую линию
   if (Math.abs(bulge) < EPSILON) {
     return [p1, p2];
@@ -132,7 +140,10 @@ const createBulgeArc = (
   }
 
   // Количество сегментов для дуги (пропорционально углу)
-  const segments = Math.max(MIN_ARC_SEGMENTS, Math.floor(Math.abs(sweepAngle) * CIRCLE_SEGMENTS / (2 * Math.PI)));
+  const segments = Math.max(
+    MIN_ARC_SEGMENTS,
+    Math.floor((Math.abs(sweepAngle) * CIRCLE_SEGMENTS) / (2 * Math.PI)),
+  );
 
   const points: THREE.Vector3[] = [];
 
@@ -443,6 +454,347 @@ const createDimensionGroup = (
 };
 
 /**
+ * Очистка MTEXT форматирования из dimension текста (кроме \S).
+ * Возвращает текст с удалёнными \A, \f, \c, \H, \P, {}, и обработанными спецсимволами.
+ */
+const cleanDimensionMText = (rawText: string): string => {
+  let text = rawText.replace(/\\\\/g, "\x01").replace(/\\\{/g, "\x02").replace(/\\\}/g, "\x03");
+
+  text = text.replace(/\\[Aa]\d+;/g, "");
+  text = text.replace(/\\[fF][^;]*;/g, "");
+  text = text.replace(/\\[cC]\d+;/g, "");
+  text = text.replace(/\\[Hh][\d.]+;/g, "");
+  text = text.replace(/\\[WTQA][\d.+-]+;/gi, "");
+  text = text.replace(/\\[LOKlok]/g, "");
+  text = text.replace(/\\P/g, " ");
+  text = text.replace(/[{}]/g, "");
+  text = text.replace(/\\U\+([0-9A-Fa-f]{4})/g, (_, hex) =>
+    String.fromCodePoint(parseInt(hex, 16)),
+  );
+  text = replaceSpecialChars(text);
+  text = text.replace(/\x01/g, "\\").replace(/\x02/g, "{").replace(/\x03/g, "}");
+
+  return text;
+};
+
+/**
+ * Создание текстового меша для dimension с поддержкой stacked text (\S).
+ * Формат \S: \Sверх^низ; — рисует «верх» как надстрочный и «низ» как подстрочный текст.
+ * Текст рисуется у нижнего края canvas — низ видимых символов совпадает с позицией меша.
+ */
+const createDimensionTextMesh = (
+  rawText: string,
+  height: number,
+  color: string,
+  hAlign: "left" | "center" | "right" = "center",
+): THREE.Mesh => {
+  const cleaned = cleanDimensionMText(rawText);
+
+  // Ищем паттерн \S: \Sверх^низ; или \Sверх/низ;
+  const stackedMatch = cleaned.match(/^(.*?)\\S([^^/;]*)\^([^;]*);(.*)$/);
+
+  const CANVAS_SCALE = 10;
+  const PADDING = 4;
+  const STACKED_RATIO = 0.6;
+  const STACKED_GAP = 2;
+  const STACKED_V_GAP = 4; // Вертикальный зазор между superscript и subscript
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d")!;
+
+  const mainFontSize = Math.max(height * CANVAS_SCALE, TEXT_HEIGHT);
+  const mainFont = `${mainFontSize}px Arial, sans-serif`;
+
+  // Эталонная высота canvas как в createTextMesh — для нормализации размера шрифта
+  const refCanvasHeight = Math.ceil(mainFontSize * 1.2) + PADDING * 2;
+
+  if (!stackedMatch) {
+    // Нет stacked text — простой рендеринг
+    const plain = cleaned.replace(/\\S[^;]*;/g, "").trim();
+
+    context.font = mainFont;
+    const metrics = context.measureText(plain);
+    const ascent = metrics.actualBoundingBoxAscent ?? mainFontSize * 0.8;
+    const descent = metrics.actualBoundingBoxDescent ?? mainFontSize * 0.05;
+
+    const canvasWidth = Math.ceil(metrics.width) + PADDING * 2;
+    const canvasHeight = Math.ceil(ascent + descent) + PADDING * 2;
+
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+
+    context.font = mainFont;
+    context.fillStyle = color;
+    context.textBaseline = "alphabetic";
+    context.fillText(plain, PADDING, PADDING + Math.ceil(ascent));
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+
+    // meshHeight нормализован по эталонному canvas — шрифт того же размера что в createTextMesh
+    const meshHeight = (height * canvasHeight) / refCanvasHeight;
+    const aspectRatio = canvasWidth / canvasHeight;
+    const meshWidth = meshHeight * aspectRatio;
+    const geometry = new THREE.PlaneGeometry(meshWidth, meshHeight);
+
+    // bottom align: низ видимого текста на textPos.y
+    const bottomPaddingFrac = (PADDING - Math.ceil(descent)) / canvasHeight;
+    const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
+    geometry.translate(tx, meshHeight / 2 - meshHeight * Math.max(0, bottomPaddingFrac), 0);
+
+    return new THREE.Mesh(geometry, material);
+  }
+
+  // Stacked text: mainText + superscript/subscript
+  const mainText = stackedMatch[1].trim();
+  const topText = stackedMatch[2].trim();
+  const bottomText = stackedMatch[3].trim();
+
+  const stackedFontSize = mainFontSize * STACKED_RATIO;
+  const stackedFont = `${stackedFontSize}px Arial, sans-serif`;
+
+  // Измеряем ширины и метрики
+  context.font = mainFont;
+  const mainMetrics = mainText ? context.measureText(mainText) : null;
+  const mainWidth = mainMetrics ? mainMetrics.width : 0;
+  const mainAscent = mainMetrics?.actualBoundingBoxAscent ?? mainFontSize * 0.8;
+  const mainDescent = mainMetrics?.actualBoundingBoxDescent ?? mainFontSize * 0.05;
+
+  context.font = stackedFont;
+  const topWidth = topText ? context.measureText(topText).width : 0;
+  const bottomWidth = bottomText ? context.measureText(bottomText).width : 0;
+  const stackedMaxWidth = Math.max(topWidth, bottomWidth);
+  const topMetricsSt = topText ? context.measureText(topText) : null;
+  const topAscentSt = topMetricsSt?.actualBoundingBoxAscent ?? stackedFontSize * 0.8;
+  const topDescentSt = topMetricsSt?.actualBoundingBoxDescent ?? stackedFontSize * 0.05;
+  const subMetrics = bottomText ? context.measureText(bottomText) : null;
+  const subAscent = subMetrics?.actualBoundingBoxAscent ?? stackedFontSize * 0.8;
+  const subDescent = subMetrics?.actualBoundingBoxDescent ?? stackedFontSize * 0.05;
+
+  // Stacked текст центрируется по визуальному центру основного текста
+  const mainCenterAboveBaseline = mainAscent / 2;
+
+  // Расстояния от baseline: вверх и вниз (с учётом вертикального зазора между super/subscript)
+  const halfVGap = STACKED_V_GAP / 2;
+  const topExtent = Math.max(
+    mainAscent,
+    mainCenterAboveBaseline + halfVGap + topAscentSt + topDescentSt,
+  );
+  const bottomExtent = Math.max(
+    mainDescent,
+    subAscent + subDescent + halfVGap - mainCenterAboveBaseline,
+  );
+
+  const gap = mainText ? STACKED_GAP : 0;
+  const totalWidth = mainWidth + gap + stackedMaxWidth;
+  const canvasWidth = Math.ceil(totalWidth) + PADDING * 2;
+  const canvasHeight = Math.ceil(topExtent + bottomExtent) + PADDING * 2;
+
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+
+  context.fillStyle = color;
+
+  // Baseline в canvas: padding сверху + topExtent (оставляем место для superscript)
+  const baselineY = PADDING + Math.ceil(topExtent);
+  // Визуальный центр основного текста — точка разделения super/subscript
+  const stackedCenterY = baselineY - mainCenterAboveBaseline;
+
+  // Рисуем основной текст
+  if (mainText) {
+    context.font = mainFont;
+    context.textBaseline = "alphabetic";
+    context.fillText(mainText, PADDING, baselineY);
+  }
+
+  // Stacked текст: по центру основного текста
+  const stackedX = PADDING + mainWidth + gap;
+  context.font = stackedFont;
+
+  if (topText) {
+    // alphabetic baseline: низ видимых глифов = stackedCenterY - halfVGap
+    context.textBaseline = "alphabetic";
+    context.fillText(topText, stackedX, stackedCenterY - halfVGap - topDescentSt);
+  }
+
+  if (bottomText) {
+    // alphabetic baseline: верх видимых глифов = stackedCenterY + halfVGap
+    context.textBaseline = "alphabetic";
+    context.fillText(bottomText, stackedX, stackedCenterY + halfVGap + subAscent);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+
+  // meshHeight нормализован по эталонному canvas — шрифт того же размера что в createTextMesh
+  const meshHeight = (height * canvasHeight) / refCanvasHeight;
+  const aspectRatio = canvasWidth / canvasHeight;
+  const meshWidth = meshHeight * aspectRatio;
+  const geometry = new THREE.PlaneGeometry(meshWidth, meshHeight);
+
+  // Сдвигаем меш: baseline основного текста стоит на textPos.y
+  const belowBaselineFrac = (Math.ceil(bottomExtent) + PADDING) / canvasHeight;
+  const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
+  geometry.translate(tx, meshHeight / 2 - meshHeight * belowBaselineFrac, 0);
+
+  return new THREE.Mesh(geometry, material);
+};
+
+/**
+ * Создание ординатного размера (ordinate dimension).
+ * Ординатный размер показывает координату точки (X или Y) и состоит из:
+ * 1. Горизонтальной линии от feature point
+ * 2. Диагонали до leader point
+ * 3. Горизонтальной линии от leader до конца текста
+ * Без стрелок и пунктирных линий — только сплошные линии.
+ */
+const createOrdinateDimension = (
+  entity: DxfDimensionEntity,
+  color: string,
+): THREE.Object3D[] | null => {
+  const feature = entity.linearOrAngularPoint1; // Code 13 — точка на объекте
+  const leader = entity.linearOrAngularPoint2; // Code 14 — конец диагонали
+  const textPos = entity.middleOfText || entity.textMidPoint; // Code 11
+
+  if (!feature || !leader) return null;
+
+  // Получаем текст dimension
+  let dimensionText = entity.text;
+  const measurement = entity.actualMeasurement;
+
+  // Замена <> на actualMeasurement
+  if (dimensionText && typeof measurement === "number") {
+    dimensionText = dimensionText.replace(/<>/g, measurement.toFixed(DIM_TEXT_DECIMAL_PLACES));
+  }
+
+  if (!dimensionText && typeof measurement === "number") {
+    dimensionText = measurement.toFixed(DIM_TEXT_DECIMAL_PLACES);
+  }
+
+  if (!dimensionText) return null;
+
+  const textHeight = entity.height || entity.textHeight || DIM_TEXT_HEIGHT;
+  const objects: THREE.Object3D[] = [];
+  const material = new THREE.LineBasicMaterial({ color });
+
+  // Создаём текстовый меш первым, чтобы узнать реальную ширину текста
+  let textMesh: THREE.Mesh | null = null;
+  let actualTextWidth = 0;
+  if (textPos) {
+    textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "left");
+    textMesh.position.set(textPos.x, textPos.y, 0.2);
+    // Ширина из PlaneGeometry — реальная ширина меша в мировых координатах
+    textMesh.geometry.computeBoundingBox();
+    const bbox = textMesh.geometry.boundingBox;
+    if (bbox) {
+      actualTextWidth = bbox.max.x - bbox.min.x;
+    }
+  }
+
+  // X-ordinate (бит 0 установлен) или Y-ordinate (бит 0 сброшен)
+  const isXOrdinate = ((entity.dimensionType ?? 0) & 1) !== 0;
+
+  const featureVec = new THREE.Vector3(feature.x, feature.y, 0);
+  const leaderVec = new THREE.Vector3(leader.x, leader.y, 0);
+
+  if (!isXOrdinate) {
+    // Y-ordinate: горизонтальная выноска (измеряет Y координату)
+    const dy = leader.y - feature.y;
+
+    if (Math.abs(dy) < EPSILON) {
+      // Одна горизонтальная линия от feature до конца текста
+      const endX = textPos ? textPos.x + actualTextWidth : leader.x;
+      const points = [featureVec, new THREE.Vector3(Math.max(leader.x, endX), leader.y, 0)];
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      objects.push(new THREE.Line(geometry, material));
+    } else {
+      // Dog-leg: 3 сегмента
+      // Смещение диагонали от leader = abs(dy)/2 (угол ~63°)
+      const diagDx = Math.abs(dy) / 2;
+      const dirX = leader.x - feature.x !== 0 ? Math.sign(leader.x - feature.x) : 1;
+      let kneeX = leader.x - dirX * diagDx;
+
+      // Ограничиваем knee: не за feature
+      if (dirX > 0) {
+        kneeX = Math.max(kneeX, feature.x);
+      } else {
+        kneeX = Math.min(kneeX, feature.x);
+      }
+
+      const kneeVec = new THREE.Vector3(kneeX, feature.y, 0);
+
+      // Сегмент 1: горизонтальный от feature до knee
+      if (Math.abs(kneeX - feature.x) > EPSILON) {
+        const geom1 = new THREE.BufferGeometry().setFromPoints([featureVec, kneeVec]);
+        objects.push(new THREE.Line(geom1, material));
+      }
+
+      // Сегмент 2: диагональ от knee до leader
+      const geom2 = new THREE.BufferGeometry().setFromPoints([kneeVec, leaderVec]);
+      objects.push(new THREE.Line(geom2, material));
+
+      // Сегмент 3: горизонтальный от leader до конца текста
+      const textEndX = textPos ? textPos.x + actualTextWidth : leader.x;
+      if (Math.abs(textEndX - leader.x) > EPSILON && dirX * (textEndX - leader.x) > 0) {
+        const geom3 = new THREE.BufferGeometry().setFromPoints([
+          leaderVec,
+          new THREE.Vector3(textEndX, leader.y, 0),
+        ]);
+        objects.push(new THREE.Line(geom3, material));
+      }
+    }
+  } else {
+    // X-ordinate: вертикальная выноска (измеряет X координату)
+    const dx = leader.x - feature.x;
+
+    if (Math.abs(dx) < EPSILON) {
+      const endY = textPos ? textPos.y + actualTextWidth : leader.y;
+      const points = [featureVec, new THREE.Vector3(leader.x, Math.max(leader.y, endY), 0)];
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      objects.push(new THREE.Line(geometry, material));
+    } else {
+      const diagDy = Math.abs(dx) / 2;
+      const dirY = leader.y - feature.y !== 0 ? Math.sign(leader.y - feature.y) : 1;
+      let kneeY = leader.y - dirY * diagDy;
+
+      if (dirY > 0) {
+        kneeY = Math.max(kneeY, feature.y);
+      } else {
+        kneeY = Math.min(kneeY, feature.y);
+      }
+
+      const kneeVec = new THREE.Vector3(feature.x, kneeY, 0);
+
+      if (Math.abs(kneeY - feature.y) > EPSILON) {
+        const geom1 = new THREE.BufferGeometry().setFromPoints([featureVec, kneeVec]);
+        objects.push(new THREE.Line(geom1, material));
+      }
+
+      const geom2 = new THREE.BufferGeometry().setFromPoints([kneeVec, leaderVec]);
+      objects.push(new THREE.Line(geom2, material));
+
+      const textEndY = textPos ? textPos.y + actualTextWidth : leader.y;
+      if (Math.abs(textEndY - leader.y) > EPSILON && dirY * (textEndY - leader.y) > 0) {
+        const geom3 = new THREE.BufferGeometry().setFromPoints([
+          leaderVec,
+          new THREE.Vector3(leader.x, textEndY, 0),
+        ]);
+        objects.push(new THREE.Line(geom3, material));
+      }
+    }
+  }
+
+  // Добавляем текстовый меш (создан выше для расчёта ширины)
+  if (textMesh) {
+    objects.push(textMesh);
+  }
+
+  return objects.length > 0 ? objects : null;
+};
+
+/**
  * Создание группы для INSERT entity (вставка блока)
  * @param insertEntity - INSERT entity с параметрами вставки
  * @param dxf - Данные DXF файла с блоками
@@ -558,10 +910,7 @@ const replaceSpecialChars = (text: string): string =>
 const parseMTextContent = (rawText: string): MTextLine[] => {
   // 1. Защищаем литеральные escape-последовательности placeholder'ами,
   //    чтобы они не были съедены парсером форматирования (\\ → \, \{ → {, \} → })
-  let text = rawText
-    .replace(/\\\\/g, "\x01")
-    .replace(/\\\{/g, "\x02")
-    .replace(/\\\}/g, "\x03");
+  let text = rawText.replace(/\\\\/g, "\x01").replace(/\\\{/g, "\x02").replace(/\\\}/g, "\x03");
 
   // 2. Unicode символы по коду: \U+XXXX → символ
   text = text.replace(/\\U\+([0-9A-Fa-f]{4})/g, (_, hex) =>
@@ -667,7 +1016,7 @@ const parseMTextContent = (rawText: string): MTextLine[] => {
  */
 const getMTextHAlign = (attachmentPoint?: number): "left" | "center" | "right" => {
   if (!attachmentPoint) return "left";
-  const col = ((attachmentPoint - 1) % 3); // 0=left, 1=center, 2=right
+  const col = (attachmentPoint - 1) % 3; // 0=left, 1=center, 2=right
   if (col === 1) return "center";
   if (col === 2) return "right";
   return "left";
@@ -909,14 +1258,19 @@ const boundaryPathToLinePoints = (bp: HatchBoundaryPath): THREE.Vector3[] => {
         } else {
           if (sweep > 0) sweep -= 2 * Math.PI;
         }
-        const segments = Math.max(MIN_ARC_SEGMENTS, Math.floor(Math.abs(sweep) * CIRCLE_SEGMENTS / (2 * Math.PI)));
+        const segments = Math.max(
+          MIN_ARC_SEGMENTS,
+          Math.floor((Math.abs(sweep) * CIRCLE_SEGMENTS) / (2 * Math.PI)),
+        );
         for (let i = 0; i <= segments; i++) {
           const a = startRad + (i / segments) * sweep;
-          points.push(new THREE.Vector3(
-            edge.center.x + edge.radius * Math.cos(a),
-            edge.center.y + edge.radius * Math.sin(a),
-            0,
-          ));
+          points.push(
+            new THREE.Vector3(
+              edge.center.x + edge.radius * Math.cos(a),
+              edge.center.y + edge.radius * Math.sin(a),
+              0,
+            ),
+          );
         }
       }
     }
@@ -954,9 +1308,12 @@ const pointInPolygon2D = (px: number, py: number, polygon: Point2D[]): boolean =
   let inside = false;
   const n = polygon.length;
   for (let i = 0, j = n - 1; i < n; j = i++) {
-    const yi = polygon[i].y, yj = polygon[j].y;
-    if (((yi > py) !== (yj > py)) &&
-        (px < (polygon[j].x - polygon[i].x) * (py - yi) / (yj - yi) + polygon[i].x)) {
+    const yi = polygon[i].y,
+      yj = polygon[j].y;
+    if (
+      yi > py !== yj > py &&
+      px < ((polygon[j].x - polygon[i].x) * (py - yi)) / (yj - yi) + polygon[i].x
+    ) {
       inside = !inside;
     }
   }
@@ -967,7 +1324,10 @@ const pointInPolygon2D = (px: number, py: number, polygon: Point2D[]): boolean =
  * Обрезка отрезка по полигону: возвращает массив [x1,y1,x2,y2] для частей внутри полигона
  */
 const clipSegmentToPolygon = (
-  x1: number, y1: number, x2: number, y2: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
   polygon: Point2D[],
 ): [number, number, number, number][] => {
   const dx = x2 - x1;
@@ -1003,10 +1363,7 @@ const clipSegmentToPolygon = (
 
   for (const t of params) {
     if (inside) {
-      result.push([
-        x1 + prevT * dx, y1 + prevT * dy,
-        x1 + t * dx, y1 + t * dy,
-      ]);
+      result.push([x1 + prevT * dx, y1 + prevT * dy, x1 + t * dx, y1 + t * dy]);
     }
     inside = !inside;
     prevT = t;
@@ -1027,7 +1384,10 @@ const generateHatchPattern = (
   polygon: Point2D[],
 ): THREE.Vector3[][] => {
   // Bounding box полигона
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
   for (const p of polygon) {
     if (p.x < minX) minX = p.x;
     if (p.y < minY) minY = p.y;
@@ -1058,11 +1418,14 @@ const generateHatchPattern = (
 
     // Проецируем углы bbox на перпендикулярное направление относительно basePoint
     const corners = [
-      { x: minX, y: minY }, { x: maxX, y: minY },
-      { x: maxX, y: maxY }, { x: minX, y: maxY },
+      { x: minX, y: minY },
+      { x: maxX, y: minY },
+      { x: maxX, y: maxY },
+      { x: minX, y: maxY },
     ];
 
-    let minProj = Infinity, maxProj = -Infinity;
+    let minProj = Infinity,
+      maxProj = -Infinity;
     for (const c of corners) {
       const proj = (c.x - pl.basePoint.x) * perpX + (c.y - pl.basePoint.y) * perpY;
       if (proj < minProj) minProj = proj;
@@ -1084,11 +1447,16 @@ const generateHatchPattern = (
 
       if (isSolid) {
         // Сплошная линия через весь bbox
-        const x1 = ox - diag * dirX, y1 = oy - diag * dirY;
-        const x2 = ox + diag * dirX, y2 = oy + diag * dirY;
+        const x1 = ox - diag * dirX,
+          y1 = oy - diag * dirY;
+        const x2 = ox + diag * dirX,
+          y2 = oy + diag * dirY;
         const clipped = clipSegmentToPolygon(x1, y1, x2, y2, polygon);
         for (const seg of clipped) {
-          allSegments.push([new THREE.Vector3(seg[0], seg[1], 0), new THREE.Vector3(seg[2], seg[3], 0)]);
+          allSegments.push([
+            new THREE.Vector3(seg[0], seg[1], 0),
+            new THREE.Vector3(seg[2], seg[3], 0),
+          ]);
         }
       } else {
         // Дэш-паттерн: генерируем сегменты вдоль линии
@@ -1102,11 +1470,16 @@ const generateHatchPattern = (
             const segLen = Math.abs(d);
             if (d > 0) {
               // Видимый дэш
-              const sx = ox + t * dirX, sy = oy + t * dirY;
-              const ex = ox + (t + segLen) * dirX, ey = oy + (t + segLen) * dirY;
+              const sx = ox + t * dirX,
+                sy = oy + t * dirY;
+              const ex = ox + (t + segLen) * dirX,
+                ey = oy + (t + segLen) * dirY;
               const clipped = clipSegmentToPolygon(sx, sy, ex, ey, polygon);
               for (const seg of clipped) {
-                allSegments.push([new THREE.Vector3(seg[0], seg[1], 0), new THREE.Vector3(seg[2], seg[3], 0)]);
+                allSegments.push([
+                  new THREE.Vector3(seg[0], seg[1], 0),
+                  new THREE.Vector3(seg[2], seg[3], 0),
+                ]);
               }
             }
             // d < 0 → пробел, d === 0 → точка (пропускаем)
@@ -1125,7 +1498,9 @@ const generateHatchPattern = (
  */
 const setLayerName = (obj: THREE.Object3D | THREE.Object3D[], layerName: string) => {
   if (Array.isArray(obj)) {
-    obj.forEach((o) => { o.userData.layerName = layerName; });
+    obj.forEach((o) => {
+      o.userData.layerName = layerName;
+    });
   } else {
     obj.userData.layerName = layerName;
   }
@@ -1169,11 +1544,13 @@ const processEntity = (
         const points: THREE.Vector3[] = [];
         for (let i = 0; i <= CIRCLE_SEGMENTS; i++) {
           const angle = (i / CIRCLE_SEGMENTS) * Math.PI * 2;
-          points.push(new THREE.Vector3(
-            entity.center.x + entity.radius * Math.cos(angle),
-            entity.center.y + entity.radius * Math.sin(angle),
-            0,
-          ));
+          points.push(
+            new THREE.Vector3(
+              entity.center.x + entity.radius * Math.cos(angle),
+              entity.center.y + entity.radius * Math.sin(angle),
+              0,
+            ),
+          );
         }
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         return new THREE.Line(geometry, lineMaterial);
@@ -1190,16 +1567,21 @@ const processEntity = (
           endAngle += Math.PI * 2;
         }
         const sweepAngle = endAngle - startAngle;
-        const segments = Math.max(MIN_ARC_SEGMENTS, Math.floor(sweepAngle * CIRCLE_SEGMENTS / (2 * Math.PI)));
+        const segments = Math.max(
+          MIN_ARC_SEGMENTS,
+          Math.floor((sweepAngle * CIRCLE_SEGMENTS) / (2 * Math.PI)),
+        );
 
         const points: THREE.Vector3[] = [];
         for (let i = 0; i <= segments; i++) {
           const angle = startAngle + (i / segments) * sweepAngle;
-          points.push(new THREE.Vector3(
-            entity.center.x + entity.radius * Math.cos(angle),
-            entity.center.y + entity.radius * Math.sin(angle),
-            0,
-          ));
+          points.push(
+            new THREE.Vector3(
+              entity.center.x + entity.radius * Math.cos(angle),
+              entity.center.y + entity.radius * Math.sin(angle),
+              0,
+            ),
+          );
         }
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         return new THREE.Line(geometry, lineMaterial);
@@ -1236,7 +1618,7 @@ const processEntity = (
         const sweepAngle = endAngle - startAngle;
         const segments = Math.max(
           MIN_ARC_SEGMENTS,
-          Math.floor(Math.abs(sweepAngle) * CIRCLE_SEGMENTS / (2 * Math.PI)),
+          Math.floor((Math.abs(sweepAngle) * CIRCLE_SEGMENTS) / (2 * Math.PI)),
         );
 
         const points: THREE.Vector3[] = [];
@@ -1245,8 +1627,10 @@ const processEntity = (
           // Параметрическое уравнение эллипса с поворотом
           const localX = majorLength * Math.cos(t);
           const localY = minorLength * Math.sin(t);
-          const worldX = entity.center.x + localX * Math.cos(rotation) - localY * Math.sin(rotation);
-          const worldY = entity.center.y + localX * Math.sin(rotation) + localY * Math.cos(rotation);
+          const worldX =
+            entity.center.x + localX * Math.cos(rotation) - localY * Math.sin(rotation);
+          const worldY =
+            entity.center.y + localX * Math.sin(rotation) + localY * Math.cos(rotation);
           points.push(new THREE.Vector3(worldX, worldY, 0));
         }
 
@@ -1295,10 +1679,13 @@ const processEntity = (
     case "SPLINE": {
       if (isSplineEntity(entity)) {
         // Если есть NURBS данные (degree, knots, controlPoints) - используем NURBSCurve
-        if (entity.controlPoints && entity.controlPoints.length > 1 &&
-            entity.degreeOfSplineCurve !== undefined &&
-            entity.knotValues && entity.knotValues.length > 0) {
-
+        if (
+          entity.controlPoints &&
+          entity.controlPoints.length > 1 &&
+          entity.degreeOfSplineCurve !== undefined &&
+          entity.knotValues &&
+          entity.knotValues.length > 0
+        ) {
           const degree = entity.degreeOfSplineCurve;
           const knots = entity.knotValues;
 
@@ -1317,7 +1704,10 @@ const processEntity = (
             const curve = new NURBSCurve(degree, knots, controlPoints, startKnot, endKnot);
 
             // Количество сегментов для отрисовки: пропорционально количеству контрольных точек
-            const segments = Math.max(controlPoints.length * NURBS_SEGMENTS_MULTIPLIER, MIN_NURBS_SEGMENTS);
+            const segments = Math.max(
+              controlPoints.length * NURBS_SEGMENTS_MULTIPLIER,
+              MIN_NURBS_SEGMENTS,
+            );
             const interpolatedPoints = curve.getPoints(segments);
 
             const geometry = new THREE.BufferGeometry().setFromPoints(interpolatedPoints);
@@ -1334,8 +1724,11 @@ const processEntity = (
             (vertex: DxfVertex) => new THREE.Vector3(vertex.x, vertex.y, 0),
           );
 
-          const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
-          const segments = Math.max(points.length * CATMULL_ROM_SEGMENTS_MULTIPLIER, MIN_CATMULL_ROM_SEGMENTS);
+          const curve = new THREE.CatmullRomCurve3(points, false, "centripetal");
+          const segments = Math.max(
+            points.length * CATMULL_ROM_SEGMENTS_MULTIPLIER,
+            MIN_CATMULL_ROM_SEGMENTS,
+          );
           const interpolatedPoints = curve.getPoints(segments);
 
           const geometry = new THREE.BufferGeometry().setFromPoints(interpolatedPoints);
@@ -1354,7 +1747,16 @@ const processEntity = (
         const vAlign = getTextVAlign(entity.valign);
 
         if (textPosition && textContent) {
-          const textMesh = createTextMesh(replaceSpecialChars(textContent), textHeight, entityColor, false, false, hAlign, "Arial", vAlign);
+          const textMesh = createTextMesh(
+            replaceSpecialChars(textContent),
+            textHeight,
+            entityColor,
+            false,
+            false,
+            hAlign,
+            "Arial",
+            vAlign,
+          );
           textMesh.position.set(textPosition.x, textPosition.y, 0);
 
           if (entity.rotation) {
@@ -1384,7 +1786,16 @@ const processEntity = (
             const line = lines[0];
             const h = line.height || defaultHeight;
             const c = line.color || entityColor;
-            const textMesh = createTextMesh(line.text, h, c, line.bold, line.italic, hAlign, line.fontFamily, vAlign);
+            const textMesh = createTextMesh(
+              line.text,
+              h,
+              c,
+              line.bold,
+              line.italic,
+              hAlign,
+              line.fontFamily,
+              vAlign,
+            );
             textMesh.position.set(textPosition.x, textPosition.y, 0);
 
             if (entity.rotation) {
@@ -1405,7 +1816,16 @@ const processEntity = (
           for (const line of lines) {
             const h = line.height || defaultHeight;
             const c = line.color || entityColor;
-            const mesh = createTextMesh(line.text, h, c, line.bold, line.italic, hAlign, line.fontFamily, "top");
+            const mesh = createTextMesh(
+              line.text,
+              h,
+              c,
+              line.bold,
+              line.italic,
+              hAlign,
+              line.fontFamily,
+              "top",
+            );
             mesh.position.set(0, yOffset, 0);
             textGroup.add(mesh);
             yOffset -= h * LINE_SPACING;
@@ -1439,6 +1859,12 @@ const processEntity = (
 
     case "DIMENSION": {
       if (isDimensionEntity(entity)) {
+        // Ordinate dimension (тип 6 = Y-ordinate, тип 7 = X-ordinate)
+        const baseDimType = (entity.dimensionType ?? 0) & 0x0f;
+        if ((baseDimType & 0x0e) === 6) {
+          return createOrdinateDimension(entity, entityColor);
+        }
+
         const dimData = extractDimensionData(entity);
         if (!dimData) {
           break;
@@ -1600,7 +2026,7 @@ const processEntity = (
             // Собираем полигон из первого boundary path (основной контур)
             const boundaryPts = boundaryPathToLinePoints(entity.boundaryPaths[0]);
             if (boundaryPts.length > 2) {
-              const polygon: Point2D[] = boundaryPts.map(v => ({ x: v.x, y: v.y }));
+              const polygon: Point2D[] = boundaryPts.map((v) => ({ x: v.x, y: v.y }));
               const segments = generateHatchPattern(entity.patternLines, polygon);
               for (const seg of segments) {
                 const geometry = new THREE.BufferGeometry().setFromPoints(seg);
