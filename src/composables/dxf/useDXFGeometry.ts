@@ -1078,6 +1078,141 @@ const createRadialDimension = (
 };
 
 /**
+ * Создание diametric dimension (диаметральный размер, тип 3).
+ * Рисует линию диаметра между двумя точками на окружности, стрелки на обоих концах,
+ * и текст с выноской (ножка + подчёркивание).
+ */
+const createDiametricDimension = (
+  entity: DxfDimensionEntity,
+  color: string,
+): THREE.Object3D[] | null => {
+  const p10 = entity.anchorPoint; // code 10 — первая точка на окружности
+  const p15 = entity.diameterOrRadiusPoint; // code 15 — противоположная точка (второй конец диаметра)
+  const textPos = entity.middleOfText || entity.textMidPoint; // code 11
+
+  if (!p10 || !p15) return null;
+
+  // Текст dimension (без автоматического префикса — символ ⌀ приходит из DXF)
+  let dimensionText = entity.text;
+  const measurement = entity.actualMeasurement;
+
+  if (dimensionText && typeof measurement === "number") {
+    dimensionText = dimensionText.replace(/<>/g, formatDimNumber(measurement));
+  }
+
+  if (!dimensionText && typeof measurement === "number") {
+    dimensionText = formatDimNumber(measurement);
+  }
+
+  if (!dimensionText) return null;
+
+  const textHeight = entity.height || entity.textHeight || DIM_TEXT_HEIGHT;
+  const objects: THREE.Object3D[] = [];
+  const lineMat = new THREE.LineBasicMaterial({ color });
+  const arrowMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
+
+  // Центр окружности — середина отрезка p10↔p15
+  const cx = (p10.x + p15.x) / 2;
+  const cy = (p10.y + p15.y) / 2;
+
+  // Направление от p10 к центру (для стрелки на p10)
+  const dx10 = cx - p10.x;
+  const dy10 = cy - p10.y;
+  const len10 = Math.sqrt(dx10 * dx10 + dy10 * dy10);
+  const dir10x = len10 > EPSILON ? dx10 / len10 : 1;
+  const dir10y = len10 > EPSILON ? dy10 / len10 : 0;
+
+  // 1. Линия диаметра: от p15 до p10
+  const diamLineGeom = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(p15.x, p15.y, 0),
+    new THREE.Vector3(p10.x, p10.y, 0),
+  ]);
+  objects.push(new THREE.Line(diamLineGeom, lineMat));
+
+  // 2. Стрелка на p10, направлена внутрь (к центру)
+  const arrow10From = new THREE.Vector3(
+    p10.x - dir10x * ARROW_SIZE,
+    p10.y - dir10y * ARROW_SIZE,
+    0.1,
+  );
+  objects.push(
+    createArrow(arrow10From, new THREE.Vector3(p10.x, p10.y, 0.1), ARROW_SIZE, arrowMat),
+  );
+
+  // 3. Стрелка на p15, направлена внутрь (к центру) — направление противоположное
+  const arrow15From = new THREE.Vector3(
+    p15.x + dir10x * ARROW_SIZE,
+    p15.y + dir10y * ARROW_SIZE,
+    0.1,
+  );
+  objects.push(
+    createArrow(arrow15From, new THREE.Vector3(p15.x, p15.y, 0.1), ARROW_SIZE, arrowMat),
+  );
+
+  // 4. Текст с выноской — ножка идёт от ближайшего к тексту конца линии диаметра
+  let textMesh: THREE.Mesh | null = null;
+
+  if (textPos) {
+    // Определяем ближайший конец линии диаметра к тексту
+    const dist10 = (textPos.x - p10.x) ** 2 + (textPos.y - p10.y) ** 2;
+    const dist15 = (textPos.x - p15.x) ** 2 + (textPos.y - p15.y) ** 2;
+    const nearPt = dist10 <= dist15 ? p10 : p15;
+    // Направление ножки: от nearPt к центру (совпадает с направлением стрелки)
+    const dxN = cx - nearPt.x;
+    const dyN = cy - nearPt.y;
+    const lenN = Math.sqrt(dxN * dxN + dyN * dyN);
+    const dirNx = lenN > EPSILON ? dxN / lenN : 1;
+    const dirNy = lenN > EPSILON ? dyN / lenN : 0;
+
+    const underlineY = textPos.y - textHeight / 2;
+
+    // Пересечение луча (nearPt → центр) с горизонталью подчёркивания
+    let intersectX = textPos.x;
+    if (Math.abs(dirNy) > EPSILON) {
+      const t = (underlineY - nearPt.y) / dirNy;
+      intersectX = nearPt.x + t * dirNx;
+    }
+
+    textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
+    textMesh.position.set(textPos.x, underlineY, 0.2);
+    textMesh.geometry.computeBoundingBox();
+    let textWidth = 0;
+    const bbox = textMesh.geometry.boundingBox;
+    if (bbox) {
+      textWidth = bbox.max.x - bbox.min.x;
+    }
+
+    const textLeft = textPos.x - textWidth / 2;
+    const textRight = textPos.x + textWidth / 2;
+
+    // Ножка: от nearPt в направлении стрелки до пересечения с underlineY
+    const nearVec = new THREE.Vector3(nearPt.x, nearPt.y, 0);
+    const tailEnd = new THREE.Vector3(intersectX, underlineY, 0);
+    const tailGeom = new THREE.BufferGeometry().setFromPoints([nearVec, tailEnd]);
+    objects.push(new THREE.Line(tailGeom, lineMat));
+
+    // Подчёркивание — от точки пересечения с ножкой до дальнего края текста
+    const underlineLeft = intersectX <= textPos.x ? intersectX : textLeft;
+    const underlineRight = intersectX <= textPos.x ? textRight : intersectX;
+    const underlineGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(underlineLeft, underlineY, 0),
+      new THREE.Vector3(underlineRight, underlineY, 0),
+    ]);
+    objects.push(new THREE.Line(underlineGeom, lineMat));
+  } else {
+    // Fallback: текст в центре линии диаметра
+    textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
+    textMesh.position.set(cx, cy, 0.2);
+  }
+
+  if (textMesh) {
+    objects.push(textMesh);
+  }
+
+  return objects.length > 0 ? objects : null;
+};
+
+/**
  * Вычисление пересечения двух линий (2D).
  * Line1: p1 → p2, Line2: p3 → p4.
  * Возвращает точку пересечения или null если линии параллельны.
@@ -2391,6 +2526,11 @@ const processEntity = (
         // Angular dimension (тип 2)
         if (baseDimType === 2) {
           return createAngularDimension(entity, entityColor);
+        }
+
+        // Diametric dimension (тип 3)
+        if (baseDimType === 3) {
+          return createDiametricDimension(entity, entityColor);
         }
 
         // Radial dimension (тип 4)
