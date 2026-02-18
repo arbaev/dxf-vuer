@@ -69,6 +69,7 @@ export interface DxfTextEntity extends DxfEntityBase {
   height?: number;
   textHeight?: number;
   rotation?: number;
+  directionVector?: DxfVertex; // MTEXT: вектор направления текста (code 11)
   halign?: number;
   valign?: number;
   attachmentPoint?: number; // MTEXT: 1-9 (TopLeft..BottomRight)

@@ -1562,6 +1562,49 @@ const createBlockGroup = (
   return blockGroup;
 };
 
+/**
+ * Рендерит анонимный блок (*Dxx) для DIMENSION entity.
+ * Приоритет: готовая геометрия от AutoCAD (LINE, MTEXT, SOLID).
+ * Координаты в блоке абсолютные — трансформации не нужны.
+ */
+const renderDimensionBlock = (
+  dimEntity: DxfDimensionEntity,
+  dxf: DxfData,
+  colorCtx: EntityColorContext,
+  depth: number,
+): THREE.Object3D[] | null => {
+  const blockName = dimEntity.block;
+  if (!blockName || !dxf.blocks?.[blockName]) return null;
+
+  const block = dxf.blocks[blockName];
+  if (!block.entities || block.entities.length === 0) return null;
+
+  // Цвет DIMENSION entity для ByBlock наследования (entity внутри блока имеют color=0)
+  const dimColor = resolveEntityColor(dimEntity, colorCtx.layers, colorCtx.blockColor);
+  const blockColorCtx: EntityColorContext = {
+    layers: colorCtx.layers,
+    blockColor: dimColor,
+    materialCache: colorCtx.materialCache,
+  };
+
+  const objects: THREE.Object3D[] = [];
+  for (const entity of block.entities) {
+    // Defpoints — служебный слой AutoCAD, не отображается
+    if (entity.layer?.toLowerCase() === "defpoints") continue;
+    try {
+      const obj = processEntity(entity, dxf, blockColorCtx, depth + 1);
+      if (obj) {
+        if (Array.isArray(obj)) objects.push(...obj);
+        else objects.push(obj);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Ошибка в dimension block "${blockName}":`, error);
+    }
+  }
+
+  return objects.length > 0 ? objects : null;
+};
+
 /** Строка MTEXT с опциональным переопределением цвета, высоты и стиля */
 interface MTextLine {
   text: string;
@@ -1570,6 +1613,8 @@ interface MTextLine {
   bold?: boolean;
   italic?: boolean;
   fontFamily?: string;
+  stackedTop?: string; // \Sверх^низ; → superscript
+  stackedBottom?: string; // \Sверх^низ; → subscript
 }
 
 /**
@@ -1663,8 +1708,14 @@ const parseMTextContent = (rawText: string): MTextLine[] => {
     clean = clean.replace(/\\[WTQA][\d.+-]+;/gi, "");
     // Подчёркивание, надчёркивание, зачёркивание: \L/\l, \O/\o, \K/\k
     clean = clean.replace(/\\[LOKlok]/g, "");
-    // Дроби: \S<text>^<text>;
-    clean = clean.replace(/\\S[^;]*;/g, "");
+    // Дроби: \Sверх^низ; или \Sверх/низ; → извлекаем в stacked поля
+    let lineStackedTop: string | undefined;
+    let lineStackedBottom: string | undefined;
+    clean = clean.replace(/\\S([^^/;]*)[\^/]([^;]*);/g, (_, top, bottom) => {
+      lineStackedTop = top.trim();
+      lineStackedBottom = bottom.trim();
+      return "";
+    });
     // Неразрывный пробел
     clean = clean.replace(/\\~/g, " ");
     // Разрыв колонки \N → пробел
@@ -1677,7 +1728,7 @@ const parseMTextContent = (rawText: string): MTextLine[] => {
     // Восстанавливаем литеральные символы из placeholder'ов
     clean = clean.replace(/\x01/g, "\\").replace(/\x02/g, "{").replace(/\x03/g, "}");
 
-    if (clean.length > 0) {
+    if (clean.length > 0 || lineStackedTop || lineStackedBottom) {
       lines.push({
         text: clean,
         color: currentColor,
@@ -1685,6 +1736,8 @@ const parseMTextContent = (rawText: string): MTextLine[] => {
         bold: lineBold,
         italic: lineItalic,
         fontFamily: lineFont,
+        stackedTop: lineStackedTop,
+        stackedBottom: lineStackedBottom,
       });
     }
   }
@@ -1734,6 +1787,117 @@ const getTextVAlign = (valign?: number): "top" | "middle" | "bottom" => {
   if (valign === 3) return "top";
   if (valign === 2) return "middle";
   return "bottom"; // 0=Baseline ≈ bottom, 1=Bottom
+};
+
+/**
+ * Создание текстового меша со stacked text (superscript/subscript).
+ * Формат: mainText + верхний/нижний текст (из \Sверх^низ;)
+ */
+const createStackedTextMesh = (
+  mainText: string,
+  stackedTop: string,
+  stackedBottom: string,
+  height: number,
+  color: string,
+  bold = false,
+  italic = false,
+  hAlign: "left" | "center" | "right" = "center",
+  fontFamily = "Arial",
+  vAlign: "top" | "middle" | "bottom" = "middle",
+): THREE.Mesh => {
+  const CANVAS_SCALE = 10;
+  const PADDING = 4;
+  const STACKED_RATIO = 0.6;
+  const STACKED_GAP = 2;
+  const STACKED_V_GAP = 4;
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d")!;
+
+  const fontSize = Math.max(height * CANVAS_SCALE, TEXT_HEIGHT);
+  const fontStyle = `${italic ? "italic " : ""}${bold ? "bold " : ""}${fontSize}px '${fontFamily}', Arial, sans-serif`;
+  const stackedFontSize = fontSize * STACKED_RATIO;
+  const stackedFontStyle = `${italic ? "italic " : ""}${bold ? "bold " : ""}${stackedFontSize}px '${fontFamily}', Arial, sans-serif`;
+
+  // Измеряем основной текст
+  context.font = fontStyle;
+  const mainMetrics = mainText ? context.measureText(mainText) : null;
+  const mainWidth = mainMetrics ? mainMetrics.width : 0;
+  const mainAscent = mainMetrics?.actualBoundingBoxAscent ?? fontSize * 0.8;
+  const mainDescent = mainMetrics?.actualBoundingBoxDescent ?? fontSize * 0.05;
+
+  // Измеряем stacked текст
+  context.font = stackedFontStyle;
+  const topWidth = stackedTop ? context.measureText(stackedTop).width : 0;
+  const bottomWidth = stackedBottom ? context.measureText(stackedBottom).width : 0;
+  const stackedMaxWidth = Math.max(topWidth, bottomWidth);
+  const topMetrics = stackedTop ? context.measureText(stackedTop) : null;
+  const topAscent = topMetrics?.actualBoundingBoxAscent ?? stackedFontSize * 0.8;
+  const topDescent = topMetrics?.actualBoundingBoxDescent ?? stackedFontSize * 0.05;
+  const subMetrics = stackedBottom ? context.measureText(stackedBottom) : null;
+  const subAscent = subMetrics?.actualBoundingBoxAscent ?? stackedFontSize * 0.8;
+  const subDescent = subMetrics?.actualBoundingBoxDescent ?? stackedFontSize * 0.05;
+
+  // Stacked текст центрируется по визуальному центру основного текста
+  const mainCenterAboveBaseline = mainAscent / 2;
+  const halfVGap = STACKED_V_GAP / 2;
+
+  const topExtent = Math.max(
+    mainAscent,
+    mainCenterAboveBaseline + halfVGap + topAscent + topDescent,
+  );
+  const bottomExtent = Math.max(
+    mainDescent,
+    subAscent + subDescent + halfVGap - mainCenterAboveBaseline,
+  );
+
+  const gap = mainText ? STACKED_GAP : 0;
+  const totalWidth = mainWidth + gap + stackedMaxWidth;
+  const canvasWidth = Math.ceil(totalWidth) + PADDING * 2;
+  const canvasHeight = Math.ceil(topExtent + bottomExtent) + PADDING * 2;
+
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  context.fillStyle = color;
+
+  const baselineY = PADDING + Math.ceil(topExtent);
+  const stackedCenterY = baselineY - mainCenterAboveBaseline;
+
+  // Основной текст
+  if (mainText) {
+    context.font = fontStyle;
+    context.textBaseline = "alphabetic";
+    context.fillText(mainText, PADDING, baselineY);
+  }
+
+  // Superscript / subscript
+  const stackedX = PADDING + mainWidth + gap;
+  context.font = stackedFontStyle;
+  if (stackedTop) {
+    context.textBaseline = "alphabetic";
+    context.fillText(stackedTop, stackedX, stackedCenterY - halfVGap - topDescent);
+  }
+  if (stackedBottom) {
+    context.textBaseline = "alphabetic";
+    context.fillText(stackedBottom, stackedX, stackedCenterY + halfVGap + subAscent);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+
+  const aspectRatio = canvasWidth / canvasHeight;
+  const meshHeight = height * (canvasHeight / (Math.ceil(fontSize * 1.2) + PADDING * 2));
+  const meshWidth = meshHeight * aspectRatio;
+  const geometry = new THREE.PlaneGeometry(meshWidth, meshHeight);
+
+  const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
+  const ty = vAlign === "top" ? -meshHeight / 2 : vAlign === "bottom" ? meshHeight / 2 : 0;
+  if (tx !== 0 || ty !== 0) {
+    geometry.translate(tx, ty, 0);
+  }
+
+  return new THREE.Mesh(geometry, material);
 };
 
 /**
@@ -2464,25 +2628,40 @@ const processEntity = (
           const lines = parseMTextContent(textContent);
 
           if (lines.length === 1) {
-            // Одна строка — простой меш
+            // Одна строка — простой меш (или stacked)
             const line = lines[0];
             const h = line.height || defaultHeight;
             const c = line.color || entityColor;
-            const textMesh = createTextMesh(
-              line.text,
-              h,
-              c,
-              line.bold,
-              line.italic,
-              hAlign,
-              line.fontFamily,
-              vAlign,
-            );
+            const textMesh = (line.stackedTop || line.stackedBottom)
+              ? createStackedTextMesh(
+                  line.text,
+                  line.stackedTop || "",
+                  line.stackedBottom || "",
+                  h,
+                  c,
+                  line.bold,
+                  line.italic,
+                  hAlign,
+                  line.fontFamily,
+                  vAlign,
+                )
+              : createTextMesh(
+                  line.text,
+                  h,
+                  c,
+                  line.bold,
+                  line.italic,
+                  hAlign,
+                  line.fontFamily,
+                  vAlign,
+                );
             textMesh.position.set(textPosition.x, textPosition.y, 0);
 
             if (entity.rotation) {
               const rotationRadians = (entity.rotation * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
               textMesh.rotation.z = rotationRadians;
+            } else if (entity.directionVector) {
+              textMesh.rotation.z = Math.atan2(entity.directionVector.y, entity.directionVector.x);
             }
 
             return textMesh;
@@ -2498,16 +2677,29 @@ const processEntity = (
           for (const line of lines) {
             const h = line.height || defaultHeight;
             const c = line.color || entityColor;
-            const mesh = createTextMesh(
-              line.text,
-              h,
-              c,
-              line.bold,
-              line.italic,
-              hAlign,
-              line.fontFamily,
-              "top",
-            );
+            const mesh = (line.stackedTop || line.stackedBottom)
+              ? createStackedTextMesh(
+                  line.text,
+                  line.stackedTop || "",
+                  line.stackedBottom || "",
+                  h,
+                  c,
+                  line.bold,
+                  line.italic,
+                  hAlign,
+                  line.fontFamily,
+                  "top",
+                )
+              : createTextMesh(
+                  line.text,
+                  h,
+                  c,
+                  line.bold,
+                  line.italic,
+                  hAlign,
+                  line.fontFamily,
+                  "top",
+                );
             mesh.position.set(0, yOffset, 0);
             textGroup.add(mesh);
             yOffset -= h * LINE_SPACING;
@@ -2531,6 +2723,8 @@ const processEntity = (
           if (entity.rotation) {
             const rotationRadians = (entity.rotation * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
             textGroup.rotation.z = rotationRadians;
+          } else if (entity.directionVector) {
+            textGroup.rotation.z = Math.atan2(entity.directionVector.y, entity.directionVector.x);
           }
 
           return textGroup;
@@ -2541,6 +2735,11 @@ const processEntity = (
 
     case "DIMENSION": {
       if (isDimensionEntity(entity)) {
+        // Приоритет: рендерим анонимный блок от AutoCAD (точное совпадение)
+        const blockResult = renderDimensionBlock(entity, dxf, colorCtx, depth);
+        if (blockResult) return blockResult;
+
+        // Fallback: строим из семантических данных
         const baseDimType = (entity.dimensionType ?? 0) & 0x0f;
 
         // Ordinate dimension (тип 6 = Y-ordinate, тип 7 = X-ordinate)
