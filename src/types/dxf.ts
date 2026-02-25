@@ -42,6 +42,7 @@ export interface DxfArcEntity extends DxfEntityBase {
 export interface DxfPolylineEntity extends DxfEntityBase {
   type: "POLYLINE" | "LWPOLYLINE";
   vertices: DxfVertex[];
+  shape?: boolean;
 }
 
 export interface DxfSplineEntity extends DxfEntityBase {

@@ -2535,6 +2535,21 @@ const processEntity = (
           }
         }
 
+        // Замыкающий сегмент для closed полилиний (shape = true)
+        if (entity.shape && entity.vertices.length > 2) {
+          const vLast = entity.vertices[entity.vertices.length - 1];
+          const vFirst = entity.vertices[0];
+          const pLast = new THREE.Vector3(vLast.x, vLast.y, 0);
+          const pFirst = new THREE.Vector3(vFirst.x, vFirst.y, 0);
+
+          if (vLast.bulge && Math.abs(vLast.bulge) > EPSILON) {
+            const arcPoints = createBulgeArc(pLast, pFirst, vLast.bulge);
+            allPoints.push(...arcPoints.slice(1));
+          } else {
+            allPoints.push(pFirst);
+          }
+        }
+
         const geometry = new THREE.BufferGeometry().setFromPoints(allPoints);
         return new THREE.Line(geometry, lineMaterial);
       }
