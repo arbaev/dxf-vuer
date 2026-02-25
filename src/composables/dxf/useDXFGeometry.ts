@@ -2770,6 +2770,14 @@ const processEntity = (
           break;
         }
 
+        // Aligned dimension (тип 1): вычисляем угол из координат точек
+        let dimAngle = dimData.angle;
+        if (baseDimType === 1 && dimAngle === 0) {
+          const dx = dimData.point2.x - dimData.point1.x;
+          const dy = dimData.point2.y - dimData.point1.y;
+          dimAngle = (Math.atan2(dy, dx) * DEGREES_TO_RADIANS_DIVISOR) / Math.PI;
+        }
+
         const dimGroup = createDimensionGroup(
           dimData.point1,
           dimData.point2,
@@ -2778,7 +2786,7 @@ const processEntity = (
           dimData.textHeight,
           dimData.isRadial,
           entityColor,
-          dimData.angle,
+          dimAngle,
         );
 
         const objects: THREE.Object3D[] = [dimGroup];
@@ -2791,8 +2799,8 @@ const processEntity = (
           );
           textMesh.position.set(dimData.textPos.x, dimData.textPos.y, 0.2);
 
-          if (dimData.angle !== 0) {
-            const rotationRadians = (dimData.angle * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
+          if (dimAngle !== 0) {
+            const rotationRadians = (dimAngle * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
             textMesh.rotation.z = rotationRadians;
           }
 
