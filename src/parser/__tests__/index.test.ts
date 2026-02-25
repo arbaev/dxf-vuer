@@ -65,13 +65,12 @@ describe("parseDxf", () => {
     expect(line.layer).toBe("Layer1");
 
     // LINE entity has two vertices: start (code 10/20) and end (code 11/21)
-    if (line.type === "LINE") {
-      expect(line.vertices).toHaveLength(2);
-      // Start point (code 10/20)
-      expect(line.vertices[0]).toMatchObject({ x: 0.0, y: 0.0 });
-      // End point (code 11/21)
-      expect(line.vertices[1]).toMatchObject({ x: 100.0, y: 50.0 });
-    }
+    const lineEntity = line as { type: string; vertices: Array<{ x: number; y: number }> };
+    expect(lineEntity.vertices).toHaveLength(2);
+    // Start point (code 10/20)
+    expect(lineEntity.vertices[0]).toMatchObject({ x: 0.0, y: 0.0 });
+    // End point (code 11/21)
+    expect(lineEntity.vertices[1]).toMatchObject({ x: 100.0, y: 50.0 });
   });
 
   // ── 5. Multiple entities (LINE + CIRCLE) ─────────────────────────────

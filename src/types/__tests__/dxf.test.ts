@@ -221,10 +221,11 @@ describe("cross-guard exclusivity", () => {
   ] as const;
 
   // Collect all unique entity type strings
-  const allTypes = guards.flatMap((g) => g.matches);
+  const allTypes: string[] = guards.flatMap((g) => [...g.matches]);
 
   for (const guard of guards) {
-    const nonMatchingTypes = allTypes.filter((t) => !guard.matches.includes(t));
+    const matches: readonly string[] = guard.matches;
+    const nonMatchingTypes = allTypes.filter((t) => !matches.includes(t));
 
     it(`${guard.name} returns false for all non-matching types`, () => {
       for (const type of nonMatchingTypes) {

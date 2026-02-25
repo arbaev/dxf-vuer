@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createScanner } from "../../__tests__/test-helpers";
 import { parseBlocks } from "../blocks";
-import type { IBlock } from "../blocks";
 
 describe("parseBlocks", () => {
   // ── Single block with name and position ─────────────────────────────
