@@ -1558,9 +1558,9 @@ const createBlockGroup = (
   const position = insertEntity.position;
   blockGroup.position.set(position.x, position.y, position.z || 0);
 
-  const xScale = insertEntity.xScale ?? 1;
-  const yScale = insertEntity.yScale ?? 1;
-  const zScale = insertEntity.zScale ?? 1;
+  const xScale = insertEntity.xScale || 1;
+  const yScale = insertEntity.yScale || 1;
+  const zScale = insertEntity.zScale || 1;
   blockGroup.scale.set(xScale, yScale, zScale);
 
   if (insertEntity.rotation) {

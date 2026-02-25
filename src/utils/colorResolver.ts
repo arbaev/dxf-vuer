@@ -36,8 +36,8 @@ export function resolveEntityColor(
     if (trueColor !== undefined && trueColor !== 0) {
       return rgbNumberToHex(trueColor);
     }
-    // ACI 7 — особый случай: чёрный на светлом фоне (как в AutoCAD)
-    if (colorIndex === 7) {
+    // ACI 7 и 255 — белый цвет (0xFFFFFF), на светлом фоне показываем чёрным
+    if (colorIndex === 7 || colorIndex === 255) {
       return "#000000";
     }
     return rgbNumberToHex(ACI_PALETTE[colorIndex]);
@@ -49,14 +49,14 @@ export function resolveEntityColor(
     const layer = layers[layerName];
     if (layer.color !== undefined && layer.color !== 0) {
       const layerColorIndex = layer.colorIndex;
-      // ACI 7 для слоя — тоже чёрный на светлом фоне
-      if (layerColorIndex === 7) {
+      // ACI 7 и 255 для слоя — белый цвет, на светлом фоне показываем чёрным
+      if (layerColorIndex === 7 || layerColorIndex === 255) {
         return "#000000";
       }
       return rgbNumberToHex(layer.color);
     }
     if (layer.colorIndex >= 1 && layer.colorIndex <= 255) {
-      if (layer.colorIndex === 7) {
+      if (layer.colorIndex === 7 || layer.colorIndex === 255) {
         return "#000000";
       }
       return rgbNumberToHex(ACI_PALETTE[layer.colorIndex]);
