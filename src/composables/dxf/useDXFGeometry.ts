@@ -827,6 +827,13 @@ const processEntity = (
       break;
     }
 
+    // Распознанные, но не рендерящиеся entity — тихий пропуск (не unsupported)
+    case "VIEWPORT":
+    case "IMAGE":
+    case "WIPEOUT":
+    case "ATTDEF":
+      return new THREE.Group();
+
     default:
       return null;
   }
