@@ -993,20 +993,19 @@ const createRadialDimension = (
 
   if (!center || !arcPt) return null;
 
-  // Текст dimension
+  // Текст dimension — вычисляем радиус из координат если measurement отсутствует
   let dimensionText = entity.text;
-  const measurement = entity.actualMeasurement;
+  const measurement = entity.actualMeasurement ??
+    Math.sqrt((center.x - arcPt.x) ** 2 + (center.y - arcPt.y) ** 2);
 
-  if (dimensionText && typeof measurement === "number") {
+  if (dimensionText) {
     const measStr = "R" + formatDimNumber(measurement);
     dimensionText = dimensionText.replace(/<>/g, measStr);
   }
 
-  if (!dimensionText && typeof measurement === "number") {
+  if (!dimensionText) {
     dimensionText = "R" + formatDimNumber(measurement);
   }
-
-  if (!dimensionText) return null;
 
   const textHeight = entity.height || entity.textHeight || DIM_TEXT_HEIGHT;
   const objects: THREE.Object3D[] = [];
@@ -1096,19 +1095,18 @@ const createDiametricDimension = (
 
   if (!p10 || !p15) return null;
 
-  // Текст dimension (без автоматического префикса — символ ⌀ приходит из DXF)
+  // Текст dimension — вычисляем диаметр из координат если measurement отсутствует
   let dimensionText = entity.text;
-  const measurement = entity.actualMeasurement;
+  const measurement = entity.actualMeasurement ??
+    Math.sqrt((p10.x - p15.x) ** 2 + (p10.y - p15.y) ** 2);
 
-  if (dimensionText && typeof measurement === "number") {
+  if (dimensionText) {
     dimensionText = dimensionText.replace(/<>/g, formatDimNumber(measurement));
   }
 
-  if (!dimensionText && typeof measurement === "number") {
+  if (!dimensionText) {
     dimensionText = formatDimNumber(measurement);
   }
-
-  if (!dimensionText) return null;
 
   const textHeight = entity.height || entity.textHeight || DIM_TEXT_HEIGHT;
   const objects: THREE.Object3D[] = [];
