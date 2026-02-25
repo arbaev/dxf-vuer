@@ -31,7 +31,7 @@ export default defineConfig({
     rollupOptions: {
       external: ["vue", /^three/],
     },
-    sourcemap: true,
+    sourcemap: false,
     cssCodeSplit: false,
   },
 });
