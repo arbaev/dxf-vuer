@@ -3,23 +3,14 @@
 import AUTO_CAD_COLOR_INDEX from "./acadColorIndex";
 import type DxfScanner from "./scanner";
 import type { IGroup } from "./scanner";
+import type { DxfVertex, DxfEntityBase } from "@/types/dxf";
 
-export interface IPoint {
-  x: number;
-  y: number;
-  z?: number;
-}
+// IPoint — алиас для DxfVertex, обеспечивает единую систему типов
+export type IPoint = DxfVertex;
 
-export interface IEntityBase {
+// IEntityBase расширяет DxfEntityBase: добавляет type и index signature для динамических свойств парсера
+export interface IEntityBase extends DxfEntityBase {
   type: string;
-  handle?: string | number;
-  ownerHandle?: string;
-  layer?: string;
-  colorIndex?: number;
-  color?: number;
-  lineType?: string;
-  lineweight?: number;
-  visible?: boolean;
   [key: string]: unknown;
 }
 

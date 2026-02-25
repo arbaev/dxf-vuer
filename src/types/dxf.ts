@@ -8,7 +8,7 @@ export interface DxfVertex {
 }
 
 // Общие поля для всех entity
-interface DxfEntityBase {
+export interface DxfEntityBase {
   handle?: string | number;
   ownerHandle?: string | number;
   layer?: string;
@@ -78,31 +78,22 @@ export interface DxfTextEntity extends DxfEntityBase {
 
 export interface DxfDimensionEntity extends DxfEntityBase {
   type: "DIMENSION";
-  text?: string;
-  actualMeasurement?: number;
-  dimensionType?: number;
-  attachmentPoint?: number;
-  // Точки для линейных/угловых размерностей
-  linearOrAngularPoint1?: DxfVertex;
-  linearOrAngularPoint2?: DxfVertex;
-  // Точки для радиальных/диаметральных размерностей
-  diameterOrRadiusPoint?: DxfVertex;
-  // Точка на дуге для angular dimension
-  arcPoint?: DxfVertex;
-  // Общие точки
-  anchorPoint?: DxfVertex;
-  defPoint?: DxfVertex;
-  defPoint2?: DxfVertex;
-  defPoint3?: DxfVertex;
-  defPoint4?: DxfVertex;
-  defPoint5?: DxfVertex;
-  middleOfText?: DxfVertex;
-  textMidPoint?: DxfVertex;
-  height?: number;
-  textHeight?: number;
-  angle?: number;
-  block?: string;
-  blockName?: string;
+  block?: string; // code 2 — имя блока размерности
+  styleName?: string; // code 3 — имя стиля размерности
+  text?: string; // code 1
+  actualMeasurement?: number; // code 42
+  dimensionType?: number; // code 70
+  attachmentPoint?: number; // code 71
+  textHeight?: number; // code 140
+  angle?: number; // code 50
+  // Точки
+  anchorPoint?: DxfVertex; // code 10
+  middleOfText?: DxfVertex; // code 11
+  insertionPoint?: DxfVertex; // code 12
+  linearOrAngularPoint1?: DxfVertex; // code 13
+  linearOrAngularPoint2?: DxfVertex; // code 14
+  diameterOrRadiusPoint?: DxfVertex; // code 15
+  arcPoint?: DxfVertex; // code 16
 }
 
 export interface DxfInsertEntity extends DxfEntityBase {
@@ -194,6 +185,31 @@ export interface DxfLeaderEntity extends DxfEntityBase {
   arrowHeadFlag?: number; // 0 = без стрелки, 1 = со стрелкой
 }
 
+export interface DxfAttdefEntity extends DxfEntityBase {
+  type: "ATTDEF";
+  text?: string;
+  tag?: string;
+  prompt?: string;
+  textStyle?: string;
+  startPoint?: DxfVertex;
+  endPoint?: DxfVertex;
+  thickness?: number;
+  textHeight?: number;
+  rotation?: number;
+  scale?: number;
+  obliqueAngle?: number;
+  invisible?: boolean;
+  constant?: boolean;
+  verificationRequired?: boolean;
+  preset?: boolean;
+  backwards?: boolean;
+  mirrored?: boolean;
+  horizontalJustification?: number;
+  fieldLength?: number;
+  verticalJustification?: number;
+  extrusionDirection?: DxfVertex;
+}
+
 // Для неизвестных или неподдерживаемых типов
 export interface DxfUnknownEntity extends DxfEntityBase {
   type: string;
@@ -215,6 +231,7 @@ export type DxfEntity =
   | Dxf3DFaceEntity
   | DxfHatchEntity
   | DxfLeaderEntity
+  | DxfAttdefEntity
   | DxfUnknownEntity;
 
 export function isLineEntity(entity: DxfEntity): entity is DxfLineEntity {
@@ -271,6 +288,10 @@ export function isHatchEntity(entity: DxfEntity): entity is DxfHatchEntity {
 
 export function isLeaderEntity(entity: DxfEntity): entity is DxfLeaderEntity {
   return entity.type === "LEADER";
+}
+
+export function isAttdefEntity(entity: DxfEntity): entity is DxfAttdefEntity {
+  return entity.type === "ATTDEF";
 }
 
 // Слой DXF файла

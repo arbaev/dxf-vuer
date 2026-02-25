@@ -478,7 +478,7 @@ const extractDimensionData = (entity: DxfDimensionEntity) => {
   let point2 = entity.linearOrAngularPoint2;
   const anchorPoint = entity.anchorPoint;
   const diameterOrRadiusPoint = entity.diameterOrRadiusPoint;
-  const textPos = entity.middleOfText || entity.textMidPoint;
+  const textPos = entity.middleOfText;
   const angle = entity.angle || 0;
   let dimensionText = entity.text;
   let isRadial = false;
@@ -519,7 +519,7 @@ const extractDimensionData = (entity: DxfDimensionEntity) => {
   if (!point1 || !point2 || !anchorPoint || !dimensionText) {
     return null;
   }
-  const textHeight = entity.height || entity.textHeight || DIM_TEXT_HEIGHT;
+  const textHeight = entity.textHeight || DIM_TEXT_HEIGHT;
 
   return {
     point1,
@@ -840,7 +840,7 @@ const createOrdinateDimension = (
 ): THREE.Object3D[] | null => {
   const feature = entity.linearOrAngularPoint1; // Code 13 — точка на объекте
   const leader = entity.linearOrAngularPoint2; // Code 14 — конец диагонали
-  const textPos = entity.middleOfText || entity.textMidPoint; // Code 11
+  const textPos = entity.middleOfText; // Code 11
 
   if (!feature || !leader) return null;
 
@@ -859,7 +859,7 @@ const createOrdinateDimension = (
 
   if (!dimensionText) return null;
 
-  const textHeight = entity.height || entity.textHeight || DIM_TEXT_HEIGHT;
+  const textHeight = entity.textHeight || DIM_TEXT_HEIGHT;
   const objects: THREE.Object3D[] = [];
   const material = new THREE.LineBasicMaterial({ color });
 
@@ -988,7 +988,7 @@ const createRadialDimension = (
 ): THREE.Object3D[] | null => {
   const center = entity.anchorPoint; // code 10 — центр дуги
   const arcPt = entity.diameterOrRadiusPoint; // code 15 — точка на дуге
-  const textPos = entity.middleOfText || entity.textMidPoint; // code 11
+  const textPos = entity.middleOfText; // code 11
 
   if (!center || !arcPt) return null;
 
@@ -1006,7 +1006,7 @@ const createRadialDimension = (
     dimensionText = "R" + formatDimNumber(measurement);
   }
 
-  const textHeight = entity.height || entity.textHeight || DIM_TEXT_HEIGHT;
+  const textHeight = entity.textHeight || DIM_TEXT_HEIGHT;
   const objects: THREE.Object3D[] = [];
   const lineMat = new THREE.LineBasicMaterial({ color });
   const arrowMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
@@ -1097,7 +1097,7 @@ const createDiametricDimension = (
 ): THREE.Object3D[] | null => {
   const p10 = entity.anchorPoint; // code 10 — первая точка на окружности
   const p15 = entity.diameterOrRadiusPoint; // code 15 — противоположная точка (второй конец диаметра)
-  const textPos = entity.middleOfText || entity.textMidPoint; // code 11
+  const textPos = entity.middleOfText; // code 11
 
   if (!p10 || !p15) return null;
 
@@ -1114,7 +1114,7 @@ const createDiametricDimension = (
     dimensionText = formatDimNumber(measurement);
   }
 
-  const textHeight = entity.height || entity.textHeight || DIM_TEXT_HEIGHT;
+  const textHeight = entity.textHeight || DIM_TEXT_HEIGHT;
   const objects: THREE.Object3D[] = [];
   const lineMat = new THREE.LineBasicMaterial({ color });
   const arrowMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
@@ -1305,7 +1305,7 @@ const createAngularDimension = (
   const p15 = entity.diameterOrRadiusPoint; // code 15 — конец 1 второй линии
   const p10 = entity.anchorPoint; // code 10 — конец 2 второй линии
   const p16 = entity.arcPoint; // code 16 — точка на дуге (определяет радиус и угол)
-  const textPos = entity.middleOfText || entity.textMidPoint; // code 11
+  const textPos = entity.middleOfText; // code 11
 
   if (!p13 || !p14 || !p15 || !p10) return null;
 
@@ -1448,7 +1448,7 @@ const createAngularDimension = (
   }
 
   if (dimensionText) {
-    const textHeight = entity.height || entity.textHeight || DIM_TEXT_HEIGHT;
+    const textHeight = entity.textHeight || DIM_TEXT_HEIGHT;
     const textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
 
     // Угол от вершины к позиции текста — для поворота вдоль касательной
