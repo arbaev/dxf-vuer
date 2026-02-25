@@ -51,7 +51,7 @@ const handleFileChange = (event: Event) => {
 .file-uploader {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: var(--dxf-vuer-spacing-sm, 8px);
   flex: 1;
   max-width: 420px;
 }
@@ -68,12 +68,12 @@ const handleFileChange = (event: Event) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
+  gap: var(--dxf-vuer-spacing-sm, 8px);
+  padding: var(--dxf-vuer-spacing-sm, 8px) var(--dxf-vuer-spacing-md, 16px);
   background-color: rgba(255, 255, 255, 0.2);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: var(--border-radius);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
   font-weight: 500;
   font-size: 14px;
   transition: all 0.2s;
@@ -92,7 +92,7 @@ const handleFileChange = (event: Event) => {
 
 @media (max-width: 768px) {
   .file-button {
-    padding: var(--spacing-sm);
+    padding: var(--dxf-vuer-spacing-sm, 8px);
     justify-content: center;
   }
 }

@@ -298,24 +298,24 @@ defineExpose({
   position: relative;
   width: 100%;
   flex: 1;
-  background-color: var(--bg-color);
-  border: 2px solid var(--border-color);
-  border-radius: var(--border-radius);
+  background-color: var(--dxf-vuer-bg-color, #fafafa);
+  border: 2px solid var(--dxf-vuer-border-color, #e0e0e0);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
   overflow: hidden;
 }
 
 .file-name-overlay {
   position: absolute;
-  top: var(--spacing-sm);
-  left: var(--spacing-sm);
+  top: var(--dxf-vuer-spacing-sm, 8px);
+  left: var(--dxf-vuer-spacing-sm, 8px);
   z-index: 10;
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--dxf-vuer-spacing-sm, 8px) var(--dxf-vuer-spacing-md, 16px);
   background-color: rgba(255, 255, 255, 0.95);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  border: 1px solid var(--dxf-vuer-border-color, #e0e0e0);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
   font-size: 14px;
-  color: var(--text-color);
-  max-width: calc(100% - var(--spacing-lg) * 2);
+  color: var(--dxf-vuer-text-color, #212121);
+  max-width: calc(100% - var(--dxf-vuer-spacing-lg, 24px) * 2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -323,16 +323,16 @@ defineExpose({
 
 .reset-button-overlay {
   position: absolute;
-  top: var(--spacing-sm);
-  right: var(--spacing-sm);
+  top: var(--dxf-vuer-spacing-sm, 8px);
+  right: var(--dxf-vuer-spacing-sm, 8px);
   z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-sm);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  padding: var(--dxf-vuer-spacing-sm, 8px);
+  color: var(--dxf-vuer-text-color, #212121);
+  border: 1px solid var(--dxf-vuer-border-color, #e0e0e0);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
   font-weight: 500;
   font-size: 14px;
   transition: all 0.2s;
@@ -343,7 +343,7 @@ defineExpose({
 }
 
 .reset-button-overlay:hover {
-  border-color: rgb(from var(--primary-color) r g b / 0.5);
+  border-color: rgb(from var(--dxf-vuer-primary-color, #1040b0) r g b / 0.5);
 }
 
 .reset-button-overlay:active {
@@ -363,34 +363,34 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-lg);
+  padding: var(--dxf-vuer-spacing-lg, 24px);
 }
 
 .message-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--dxf-vuer-spacing-md, 16px);
   text-align: center;
 }
 
 .message-content.error svg {
-  color: var(--error-color);
+  color: var(--dxf-vuer-error-color, #f44336);
 }
 
 .message-content.placeholder svg {
-  color: var(--border-color);
+  color: var(--dxf-vuer-border-color, #e0e0e0);
 }
 
 .message-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--text-color);
+  color: var(--dxf-vuer-text-color, #212121);
 }
 
 .message-text {
   font-size: 1rem;
-  color: var(--text-secondary);
+  color: var(--dxf-vuer-text-secondary, #757575);
   max-width: 300px;
 }
 
@@ -402,8 +402,8 @@ defineExpose({
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--primary-color);
+  border: 3px solid var(--dxf-vuer-border-color, #e0e0e0);
+  border-top-color: var(--dxf-vuer-primary-color, #1040b0);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -416,9 +416,9 @@ defineExpose({
 
 @media (max-width: 768px) {
   .file-name-overlay {
-    top: var(--spacing-sm);
-    left: var(--spacing-sm);
-    padding: 6px var(--spacing-sm);
+    top: var(--dxf-vuer-spacing-sm, 8px);
+    left: var(--dxf-vuer-spacing-sm, 8px);
+    padding: 6px var(--dxf-vuer-spacing-sm, 8px);
     font-size: 12px;
     max-width: calc(100% - 80px);
   }

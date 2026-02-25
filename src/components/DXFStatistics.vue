@@ -76,63 +76,63 @@ const sortedEntitiesByType = computed(() => {
 
 <style scoped>
 .dxf-statistics {
-  background-color: var(--bg-color);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
-  padding: var(--spacing-md);
-  margin-top: var(--spacing-md);
+  background-color: var(--dxf-vuer-bg-color, #fafafa);
+  border: 1px solid var(--dxf-vuer-border-color, #e0e0e0);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
+  padding: var(--dxf-vuer-spacing-md, 16px);
+  margin-top: var(--dxf-vuer-spacing-md, 16px);
 }
 
 .statistics-title {
-  margin: 0 0 var(--spacing-md) 0;
+  margin: 0 0 var(--dxf-vuer-spacing-md, 16px) 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: var(--text-color);
+  color: var(--dxf-vuer-text-color, #212121);
 }
 
 .statistics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--spacing-md);
+  gap: var(--dxf-vuer-spacing-md, 16px);
 }
 
 .stat-section h4 {
-  margin: 0 0 var(--spacing-sm) 0;
+  margin: 0 0 var(--dxf-vuer-spacing-sm, 8px) 0;
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--dxf-vuer-text-secondary, #757575);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--dxf-vuer-border-color, #e0e0e0);
+  padding-bottom: var(--dxf-vuer-spacing-xs, 4px);
 }
 
 .stat-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-xs) 0;
+  padding: var(--dxf-vuer-spacing-xs, 4px) 0;
   font-size: 0.875rem;
 }
 
 .stat-item.entity-type {
-  padding-left: var(--spacing-sm);
+  padding-left: var(--dxf-vuer-spacing-sm, 8px);
   font-size: 0.8125rem;
 }
 
 .stat-label {
-  color: var(--text-secondary);
+  color: var(--dxf-vuer-text-secondary, #757575);
   font-weight: 500;
 }
 
 .stat-value {
-  color: var(--text-color);
+  color: var(--dxf-vuer-text-color, #212121);
   font-weight: 600;
   font-family: "Courier New", monospace;
 }
 
 .stat-value-highlight {
-  color: var(--primary-color);
+  color: var(--dxf-vuer-primary-color, #1040b0);
   font-size: 1rem;
 }
 

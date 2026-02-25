@@ -64,12 +64,12 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import FileUploader from "./components/FileUploader.vue";
-import UnsupportedEntities from "./components/UnsupportedEntities.vue";
-import DXFViewer from "./components/DXFViewer.vue";
-import DXFStatistics from "./components/DXFStatistics.vue";
-import type { DxfData, DxfStatistics } from "./types/dxf";
-import { collectDXFStatistics } from "./utils/dxfStatistics";
+import FileUploader from "@/components/FileUploader.vue";
+import UnsupportedEntities from "@/components/UnsupportedEntities.vue";
+import DXFViewer from "@/components/DXFViewer.vue";
+import DXFStatistics from "@/components/DXFStatistics.vue";
+import type { DxfData, DxfStatistics } from "@/types/dxf";
+import { collectDXFStatistics } from "@/utils/dxfStatistics";
 
 const dxfData = ref<DxfData | null>(null);
 const unsupportedEntities = ref<string[]>([]);

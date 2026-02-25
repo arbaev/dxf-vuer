@@ -1,0 +1,22 @@
+/*
+ * CSS-переменные dxf-vuer.
+ * Потребители могут переопределить через :root или контейнер-обёртку.
+ * Пример:
+ *   :root {
+ *     --dxf-vuer-primary-color: #ff6600;
+ *     --dxf-vuer-border-radius: 8px;
+ *   }
+ */
+:root {
+  --dxf-vuer-primary-color: #1040b0;
+  --dxf-vuer-error-color: #f44336;
+  --dxf-vuer-bg-color: #fafafa;
+  --dxf-vuer-text-color: #212121;
+  --dxf-vuer-text-secondary: #757575;
+  --dxf-vuer-border-color: #e0e0e0;
+  --dxf-vuer-border-radius: 4px;
+  --dxf-vuer-spacing-xs: 4px;
+  --dxf-vuer-spacing-sm: 8px;
+  --dxf-vuer-spacing-md: 16px;
+  --dxf-vuer-spacing-lg: 24px;
+}
