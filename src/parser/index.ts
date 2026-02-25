@@ -1,6 +1,3 @@
-// Главный парсер DXF файлов
-// Замена для пакета dxf-parser
-
 import DxfScanner from "./scanner";
 import type { DxfData } from "@/types/dxf";
 import { parseHeader } from "./sections/header";
@@ -8,10 +5,6 @@ import { parseTables } from "./sections/tables";
 import { parseBlocks } from "./sections/blocks";
 import { parseEntities } from "./sections/entities";
 
-/**
- * Парсит текст DXF файла и возвращает структурированные данные.
- * Полная замена dxf-parser.parseSync()
- */
 export function parseDxf(dxfText: string): DxfData {
   const dxf = {} as DxfData;
   const dxfLinesArray = dxfText.split(/\r\n|\r|\n/g);
@@ -43,13 +36,11 @@ export function parseDxf(dxfText: string): DxfData {
         dxf.tables = parseTables(scanner) as DxfData["tables"];
         curr = scanner.lastReadGroup;
       }
-      // Остальные секции (CLASSES, OBJECTS и т.д.) пропускаем
     } else {
       curr = scanner.next();
     }
   }
 
-  // Гарантируем наличие entities
   if (!dxf.entities) dxf.entities = [];
 
   return dxf;

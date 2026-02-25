@@ -1,5 +1,5 @@
-// Таблица ACI (AutoCAD Color Index) — 257 цветов (0..256)
-// Индекс 0 и 256 зарезервированы (ByBlock и ByLayer)
+// ACI (AutoCAD Color Index) table — 257 colors (0..256)
+// Index 0 and 256 are reserved (ByBlock and ByLayer)
 
 const AUTO_CAD_COLOR_INDEX: number[] = [
   0, 16711680, 16776960, 65280, 65535, 255, 16711935, 16777215, 8421504, 12632256, 16711680,

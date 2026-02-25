@@ -1,10 +1,6 @@
-// Точка входа парсера — без зависимостей от Vue и Three.js
-// Использование: import { parseDxf } from 'dxf-vuer/parser'
-
 export { parseDxf } from "./parser";
 export { collectDXFStatistics } from "./utils/dxfStatistics";
 
-// Все DXF-типы
 export type {
   DxfVertex,
   DxfEntityBase,
@@ -42,7 +38,6 @@ export type {
   DxfStatistics,
 } from "./types/dxf";
 
-// Type-guard функции
 export {
   isLineEntity,
   isCircleEntity,

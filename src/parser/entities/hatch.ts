@@ -1,5 +1,3 @@
-// Парсер HATCH entity — штриховка / сплошная заливка
-
 import type DxfScanner from "../scanner";
 import type { IGroup } from "../scanner";
 import * as helpers from "../parseHelpers";
@@ -62,13 +60,12 @@ export interface IHatchEntity extends IEntityBase {
 }
 
 /**
- * Парсит boundary path на основе рёбер (edges).
- * code 93 — количество рёбер, code 72 — тип ребра.
+ * Parses edge-based boundary path.
+ * Code 93 = number of edges, code 72 = edge type.
  */
 function parseEdgeBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatchBoundaryPath; curr: IGroup } {
   const edges: IHatchEdge[] = [];
 
-  // code 93 — количество рёбер
   if (curr.code !== 93) {
     return { path: { edges }, curr };
   }
@@ -76,7 +73,6 @@ function parseEdgeBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatchBou
   curr = scanner.next();
 
   for (let i = 0; i < numEdges; i++) {
-    // code 72 — тип ребра
     if (curr.code !== 72) break;
     const edgeType = curr.value as number;
     curr = scanner.next();
@@ -91,7 +87,7 @@ function parseEdgeBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatchBou
           case 11: endX = curr.value as number; break;
           case 21: endY = curr.value as number; break;
         }
-        // Если прочитали все 4 координаты линии — выходим
+        // All 4 line coordinates read -- exit
         if (curr.code === 21) { curr = scanner.next(); break; }
         curr = scanner.next();
       }
@@ -152,22 +148,21 @@ function parseEdgeBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatchBou
       });
     } else if (edgeType === 4) {
       // Spline edge: degree (94), rational (73), periodic (74),
-      // numKnots (95), numControlPoints (96), knots (40×N), controlPoints (10/20×N), weights (42×N),
-      // numFitPoints (97), fitPoints (11/21×N)
+      // numKnots (95), numControlPoints (96), knots (40xN), controlPoints (10/20xN),
+      // weights (42xN), numFitPoints (97), fitPoints (11/21xN)
       let degree = 3;
       const knots: number[] = [];
       const controlPoints: IPoint[] = [];
       const weights: number[] = [];
       const fitPoints: IPoint[] = [];
 
-      // Читаем заголовочные поля сплайна
       while (curr.code !== 0 && curr.code !== 72 && curr.code !== 92 && curr.code !== 93) {
         switch (curr.code) {
           case 94: degree = curr.value as number; break;
           case 73: break; // rational flag
           case 74: break; // periodic flag
-          case 95: break; // numKnots — информационное
-          case 96: break; // numControlPoints — информационное
+          case 95: break; // numKnots -- informational, actual count derived from code 40 occurrences
+          case 96: break; // numControlPoints -- informational
           case 40: knots.push(curr.value as number); break;
           case 10: {
             const px = curr.value as number;
@@ -177,7 +172,7 @@ function parseEdgeBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatchBou
             break;
           }
           case 42: weights.push(curr.value as number); break;
-          case 97: break; // numFitPoints — информационное
+          case 97: break; // numFitPoints -- informational
           case 11: {
             const fx = curr.value as number;
             curr = scanner.next();
@@ -199,7 +194,6 @@ function parseEdgeBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatchBou
       if (fitPoints.length > 0) edge.fitPoints = fitPoints;
       edges.push(edge);
     } else {
-      // Неизвестный тип ребра — пропускаем
       while (curr.code !== 0 && curr.code !== 72 && curr.code !== 92 && curr.code !== 93 && curr.code !== 97) {
         curr = scanner.next();
       }
@@ -210,26 +204,23 @@ function parseEdgeBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatchBou
 }
 
 /**
- * Парсит polyline boundary path.
- * code 72 — has bulge flag, code 73 — is closed, code 93 — кол-во вершин,
- * 10/20 — координаты, 42 — bulge.
+ * Parses polyline boundary path.
+ * Code 72 = has bulge, 73 = is closed, 93 = vertex count,
+ * 10/20 = coordinates, 42 = bulge.
  */
 function parsePolylineBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatchBoundaryPath; curr: IGroup } {
   const vertices: (IPoint & { bulge?: number })[] = [];
 
-  // code 72 — has bulge
   let hasBulge = false;
   if (curr.code === 72) {
     hasBulge = (curr.value as number) !== 0;
     curr = scanner.next();
   }
-  // code 73 — is closed
   let isClosed = false;
   if (curr.code === 73) {
     isClosed = (curr.value as number) !== 0;
     curr = scanner.next();
   }
-  // code 93 — количество вершин
   let numVertices = 0;
   if (curr.code === 93) {
     numVertices = curr.value as number;
@@ -255,7 +246,7 @@ function parsePolylineBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatc
     vertices.push(vertex);
   }
 
-  // Замыкаем полилайн: дублируем первую вершину в конец
+  // Close polyline: duplicate first vertex at the end
   if (isClosed && vertices.length > 0) {
     const first = vertices[0];
     vertices.push({ x: first.x, y: first.y, bulge: first.bulge });
@@ -265,8 +256,8 @@ function parsePolylineBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatc
 }
 
 /**
- * Парсит секцию определения паттерна (pattern definition lines).
- * code 78 — количество линий, для каждой: 53, 43, 44, 45, 46, 79, 49×N
+ * Parses pattern definition lines.
+ * For each line: 53=angle, 43/44=basePoint, 45/46=offset, 79=numDashes, 49xN=dashes
  */
 function parsePatternLines(scanner: DxfScanner, curr: IGroup, numLines: number): { lines: IHatchPatternLine[]; curr: IGroup } {
   const lines: IHatchPatternLine[] = [];
@@ -280,37 +271,30 @@ function parsePatternLines(scanner: DxfScanner, curr: IGroup, numLines: number):
     };
     let numDashes = 0;
 
-    // code 53 — угол линии
     if (curr.code === 53) {
       pl.angle = curr.value as number;
       curr = scanner.next();
     }
-    // code 43 — base point X
     if (curr.code === 43) {
       pl.basePoint.x = curr.value as number;
       curr = scanner.next();
     }
-    // code 44 — base point Y
     if (curr.code === 44) {
       pl.basePoint.y = curr.value as number;
       curr = scanner.next();
     }
-    // code 45 — offset X
     if (curr.code === 45) {
       pl.offset.x = curr.value as number;
       curr = scanner.next();
     }
-    // code 46 — offset Y
     if (curr.code === 46) {
       pl.offset.y = curr.value as number;
       curr = scanner.next();
     }
-    // code 79 — количество дэшей
     if (curr.code === 79) {
       numDashes = curr.value as number;
       curr = scanner.next();
     }
-    // code 49 × numDashes — длины дэшей
     for (let d = 0; d < numDashes; d++) {
       if (curr.code === 49) {
         pl.dashes.push(curr.value as number);
@@ -351,34 +335,31 @@ export function parseHatch(scanner: DxfScanner, curr: IGroup): IHatchEntity {
         numBoundaryPaths = curr.value as number;
         break;
       case 92: {
-        // Начало boundary path
         if (boundaryPathsParsed >= numBoundaryPaths) break;
         const pathTypeFlag = curr.value as number;
         curr = scanner.next();
 
         if (pathTypeFlag & 2) {
-          // Polyline boundary (bit 1 set = polyline type)
+          // Bit 1 set = polyline boundary type
           const result = parsePolylineBoundary(scanner, curr);
           entity.boundaryPaths.push(result.path);
           curr = result.curr;
         } else {
-          // Edge-based boundary
           const result = parseEdgeBoundary(scanner, curr);
           entity.boundaryPaths.push(result.path);
           curr = result.curr;
         }
         boundaryPathsParsed++;
-        continue; // curr уже обновлён внутри парсера
+        continue;
       }
       case 78: {
-        // Секция определения паттерна
         const numPatternLines = curr.value as number;
         if (numPatternLines > 0) {
           curr = scanner.next();
           const result = parsePatternLines(scanner, curr, numPatternLines);
           entity.patternLines = result.lines;
           curr = result.curr;
-          continue; // curr уже обновлён
+          continue;
         }
         break;
       }

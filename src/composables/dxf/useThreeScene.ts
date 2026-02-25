@@ -45,7 +45,6 @@ export function useThreeScene() {
     cleanup: cleanupControls,
   } = useOrbitControls();
 
-  // Проверка поддержки WebGL
   const checkWebGLSupport = (): boolean => {
     try {
       const canvas = document.createElement("canvas");
@@ -56,7 +55,6 @@ export function useThreeScene() {
     }
   };
 
-  // Очистка всех материалов
   const disposeMaterial = (material: THREE.Material) => {
     if (!material) return;
 
@@ -79,7 +77,6 @@ export function useThreeScene() {
     material.dispose();
   };
 
-  // Очистка Three.js объекта и всех его ресурсов
   const disposeObject3D = (object: THREE.Object3D) => {
     if (!object) return;
 
@@ -107,7 +104,6 @@ export function useThreeScene() {
     }
   };
 
-  // Инициализация Three.js сцены
   const initThreeJS = (container: HTMLDivElement, options: ThreeJSOptions = {}) => {
     const { enableControls = false } = options;
 
@@ -127,13 +123,12 @@ export function useThreeScene() {
     const containerHeight = container.clientHeight;
     const aspect = containerWidth / containerHeight;
 
-    // Для ортогональной проекции используем фиксированную высоту видимой области
     const frustumSize = 100;
     camera = new THREE.OrthographicCamera(
-      (frustumSize * aspect) / -2, // left
-      (frustumSize * aspect) / 2, // right
-      frustumSize / 2, // top
-      frustumSize / -2, // bottom
+      (frustumSize * aspect) / -2,
+      (frustumSize * aspect) / 2,
+      frustumSize / 2,
+      frustumSize / -2,
       CAMERA_NEAR_PLANE,
       CAMERA_FAR_PLANE,
     );
@@ -161,7 +156,6 @@ export function useThreeScene() {
     }
   };
 
-  // Полная очистка всех ресурсов Three.js
   const cleanup = (currentObject: THREE.Object3D | null) => {
     if (currentObject) {
       disposeObject3D(currentObject);
@@ -196,7 +190,6 @@ export function useThreeScene() {
     error.value = null;
   };
 
-  // Геттеры для доступа к объектам
   const getScene = () => scene;
   const getCamera = () => camera;
   const getRenderer = () => renderer;

@@ -97,7 +97,7 @@ function parseLWPolylineVertices(n: number, scanner: DxfScanner): ILWVertex[] {
           if (curr.value !== 0) vertex.bulge = curr.value as number;
           break;
         default:
-          // Неизвестный код — возвращаем вершины, код может принадлежать entity
+          // Unknown code — return vertices, code may belong to the entity
           scanner.rewind();
           if (vertexIsStarted) {
             vertices.push(vertex);

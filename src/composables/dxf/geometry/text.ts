@@ -3,7 +3,7 @@ import { TEXT_HEIGHT, MAX_TEXT_FONT_SIZE } from "@/constants";
 import ACI_PALETTE from "@/parser/acadColorIndex";
 import { rgbNumberToHex } from "@/utils/colorResolver";
 
-/** Строка MTEXT с опциональным переопределением цвета, высоты и стиля */
+/** MTEXT line with optional color, height, and style overrides */
 export interface MTextLine {
   text: string;
   color?: string;
@@ -11,41 +11,40 @@ export interface MTextLine {
   bold?: boolean;
   italic?: boolean;
   fontFamily?: string;
-  stackedTop?: string; // \Sверх^низ; → superscript
-  stackedBottom?: string; // \Sверх^низ; → subscript
+  stackedTop?: string; // \Stop^bottom; -> superscript
+  stackedBottom?: string; // \Stop^bottom; -> subscript
 }
 
 /**
- * Замена DXF спецсимволов:
- * %%d → °, %%p → ±, %%c → Ø, %%nnn → символ по коду, %%u/%%o → убираем
+ * Replace DXF special characters:
+ * %%d -> deg, %%p -> +/-, %%c -> diameter, %%nnn -> char by code, %%u/%%o -> remove
  */
 export const replaceSpecialChars = (text: string): string =>
   text
-    .replace(/%%[dD]/g, "°")
-    .replace(/%%[pP]/g, "±")
-    .replace(/%%[cC]/g, "Ø")
-    .replace(/%%[uUoO]/g, "") // toggle underline/overline — убираем
+    .replace(/%%[dD]/g, "\u00B0")
+    .replace(/%%[pP]/g, "\u00B1")
+    .replace(/%%[cC]/g, "\u00D8")
+    .replace(/%%[uUoO]/g, "") // toggle underline/overline — remove
     .replace(/%%(\d{3})/g, (_, code) => String.fromCharCode(parseInt(code)));
 
 /**
- * Парсинг MTEXT форматирования в массив строк с цветом и высотой.
- * Обрабатывает: \P (перенос), \C<n>; (цвет ACI), \H<n>; (высота),
- * \f...; (шрифт), %%d/%%p/%%c (спецсимволы), {}, \L/\O/\K и др.
+ * Parse MTEXT formatting into an array of lines with color and height.
+ * Handles: \P (line break), \C<n>; (ACI color), \H<n>; (height),
+ * \f...; (font), %%d/%%p/%%c (special chars), {}, \L/\O/\K, etc.
  */
 export const parseMTextContent = (rawText: string): MTextLine[] => {
-  // 1. Защищаем литеральные escape-последовательности placeholder'ами,
-  //    чтобы они не были съедены парсером форматирования (\\ → \, \{ → {, \} → })
+  // Protect literal escape sequences with placeholders
+  // so they are not consumed by the formatting parser (\\ -> \, \{ -> {, \} -> })
   let text = rawText.replace(/\\\\/g, "\x01").replace(/\\\{/g, "\x02").replace(/\\\}/g, "\x03");
 
-  // 2. Unicode символы по коду: \U+XXXX → символ
+  // Unicode characters by code: \U+XXXX -> character
   text = text.replace(/\\U\+([0-9A-Fa-f]{4})/g, (_, hex) =>
     String.fromCodePoint(parseInt(hex, 16)),
   );
 
-  // 3. Спецсимволы %%d, %%p, %%c, %%nnn
   text = replaceSpecialChars(text);
 
-  // 4. Разбиваем по \P (перенос строки в MTEXT)
+  // Split by \P (MTEXT line break)
   const rawLines = text.split(/\\P/);
 
   const lines: MTextLine[] = [];
@@ -58,22 +57,20 @@ export const parseMTextContent = (rawText: string): MTextLine[] => {
   for (const rawLine of rawLines) {
     let clean = rawLine;
 
-    // Сохраняем стиль на начало строки (carry-over от предыдущей строки)
     let lineFont = currentFont;
     let lineBold = currentBold;
     let lineItalic = currentItalic;
     let firstFontInLine = true;
 
-    // Шрифт: \fFontName|b1|i0|c0|p0; — извлекаем имя шрифта, bold, italic
-    // Первый \f в строке определяет стиль видимого текста этой строки,
-    // последний \f обновляет carry-over состояние для следующих строк
+    // Font: \fFontName|b1|i0|c0|p0; — extract font name, bold, italic
+    // First \f in line determines the visible text style for this line,
+    // last \f updates carry-over state for subsequent lines
     clean = clean.replace(/\\f([^|;]*)\|?[^;]*;/g, (fullMatch, fontName) => {
       if (fontName) currentFont = fontName;
       const boldMatch = fullMatch.match(/\|b(\d)/);
       const italicMatch = fullMatch.match(/\|i(\d)/);
       if (boldMatch) currentBold = boldMatch[1] === "1";
       if (italicMatch) currentItalic = italicMatch[1] === "1";
-      // Первый \f определяет стиль для текста этой строки
       if (firstFontInLine) {
         lineFont = currentFont;
         lineBold = currentBold;
@@ -83,30 +80,30 @@ export const parseMTextContent = (rawText: string): MTextLine[] => {
       return "";
     });
 
-    // Цвет ACI: \C<index>; или \c<index>;
+    // ACI color: \C<index>; or \c<index>;
     clean = clean.replace(/\\[cC](\d+);/g, (_, indexStr) => {
       const idx = parseInt(indexStr);
       if (idx === 0 || idx === 256) {
-        currentColor = undefined; // ByBlock/ByLayer — используем цвет entity
+        currentColor = undefined; // ByBlock/ByLayer — use entity color
       } else if (idx >= 1 && idx <= 255) {
         currentColor = rgbNumberToHex(ACI_PALETTE[idx]);
       }
       return "";
     });
 
-    // Высота: \H<value>;
+    // Height: \H<value>;
     clean = clean.replace(/\\H([\d.]+);/gi, (_, val) => {
       currentHeight = parseFloat(val);
       return "";
     });
 
-    // Отступы абзаца: \pi<indent>,l<left>,r<right>,t<tabs>;
+    // Paragraph indents: \pi<indent>,l<left>,r<right>,t<tabs>;
     clean = clean.replace(/\\p[^;]*;/g, "");
-    // Ширина, трекинг, наклон, выравнивание: \W, \T, \Q, \A
+    // Width, tracking, oblique, alignment: \W, \T, \Q, \A
     clean = clean.replace(/\\[WTQA][\d.+-]+;/gi, "");
-    // Подчёркивание, надчёркивание, зачёркивание: \L/\l, \O/\o, \K/\k
+    // Underline, overline, strikethrough: \L/\l, \O/\o, \K/\k
     clean = clean.replace(/\\[LOKlok]/g, "");
-    // Дроби: \Sверх^низ; или \Sверх/низ; → извлекаем в stacked поля
+    // Fractions: \Stop^bottom; or \Stop/bottom; -> extract into stacked fields
     let lineStackedTop: string | undefined;
     let lineStackedBottom: string | undefined;
     clean = clean.replace(/\\S([^^/;]*)[\^/]([^;]*);/g, (_, top, bottom) => {
@@ -114,16 +111,16 @@ export const parseMTextContent = (rawText: string): MTextLine[] => {
       lineStackedBottom = bottom.trim();
       return "";
     });
-    // Неразрывный пробел
+    // Non-breaking space
     clean = clean.replace(/\\~/g, " ");
-    // Разрыв колонки \N → пробел
+    // Column break \N -> space
     clean = clean.replace(/\\N/g, " ");
-    // Фигурные скобки группировки (литеральные уже защищены placeholder'ами)
+    // Grouping braces (literal ones are already protected by placeholders)
     clean = clean.replace(/[{}]/g, "");
-    // Оставшиеся неизвестные escape-последовательности \X...;
+    // Remaining unknown escape sequences \X...;
     clean = clean.replace(/\\[a-zA-Z][^;]*;/g, "");
 
-    // Восстанавливаем литеральные символы из placeholder'ов
+    // Restore literal characters from placeholders
     clean = clean.replace(/\x01/g, "\\").replace(/\x02/g, "{").replace(/\x03/g, "}");
 
     if (clean.length > 0 || lineStackedTop || lineStackedBottom) {
@@ -144,7 +141,7 @@ export const parseMTextContent = (rawText: string): MTextLine[] => {
 };
 
 /**
- * Определение горизонтального выравнивания из MTEXT attachmentPoint (code 71)
+ * Determine horizontal alignment from MTEXT attachmentPoint (code 71)
  * 1,4,7 = Left; 2,5,8 = Center; 3,6,9 = Right
  */
 export const getMTextHAlign = (attachmentPoint?: number): "left" | "center" | "right" => {
@@ -156,7 +153,7 @@ export const getMTextHAlign = (attachmentPoint?: number): "left" | "center" | "r
 };
 
 /**
- * Определение горизонтального выравнивания из TEXT halign (code 72)
+ * Determine horizontal alignment from TEXT halign (code 72)
  * 0 = Left, 1 = Center, 2 = Right, 3 = Aligned, 4 = Middle, 5 = Fit
  */
 export const getTextHAlign = (halign?: number): "left" | "center" | "right" => {
@@ -166,7 +163,7 @@ export const getTextHAlign = (halign?: number): "left" | "center" | "right" => {
 };
 
 /**
- * Определение вертикального выравнивания из MTEXT attachmentPoint (code 71)
+ * Determine vertical alignment from MTEXT attachmentPoint (code 71)
  * 1-3 = Top; 4-6 = Middle; 7-9 = Bottom
  */
 export const getMTextVAlign = (attachmentPoint?: number): "top" | "middle" | "bottom" => {
@@ -178,18 +175,18 @@ export const getMTextVAlign = (attachmentPoint?: number): "top" | "middle" | "bo
 };
 
 /**
- * Определение вертикального выравнивания из TEXT valign (code 73)
+ * Determine vertical alignment from TEXT valign (code 73)
  * 0 = Baseline, 1 = Bottom, 2 = Middle, 3 = Top
  */
 export const getTextVAlign = (valign?: number): "top" | "middle" | "bottom" => {
   if (valign === 3) return "top";
   if (valign === 2) return "middle";
-  return "bottom"; // 0=Baseline ≈ bottom, 1=Bottom
+  return "bottom"; // 0=Baseline ~ bottom, 1=Bottom
 };
 
 /**
- * Создание текстового меша со stacked text (superscript/subscript).
- * Формат: mainText + верхний/нижний текст (из \Sверх^низ;)
+ * Create a text mesh with stacked text (superscript/subscript).
+ * Format: mainText + top/bottom text (from \Stop^bottom;)
  */
 export const createStackedTextMesh = (
   mainText: string,
@@ -217,14 +214,12 @@ export const createStackedTextMesh = (
   const stackedFontSize = fontSize * STACKED_RATIO;
   const stackedFontStyle = `${italic ? "italic " : ""}${bold ? "bold " : ""}${stackedFontSize}px '${fontFamily}', Arial, sans-serif`;
 
-  // Измеряем основной текст
   context.font = fontStyle;
   const mainMetrics = mainText ? context.measureText(mainText) : null;
   const mainWidth = mainMetrics ? mainMetrics.width : 0;
   const mainAscent = mainMetrics?.actualBoundingBoxAscent ?? fontSize * 0.8;
   const mainDescent = mainMetrics?.actualBoundingBoxDescent ?? fontSize * 0.05;
 
-  // Измеряем stacked текст
   context.font = stackedFontStyle;
   const topWidth = stackedTop ? context.measureText(stackedTop).width : 0;
   const bottomWidth = stackedBottom ? context.measureText(stackedBottom).width : 0;
@@ -236,7 +231,7 @@ export const createStackedTextMesh = (
   const subAscent = subMetrics?.actualBoundingBoxAscent ?? stackedFontSize * 0.8;
   const subDescent = subMetrics?.actualBoundingBoxDescent ?? stackedFontSize * 0.05;
 
-  // Stacked текст центрируется по визуальному центру основного текста
+  // Stacked text is centered on the visual center of the main text
   const mainCenterAboveBaseline = mainAscent / 2;
   const halfVGap = STACKED_V_GAP / 2;
 
@@ -261,14 +256,12 @@ export const createStackedTextMesh = (
   const baselineY = PADDING + Math.ceil(topExtent);
   const stackedCenterY = baselineY - mainCenterAboveBaseline;
 
-  // Основной текст
   if (mainText) {
     context.font = fontStyle;
     context.textBaseline = "alphabetic";
     context.fillText(mainText, PADDING, baselineY);
   }
 
-  // Superscript / subscript
   const stackedX = PADDING + mainWidth + gap;
   context.font = stackedFontStyle;
   if (stackedTop) {
@@ -298,15 +291,6 @@ export const createStackedTextMesh = (
   return new THREE.Mesh(geometry, material);
 };
 
-/**
- * Создание текстового меша с использованием Canvas текстуры
- * @param color - Цвет текста (hex строка)
- * @param bold - Жирный шрифт
- * @param italic - Курсив
- * @param hAlign - Горизонтальное выравнивание: 'left' | 'center' | 'right'
- * @param fontFamily - Имя шрифта (по умолчанию Arial)
- * @param vAlign - Вертикальное выравнивание: 'top' | 'middle' | 'bottom'
- */
 export const createTextMesh = (
   text: string,
   height: number,
@@ -353,7 +337,7 @@ export const createTextMesh = (
   const meshWidth = height * aspectRatio;
   const geometry = new THREE.PlaneGeometry(meshWidth, height);
 
-  // Сдвигаем геометрию для выравнивания: origin = точка привязки текста
+  // Shift geometry so origin = text anchor point (for alignment)
   const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
   const ty = vAlign === "top" ? -height / 2 : vAlign === "bottom" ? height / 2 : 0;
   if (tx !== 0 || ty !== 0) {

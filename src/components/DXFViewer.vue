@@ -1,6 +1,5 @@
 <template>
   <div ref="dxfContainer" class="dxf-viewer">
-    <!-- Ошибка WebGL -->
     <div v-if="!webGLSupported" class="message-overlay">
       <div class="message-content error">
         <svg
@@ -22,12 +21,10 @@
       </div>
     </div>
 
-    <!-- Имя файла в левом верхнем углу -->
     <div v-if="fileName && hasDXFData" class="file-name-overlay">
       {{ fileName }}
     </div>
 
-    <!-- Кнопка сброса вида в правом верхнем углу -->
     <button
       v-if="showResetButton && hasDXFData"
       class="reset-button-overlay"
@@ -48,7 +45,6 @@
       </svg>
     </button>
 
-    <!-- Панель слоёв -->
     <LayerPanel
       v-if="hasDXFData && layerList.length > 0"
       :layers="layerList"
@@ -57,7 +53,6 @@
       @hide-all="handleHideAllLayers"
     />
 
-    <!-- Лоадер при загрузке файла -->
     <div v-if="isLoading" class="message-overlay loading-overlay">
       <div class="message-content">
         <div class="spinner"></div>
@@ -65,7 +60,6 @@
       </div>
     </div>
 
-    <!-- Placeholder когда нет данных -->
     <div v-else-if="!hasDXFData" class="message-overlay">
       <div class="message-content placeholder">
         <svg
@@ -92,7 +86,6 @@ import { useLayers } from "@/composables/dxf/useLayers";
 import type { DxfData, DxfLayer } from "@/types/dxf";
 import LayerPanel from "./LayerPanel.vue";
 
-// Props
 interface Props {
   dxfData?: DxfData | null;
   fileName?: string;
@@ -107,7 +100,6 @@ const props = withDefaults(defineProps<Props>(), {
   autoFit: true,
 });
 
-// Emits
 interface Emits {
   (e: "dxf-loaded", success: boolean): void;
   (e: "dxf-data", data: DxfData | null): void;
@@ -147,7 +139,7 @@ const hasDXFData = computed(() => {
   return props.dxfData && props.dxfData.entities && props.dxfData.entities.length > 0;
 });
 
-// Ссылка на данные, загруженные через loadDXFFromText, чтобы watch не загружал их повторно
+// Reference to data loaded via loadDXFFromText so watch does not reload them
 let lastLoadedDxf: DxfData | null = null;
 
 const handleResetView = () => {
@@ -155,10 +147,8 @@ const handleResetView = () => {
   emit("reset-view");
 };
 
-// Инициализация слоёв из DXF данных
 const initLayersFromDXF = (dxf: DxfData) => {
   const dxfLayers = (dxf.tables?.layer?.layers || {}) as Record<string, DxfLayer>;
-  // Подсчёт entity по слоям
   const entityLayerCounts: Record<string, number> = {};
   for (const entity of dxf.entities) {
     const layerName = entity.layer || "0";
@@ -167,7 +157,6 @@ const initLayersFromDXF = (dxf: DxfData) => {
   initLayers(dxfLayers, entityLayerCounts);
 };
 
-// Обработчики событий панели слоёв
 const handleToggleLayer = (layerName: string) => {
   toggleLayerVisibility(layerName);
   applyLayerVisibility(visibleLayerNames.value);
@@ -185,8 +174,8 @@ const handleHideAllLayers = () => {
 
 const loadDXFFromText = (dxfText: string) => {
   isLoading.value = true;
-  // Двойной requestAnimationFrame гарантирует, что браузер успеет отрисовать спиннер
-  // перед синхронной блокировкой парсинга/рендеринга
+  // Double requestAnimationFrame ensures the browser renders the spinner
+  // before synchronous parsing/rendering blocks the main thread
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       try {
@@ -197,7 +186,6 @@ const loadDXFFromText = (dxfText: string) => {
         emit("dxf-loaded", true);
         emit("dxf-data", dxf);
 
-        // Передаем неподдерживаемые entity наружу
         if (unsupportedEntities && unsupportedEntities.length > 0) {
           emit("unsupported-entities", unsupportedEntities);
         }
@@ -221,7 +209,6 @@ const loadDXFFromData = (dxfData: DxfData) => {
     emit("dxf-loaded", true);
     emit("dxf-data", dxfData);
 
-    // Передаем неподдерживаемые entity наружу
     if (unsupportedEntities && unsupportedEntities.length > 0) {
       emit("unsupported-entities", unsupportedEntities);
     }
@@ -244,7 +231,7 @@ const resize = () => {
 watch(
   () => props.dxfData,
   (newData) => {
-    // Пропускаем если данные уже загружены через loadDXFFromText
+    // Skip if data was already loaded via loadDXFFromText
     if (newData && hasDXFData.value && newData !== lastLoadedDxf) {
       loadDXFFromData(newData);
     }

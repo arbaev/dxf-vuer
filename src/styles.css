@@ -1,7 +1,7 @@
 /*
- * CSS-переменные dxf-vuer.
- * Потребители могут переопределить через :root или контейнер-обёртку.
- * Пример:
+ * dxf-vuer CSS custom properties.
+ * Consumers can override via :root or a wrapper container.
+ * Example:
  *   :root {
  *     --dxf-vuer-primary-color: #ff6600;
  *     --dxf-vuer-border-radius: 8px;

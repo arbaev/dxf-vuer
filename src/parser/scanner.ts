@@ -1,14 +1,8 @@
-// Лексер DXF файлов — разбирает текст на пары (код, значение)
-
 export interface IGroup {
   code: number;
   value: number | string | boolean;
 }
 
-/**
- * Сканер массива строк DXF файла.
- * На основе спецификации AutoCAD 2012 DXF Reference.
- */
 export default class DxfScanner {
   private _pointer = 0;
   private _eof = false;
@@ -19,7 +13,6 @@ export default class DxfScanner {
     this._data = data;
   }
 
-  /** Читает следующую пару (код, значение) */
   public next(): IGroup {
     if (!this.hasNext()) {
       if (!this._eof)
@@ -47,7 +40,6 @@ export default class DxfScanner {
     return group;
   }
 
-  /** Подсматривает следующую пару без продвижения указателя */
   public peek(): IGroup {
     if (!this.hasNext()) {
       if (!this._eof)
@@ -67,27 +59,24 @@ export default class DxfScanner {
     return group;
   }
 
-  /** Перемотка назад на указанное количество групп */
   public rewind(numberOfGroups = 1): void {
     this._pointer = this._pointer - numberOfGroups * 2;
   }
 
-  /** Есть ли ещё данные для чтения */
   public hasNext(): boolean {
     if (this._eof) return false;
     if (this._pointer > this._data.length - 2) return false;
     return true;
   }
 
-  /** Достигнут ли конец файла (группа EOF) */
   public isEOF(): boolean {
     return this._eof;
   }
 }
 
 /**
- * Типизация значения по диапазону DXF-кода.
- * См. AutoCAD DXF Reference, стр. 3-10.
+ * Type-cast value based on DXF group code range.
+ * See AutoCAD DXF Reference, pp. 3-10.
  */
 function parseGroupValue(code: number, value: string): number | string | boolean {
   if (code <= 9) return value;

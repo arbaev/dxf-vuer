@@ -1,32 +1,26 @@
-// Вспомогательные функции для парсинга DXF
-
 import AUTO_CAD_COLOR_INDEX from "./acadColorIndex";
 import type DxfScanner from "./scanner";
 import type { IGroup } from "./scanner";
 import type { DxfVertex, DxfEntityBase } from "@/types/dxf";
 
-// IPoint — алиас для DxfVertex, обеспечивает единую систему типов
 export type IPoint = DxfVertex;
 
-// IEntityBase расширяет DxfEntityBase: добавляет type и index signature для динамических свойств парсера
 export interface IEntityBase extends DxfEntityBase {
   type: string;
   [key: string]: unknown;
 }
 
-/** Получить RGB truecolor из ACI-индекса */
 export function getAcadColor(index: number): number {
   return AUTO_CAD_COLOR_INDEX[index];
 }
 
 /**
- * Парсит 2D/3D координату. Сканер должен быть на группе с X-координатой.
- * Использует rewind для повторного чтения текущей группы.
+ * Parses a 2D/3D coordinate. Scanner must be on the group with the X coordinate.
+ * Uses rewind to re-read the current group.
  */
 export function parsePoint(scanner: DxfScanner): IPoint {
   const point = {} as IPoint;
 
-  // Перечитываем текущую группу для получения X
   scanner.rewind();
   let curr = scanner.next();
 
@@ -42,7 +36,6 @@ export function parsePoint(scanner: DxfScanner): IPoint {
   code += 10;
   curr = scanner.next();
   if (curr.code !== code) {
-    // Только X и Y, Z нет — откатываем
     scanner.rewind();
     return point;
   }
@@ -52,8 +45,8 @@ export function parsePoint(scanner: DxfScanner): IPoint {
 }
 
 /**
- * Парсит точку inline — без rewind, используется в секциях (BLOCKS, TABLES).
- * Читает Y и Z координаты из следующих групп.
+ * Parses a point inline -- without rewind, used in sections (BLOCKS, TABLES).
+ * Reads Y and Z coordinates from the next groups.
  */
 export function parsePointInline(scanner: DxfScanner, curr: IGroup): IPoint {
   const point = {} as IPoint;
@@ -76,8 +69,8 @@ export function parsePointInline(scanner: DxfScanner, curr: IGroup): IPoint {
 }
 
 /**
- * Обрабатывает общие свойства entity (layer, color, handle и т.д.).
- * Возвращает true если группа обработана.
+ * Processes common entity properties (layer, color, handle, etc.).
+ * Returns true if the group was handled.
  */
 export function checkCommonEntityProperties(
   entity: IEntityBase,
@@ -110,10 +103,9 @@ export function checkCommonEntityProperties(
       entity.inPaperSpace = curr.value !== 0;
       break;
     case 100:
-      // Игнорируем маркеры подклассов
       break;
     case 101:
-      // Embedded Object (ACAD 2018+) — пропускаем до code=0
+      // Embedded Object (ACAD 2018+) -- skip until code=0
       while (curr.code !== 0) {
         curr = scanner.next();
       }

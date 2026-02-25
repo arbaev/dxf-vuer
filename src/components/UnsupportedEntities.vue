@@ -24,7 +24,7 @@
     <transition name="expand">
       <div v-if="isExpanded" class="entities-list">
         <div v-for="(entity, index) in entities" :key="index" class="entity-item">
-          <span class="entity-bullet">•</span>
+          <span class="entity-bullet">&#8226;</span>
           <span class="entity-text">{{ entity }}</span>
         </div>
       </div>
@@ -32,7 +32,7 @@
 
     <div class="warning-footer">
       <span class="warning-note">
-        ℹ️ These elements will not be displayed on the drawing
+        &#8505;&#65039; These elements will not be displayed on the drawing
       </span>
     </div>
   </div>
@@ -41,7 +41,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
-// Props
 interface Props {
   entities: string[];
 }
@@ -137,7 +136,6 @@ const isExpanded = ref(true);
   font-style: italic;
 }
 
-/* Transition для expand/collapse */
 .expand-enter-active,
 .expand-leave-active {
   transition: all 0.3s ease;
@@ -151,7 +149,6 @@ const isExpanded = ref(true);
   opacity: 0;
 }
 
-/* Scrollbar styling */
 .entities-list::-webkit-scrollbar {
   width: 6px;
 }

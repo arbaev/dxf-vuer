@@ -1,5 +1,3 @@
-// Парсер секции ENTITIES — роутер + реестр entity-хендлеров
-
 import type DxfScanner from "../scanner";
 import type { IGroup } from "../scanner";
 import type { IEntityBase } from "../parseHelpers";
@@ -54,8 +52,7 @@ const entityHandlers: Record<string, EntityHandler> = {
 };
 
 /**
- * Парсит entity-секцию (ENTITIES или содержимое BLOCK).
- * @param forBlock — true если парсим содержимое блока (останов по ENDBLK)
+ * @param forBlock -- true when parsing block contents (stops at ENDBLK instead of ENDSEC)
  */
 export function parseEntities(
   scanner: DxfScanner,
@@ -83,22 +80,20 @@ export function parseEntities(
         try {
           const entity = handler(scanner, curr);
           curr = scanner.lastReadGroup;
-          // Гарантируем наличие handle
           if (!entity.handle) entity.handle = lastHandle++;
           entities.push(entity);
         } catch (error) {
           console.warn(
-            `⚠️ Ошибка парсинга entity "${curr.value}":`,
+            `Failed to parse entity "${curr.value}":`,
             error instanceof Error ? error.message : error,
           );
-          // Пропускаем повреждённый entity — читаем до следующего code 0
+          // Skip damaged entity -- advance to next code 0
           curr = scanner.lastReadGroup;
           while (!scanner.isEOF() && curr.code !== 0) {
             curr = scanner.next();
           }
         }
       } else {
-        // Неизвестный entity — пропускаем
         curr = scanner.next();
         continue;
       }
@@ -108,7 +103,7 @@ export function parseEntities(
   }
 
   if (endingOnValue === "ENDSEC") {
-    curr = scanner.next(); // Проглатываем ENDSEC, но не ENDBLK
+    curr = scanner.next();
   }
 
   return entities;

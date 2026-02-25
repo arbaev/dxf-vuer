@@ -9,9 +9,6 @@ import {
 } from "@/constants";
 import { createBulgeArc } from "./primitives";
 
-/**
- * Получить начальную точку ребра HATCH
- */
 const getEdgeStartPoint = (edge: HatchEdge): { x: number; y: number } => {
   if (edge.type === "line") {
     return { x: edge.start.x, y: edge.start.y };
@@ -31,10 +28,6 @@ const getEdgeStartPoint = (edge: HatchEdge): { x: number; y: number } => {
   return { x: 0, y: 0 };
 };
 
-/**
- * Вычислить точки эллиптического ребра HATCH
- * @param segmentOverride — количество сегментов (0 = авто)
- */
 const ellipseEdgeToPoints = (
   edge: { center: DxfVertex; majorAxisEndPoint: DxfVertex; axisRatio: number; startAngle: number; endAngle: number; ccw: boolean },
   segmentOverride = 0,
@@ -46,10 +39,9 @@ const ellipseEdgeToPoints = (
   const minorLength = majorLength * edge.axisRatio;
   const rotation = Math.atan2(majorY, majorX);
 
-  let startAngle = edge.startAngle; // уже в радианах для HATCH ellipse edge
+  let startAngle = edge.startAngle; // already in radians for HATCH ellipse edge
   let endAngle = edge.endAngle;
 
-  // Полный эллипс
   const isFullEllipse =
     Math.abs(endAngle - startAngle - 2 * Math.PI) < EPSILON ||
     (Math.abs(startAngle) < EPSILON && Math.abs(endAngle) < EPSILON);
@@ -82,13 +74,10 @@ const ellipseEdgeToPoints = (
   return points;
 };
 
-/**
- * Вычислить точки сплайнового ребра HATCH (CatmullRom fallback)
- */
 const splineEdgeToPoints = (
   edge: { degree: number; knots: number[]; controlPoints: DxfVertex[]; fitPoints?: DxfVertex[] },
 ): THREE.Vector3[] => {
-  // Используем fitPoints если есть, иначе controlPoints
+  // Use fitPoints if available, otherwise controlPoints
   const sourcePoints = edge.fitPoints && edge.fitPoints.length > 1
     ? edge.fitPoints
     : edge.controlPoints;
@@ -97,23 +86,17 @@ const splineEdgeToPoints = (
 
   const pts = sourcePoints.map((p) => new THREE.Vector3(p.x, p.y, 0));
 
-  // Простой случай — 2 точки = прямая
   if (pts.length === 2) return pts;
 
-  // CatmullRom интерполяция
   const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
   const segments = Math.max(pts.length * 4, 20);
   return curve.getPoints(segments);
 };
 
-/**
- * Конвертация boundary path HATCH в THREE.ShapePath (для Shape/Path)
- */
 export const boundaryPathToShapePath = (bp: HatchBoundaryPath): THREE.ShapePath | null => {
   const shapePath = new THREE.ShapePath();
 
   if (bp.edges && bp.edges.length > 0) {
-    // Edge-based boundary
     const firstEdge = bp.edges[0];
     const firstPt = getEdgeStartPoint(firstEdge);
     shapePath.moveTo(firstPt.x, firstPt.y);
@@ -122,7 +105,6 @@ export const boundaryPathToShapePath = (bp: HatchBoundaryPath): THREE.ShapePath 
       addEdgeToPath(shapePath, edge);
     }
   } else if (bp.polylineVertices && bp.polylineVertices.length > 1) {
-    // Polyline-based boundary
     const verts = bp.polylineVertices;
     shapePath.moveTo(verts[0].x, verts[0].y);
 
@@ -143,15 +125,12 @@ export const boundaryPathToShapePath = (bp: HatchBoundaryPath): THREE.ShapePath 
   return shapePath;
 };
 
-/**
- * Добавляет ребро HATCH (линия, дуга, эллипс, сплайн) в ShapePath
- */
 export const addEdgeToPath = (shapePath: THREE.ShapePath, edge: HatchEdge): void => {
   if (!shapePath.currentPath) return;
   if (edge.type === "line") {
     shapePath.currentPath.lineTo(edge.end.x, edge.end.y);
   } else if (edge.type === "arc") {
-    // Arc edge — углы в градусах, конвертируем в радианы
+    // Arc edge angles are in degrees, convert to radians
     const startRad = (edge.startAngle * Math.PI) / 180;
     const endRad = (edge.endAngle * Math.PI) / 180;
     shapePath.currentPath.absarc(
@@ -160,16 +139,14 @@ export const addEdgeToPath = (shapePath: THREE.ShapePath, edge: HatchEdge): void
       edge.radius,
       startRad,
       endRad,
-      !edge.ccw, // THREE.js: aClockwise=true означает CW, DXF ccw=true означает CCW
+      !edge.ccw, // THREE.js: aClockwise=true means CW, DXF ccw=true means CCW
     );
   } else if (edge.type === "ellipse") {
-    // Ellipse edge — аппроксимируем точками
     const pts = ellipseEdgeToPoints(edge);
     for (let i = 1; i < pts.length; i++) {
       shapePath.currentPath.lineTo(pts[i].x, pts[i].y);
     }
   } else if (edge.type === "spline") {
-    // Spline edge — аппроксимируем точками
     const pts = splineEdgeToPoints(edge);
     for (let i = 1; i < pts.length; i++) {
       shapePath.currentPath.lineTo(pts[i].x, pts[i].y);
@@ -177,9 +154,6 @@ export const addEdgeToPath = (shapePath: THREE.ShapePath, edge: HatchEdge): void
   }
 };
 
-/**
- * Добавляет bulge-дугу между двумя вершинами полилайна в ShapePath
- */
 export const addBulgeArcToPath = (
   shapePath: THREE.ShapePath,
   v1: DxfVertex,
@@ -210,16 +184,13 @@ export const addBulgeArcToPath = (
   const startAngle = Math.atan2(v1.y - cy, v1.x - cx);
   const endAngle = Math.atan2(v2.y - cy, v2.x - cx);
 
-  // bulge > 0 → CCW, bulge < 0 → CW
-  // THREE.js absarc: aClockwise=true → CW
+  // bulge > 0 -> CCW, bulge < 0 -> CW
+  // THREE.js absarc: aClockwise=true -> CW
   const clockwise = bulge < 0;
 
   shapePath.currentPath!.absarc(cx, cy, Math.abs(radius), startAngle, endAngle, clockwise);
 };
 
-/**
- * Конвертация boundary path в массив THREE.Vector3 для контурного отображения
- */
 export const boundaryPathToLinePoints = (bp: HatchBoundaryPath): THREE.Vector3[] => {
   const points: THREE.Vector3[] = [];
 
@@ -255,7 +226,7 @@ export const boundaryPathToLinePoints = (bp: HatchBoundaryPath): THREE.Vector3[]
         }
       } else if (edge.type === "ellipse") {
         const ePts = ellipseEdgeToPoints(edge);
-        // Пропускаем первую точку если уже есть точки (чтобы не дублировать)
+        // Skip first point if points already exist (to avoid duplicates at edge junctions)
         const startIdx = points.length > 0 ? 1 : 0;
         for (let i = startIdx; i < ePts.length; i++) {
           points.push(ePts[i]);
@@ -288,16 +259,12 @@ export const boundaryPathToLinePoints = (bp: HatchBoundaryPath): THREE.Vector3[]
   return points;
 };
 
-// ==================== HATCH Pattern Rendering ====================
-
 export interface Point2D {
   x: number;
   y: number;
 }
 
-/**
- * Тест точки внутри полигона (ray casting алгоритм)
- */
+/** Point-in-polygon test (ray casting algorithm) */
 export const pointInPolygon2D = (px: number, py: number, polygon: Point2D[]): boolean => {
   let inside = false;
   const n = polygon.length;
@@ -315,7 +282,9 @@ export const pointInPolygon2D = (px: number, py: number, polygon: Point2D[]): bo
 };
 
 /**
- * Обрезка отрезка по полигону: возвращает массив [x1,y1,x2,y2] для частей внутри полигона
+ * Clip a segment to polygon: returns array of [x1,y1,x2,y2] for parts inside the polygon.
+ * Collects parameter t values for segment intersections with polygon edges,
+ * then alternates inside/outside based on starting state.
  */
 export const clipSegmentToPolygon = (
   x1: number,
@@ -327,7 +296,6 @@ export const clipSegmentToPolygon = (
   const dx = x2 - x1;
   const dy = y2 - y1;
 
-  // Собираем параметры t пересечений отрезка с рёбрами полигона
   const params: number[] = [];
   const n = polygon.length;
   for (let i = 0; i < n; i++) {
@@ -336,7 +304,7 @@ export const clipSegmentToPolygon = (
     const ey = polygon[j].y - polygon[i].y;
 
     const denom = dx * ey - dy * ex;
-    if (Math.abs(denom) < 1e-10) continue; // параллельные
+    if (Math.abs(denom) < 1e-10) continue;
 
     const t = ((polygon[i].x - x1) * ey - (polygon[i].y - y1) * ex) / denom;
     const u = ((polygon[i].x - x1) * dy - (polygon[i].y - y1) * dx) / denom;
@@ -348,7 +316,6 @@ export const clipSegmentToPolygon = (
 
   params.sort((a, b) => a - b);
 
-  // Определяем, находится ли начальная точка внутри полигона
   const startInside = pointInPolygon2D(x1, y1, polygon);
 
   const result: [number, number, number, number][] = [];
@@ -371,13 +338,14 @@ export const clipSegmentToPolygon = (
 };
 
 /**
- * Генерация сегментов паттерна HATCH, обрезанных по полигону boundary
+ * Generate HATCH pattern segments clipped to the boundary polygon.
+ * For each pattern line, generates parallel lines at the specified spacing/angle,
+ * applies dash patterns, and clips to the boundary using ray casting.
  */
 export const generateHatchPattern = (
   patternLines: HatchPatternLine[],
   polygon: Point2D[],
 ): THREE.Vector3[][] => {
-  // Bounding box полигона
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
@@ -399,18 +367,17 @@ export const generateHatchPattern = (
     const angleRad = (pl.angle * Math.PI) / 180;
     const dirX = Math.cos(angleRad);
     const dirY = Math.sin(angleRad);
-    // Перпендикуляр к направлению линии
     const perpX = -dirY;
     const perpY = dirX;
 
-    // Перпендикулярное расстояние между линиями = |offset · perp|
+    // Perpendicular distance between lines = |offset . perp|
     const spacing = Math.abs(pl.offset.x * perpX + pl.offset.y * perpY);
     if (spacing < EPSILON) continue;
 
-    // Сдвиг вдоль направления линии между соседними линиями
+    // Shift along line direction between adjacent lines (for staggered patterns)
     const stagger = pl.offset.x * dirX + pl.offset.y * dirY;
 
-    // Проецируем углы bbox на перпендикулярное направление относительно basePoint
+    // Project bbox corners onto perpendicular direction relative to basePoint
     const corners = [
       { x: minX, y: minY },
       { x: maxX, y: minY },
@@ -429,24 +396,19 @@ export const generateHatchPattern = (
     const startIdx = Math.floor(minProj / spacing);
     const endIdx = Math.ceil(maxProj / spacing);
 
-    // Защита от слишком большого количества линий
     if (endIdx - startIdx > MAX_HATCH_LINES_PER_PATTERN) continue;
 
-    // Общая длина одного повтора дэш-паттерна
     const dashTotal = pl.dashes.reduce((s, d) => s + Math.abs(d), 0);
-    // Если нет дэшей — сплошная линия
     const isSolid = pl.dashes.length === 0 || dashTotal < EPSILON;
 
     for (let i = startIdx; i <= endIdx; i++) {
-      // Защита от слишком большого количества сегментов
       if (allSegments.length >= MAX_HATCH_SEGMENTS) break;
 
-      // Начало линии: basePoint + i * spacing * perp + i * stagger * dir
+      // Line origin: basePoint + i * spacing * perp + i * stagger * dir
       const ox = pl.basePoint.x + i * spacing * perpX + i * stagger * dirX;
       const oy = pl.basePoint.y + i * spacing * perpY + i * stagger * dirY;
 
       if (isSolid) {
-        // Сплошная линия через весь bbox
         const x1 = ox - diag * dirX,
           y1 = oy - diag * dirY;
         const x2 = ox + diag * dirX,
@@ -459,9 +421,9 @@ export const generateHatchPattern = (
           ]);
         }
       } else {
-        // Дэш-паттерн: генерируем сегменты вдоль линии
+        // Dash pattern: generate segments along the line
         let t = -diag;
-        // Выравниваем начало по периоду паттерна
+        // Align start to pattern period
         const phase = ((t % dashTotal) + dashTotal) % dashTotal;
         t -= phase;
 
@@ -469,7 +431,6 @@ export const generateHatchPattern = (
           for (const d of pl.dashes) {
             const segLen = Math.abs(d);
             if (d > 0) {
-              // Видимый дэш
               const sx = ox + t * dirX,
                 sy = oy + t * dirY;
               const ex = ox + (t + segLen) * dirX,
@@ -482,14 +443,13 @@ export const generateHatchPattern = (
                 ]);
               }
             }
-            // d < 0 → пробел, d === 0 → точка (пропускаем)
+            // d < 0 -> gap, d === 0 -> dot (skip)
             t += segLen;
           }
         }
       }
     }
 
-    // Защита от слишком большого количества сегментов (между patternLines)
     if (allSegments.length >= MAX_HATCH_SEGMENTS) break;
   }
 

@@ -21,7 +21,6 @@
     </header>
 
     <main class="app-main">
-      <!-- Ошибки -->
       <div v-if="error" class="error-message">
         <svg
           width="20"
@@ -38,10 +37,8 @@
         <span>{{ error }}</span>
       </div>
 
-      <!-- Список неподдерживаемых entity -->
       <UnsupportedEntities v-if="unsupportedEntities.length > 0" :entities="unsupportedEntities" />
 
-      <!-- DXF Viewer -->
       <div class="viewer-container">
         <DXFViewer
           ref="dxfViewerRef"
@@ -56,7 +53,6 @@
         />
       </div>
 
-      <!-- Статистика файла -->
       <DXFStatistics v-if="statistics" :statistics="statistics" />
     </main>
   </div>
@@ -89,8 +85,8 @@ const handleFileSelected = async (file: File) => {
 
     const text = await file.text();
 
-    // Парсинг и отображение происходит внутри DXFViewer
-    // через exposed метод loadDXFFromText
+    // Parsing and display happen inside DXFViewer
+    // via the exposed loadDXFFromText method
     if (dxfViewerRef.value) {
       dxfViewerRef.value.loadDXFFromText(text);
     }
@@ -119,7 +115,6 @@ const handleDXFLoaded = (success: boolean) => {
 const handleDXFData = (data: DxfData | null) => {
   dxfData.value = data;
 
-  // Собираем статистику после загрузки DXF данных
   if (data && currentFileName.value) {
     statistics.value = collectDXFStatistics(data, currentFileName.value, currentFileSize.value);
   } else {

@@ -21,7 +21,6 @@
           :class="{ hidden: !layer.visible, frozen: layer.frozen }"
           @click="!layer.frozen && $emit('toggle-layer', layer.name)"
         >
-          <!-- Иконка глаза -->
           <svg
             v-if="layer.visible"
             class="eye-icon"
@@ -49,13 +48,8 @@
             <line x1="1" y1="1" x2="23" y2="23" />
           </svg>
 
-          <!-- Цветовой индикатор -->
           <span class="color-swatch" :style="{ backgroundColor: layer.color }"></span>
-
-          <!-- Имя слоя -->
           <span class="layer-name" :title="layer.name">{{ layer.name }}</span>
-
-          <!-- Количество entity -->
           <span class="layer-count">{{ layer.entityCount }}</span>
         </div>
       </div>

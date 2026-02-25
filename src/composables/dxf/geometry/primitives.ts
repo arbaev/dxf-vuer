@@ -1,4 +1,3 @@
-// Общие утилиты для создания геометрических примитивов из DXF данных
 import * as THREE from "three";
 import type { DxfLayer } from "@/types/dxf";
 import {
@@ -10,20 +9,17 @@ import {
   POINT_MARKER_SIZE,
 } from "@/constants";
 
-/** Контекст цвета для передачи в processEntity */
 export interface EntityColorContext {
   layers: Record<string, DxfLayer>;
-  blockColor?: string; // Цвет INSERT entity для ByBlock наследования
-  materialCache: Map<string, THREE.LineBasicMaterial>; // Кеш линейных материалов по цвету
-  meshMaterialCache: Map<string, THREE.MeshBasicMaterial>; // Кеш mesh материалов (color + DoubleSide)
-  pointsMaterialCache: Map<string, THREE.PointsMaterial>; // Кеш материалов для точек
+  blockColor?: string; // INSERT entity color for ByBlock inheritance
+  materialCache: Map<string, THREE.LineBasicMaterial>;
+  meshMaterialCache: Map<string, THREE.MeshBasicMaterial>;
+  pointsMaterialCache: Map<string, THREE.PointsMaterial>;
 }
 
-/** Преобразование градусов в радианы */
 export const degreesToRadians = (degrees: number): number =>
   (degrees * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
 
-/** Получить LineBasicMaterial из кеша или создать новый */
 export const getLineMaterial = (
   color: string,
   cache: Map<string, THREE.LineBasicMaterial>,
@@ -36,7 +32,6 @@ export const getLineMaterial = (
   return mat;
 };
 
-/** Получить MeshBasicMaterial (color + DoubleSide) из кеша или создать новый */
 export const getMeshMaterial = (
   color: string,
   cache: Map<string, THREE.MeshBasicMaterial>,
@@ -49,7 +44,6 @@ export const getMeshMaterial = (
   return mat;
 };
 
-/** Получить PointsMaterial из кеша или создать новый */
 export const getPointsMaterial = (
   color: string,
   cache: Map<string, THREE.PointsMaterial>,
@@ -67,81 +61,67 @@ export const getPointsMaterial = (
 };
 
 /**
- * Создание дуги из двух точек с коэффициентом bulge
- * @param p1 - Начальная точка
- * @param p2 - Конечная точка
- * @param bulge - Коэффициент изгиба (bulge = tan(angle/4))
- * @returns Массив точек для отрисовки дуги
+ * Create an arc from two points with a bulge coefficient.
+ * bulge = tan(angle/4), where angle is the central arc angle.
  */
 export const createBulgeArc = (
   p1: THREE.Vector3,
   p2: THREE.Vector3,
   bulge: number,
 ): THREE.Vector3[] => {
-  // Если bulge близок к нулю - возвращаем прямую линию
   if (Math.abs(bulge) < EPSILON) {
     return [p1, p2];
   }
 
-  // Вычисляем расстояние между точками (длина хорды)
   const dx = p2.x - p1.x;
   const dy = p2.y - p1.y;
   const chordLength = Math.sqrt(dx * dx + dy * dy);
 
-  // Если точки совпадают - возвращаем их
   if (chordLength < EPSILON) {
     return [p1, p2];
   }
 
-  // Центральный угол дуги: bulge = tan(θ/4) => θ = 4 * atan(bulge)
+  // Central angle: bulge = tan(theta/4) => theta = 4 * atan(bulge)
   const theta = 4 * Math.atan(bulge);
 
-  // Радиус окружности по формуле: r = L / (2 * sin(θ/2))
-  // где L - длина хорды, θ - центральный угол
+  // Radius: r = chordLength / (2 * sin(theta/2))
   const radius = chordLength / (2 * Math.sin(theta / 2));
 
-  // Расстояние от середины хорды до центра окружности (со знаком)
-  // При θ < π: h > 0, при θ > π: h < 0 (центр по другую сторону хорды)
-  // Знак автоматически корректен т.к. theta и radius вычислены с учётом знака bulge
+  // Distance from chord midpoint to circle center (signed).
+  // Sign is automatically correct since theta and radius carry the bulge sign.
   const h = radius * Math.cos(theta / 2);
 
-  // Середина хорды
   const midX = (p1.x + p2.x) / 2;
   const midY = (p1.y + p2.y) / 2;
 
-  // Единичный вектор вдоль хорды
   const chordDirX = dx / chordLength;
   const chordDirY = dy / chordLength;
 
-  // Перпендикулярный вектор к хорде (поворот на 90° против часовой стрелки)
+  // Perpendicular to chord (rotated 90 degrees CCW)
   const perpX = -chordDirY;
   const perpY = chordDirX;
 
-  // Центр окружности (смещаем от середины хорды по перпендикуляру)
-  // Знак h уже учитывает направление: для bulge > 0 и θ < π центр справа от хорды,
-  // для bulge > 0 и θ > π центр слева (и наоборот для отрицательного bulge)
+  // Center offset: for bulge > 0 and theta < pi, center is to the right of chord;
+  // for theta > pi, center flips to the left (and vice versa for negative bulge)
   const centerX = midX + perpX * h;
   const centerY = midY + perpY * h;
 
-  // Начальный и конечный углы относительно центра
   const startAngle = Math.atan2(p1.y - centerY, p1.x - centerX);
   const endAngle = Math.atan2(p2.y - centerY, p2.x - centerX);
 
-  // Определяем направление обхода дуги
   let sweepAngle = endAngle - startAngle;
 
-  // Нормализуем угол в диапазон [-π, π]
+  // Normalize to [-pi, pi]
   while (sweepAngle > Math.PI) sweepAngle -= 2 * Math.PI;
   while (sweepAngle < -Math.PI) sweepAngle += 2 * Math.PI;
 
-  // Корректируем направление в зависимости от знака bulge
+  // Adjust direction based on bulge sign
   if (bulge > 0 && sweepAngle < 0) {
     sweepAngle += 2 * Math.PI;
   } else if (bulge < 0 && sweepAngle > 0) {
     sweepAngle -= 2 * Math.PI;
   }
 
-  // Количество сегментов для дуги (пропорционально углу)
   const segments = Math.max(
     MIN_ARC_SEGMENTS,
     Math.floor((Math.abs(sweepAngle) * CIRCLE_SEGMENTS) / (2 * Math.PI)),
@@ -149,7 +129,6 @@ export const createBulgeArc = (
 
   const points: THREE.Vector3[] = [];
 
-  // Генерируем точки дуги
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
     const currentAngle = startAngle + sweepAngle * t;
@@ -162,12 +141,8 @@ export const createBulgeArc = (
 };
 
 /**
- * Создание стрелки (треугольника) для размерных линий.
- * Направление вычисляется как from → tip (нормализованный вектор).
- * @param from - Точка, откуда идёт линия (определяет направление стрелки)
- * @param tip - Острие стрелки (вершина треугольника)
- * @param size - Длина стрелки
- * @param material - Материал для отрисовки
+ * Create an arrow (triangle) for dimension lines.
+ * Direction is computed as normalized vector from `from` to `tip`.
  */
 export const createArrow = (
   from: THREE.Vector3,
@@ -211,9 +186,6 @@ export const createArrow = (
   return new THREE.Mesh(geometry, material);
 };
 
-/**
- * Установить layerName в userData объекта
- */
 export const setLayerName = (obj: THREE.Object3D | THREE.Object3D[], layerName: string) => {
   if (Array.isArray(obj)) {
     obj.forEach((o) => {

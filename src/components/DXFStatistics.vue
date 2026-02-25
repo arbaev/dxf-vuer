@@ -3,7 +3,6 @@
     <h3 class="statistics-title">File Statistics</h3>
 
     <div class="statistics-grid">
-      <!-- Основная информация -->
       <div class="stat-section">
         <h4>General</h4>
         <div class="stat-item">
@@ -16,7 +15,6 @@
         </div>
       </div>
 
-      <!-- Статистика объектов -->
       <div class="stat-section">
         <h4>Entities</h4>
         <div class="stat-item">
@@ -33,7 +31,6 @@
         </div>
       </div>
 
-      <!-- Дополнительная информация -->
       <div class="stat-section">
         <h4>Structure</h4>
         <div class="stat-item">
@@ -59,14 +56,12 @@ interface Props {
 
 const props = defineProps<Props>();
 
-// Форматируем размер файла
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 };
 
-// Сортируем entities по количеству (от большего к меньшему)
 const sortedEntitiesByType = computed(() => {
   const entries = Object.entries(props.statistics.entitiesByType);
   entries.sort((a, b) => b[1] - a[1]);

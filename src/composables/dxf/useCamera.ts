@@ -1,11 +1,9 @@
-// Управление камерой Three.js
 import * as THREE from "three";
 import { CAMERA_PADDING, CAMERA_INITIAL_Z_POSITION } from "@/constants";
 
 export function useCamera() {
   let isResizing = false;
 
-  // Подгонка камеры под размер объекта (для ортогональной камеры)
   const fitCameraToObject = (object: THREE.Object3D, camera: THREE.OrthographicCamera) => {
     const box = new THREE.Box3().setFromObject(object);
 
@@ -19,26 +17,21 @@ export function useCamera() {
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
 
-    // Для ортогональной камеры позиционируем камеру строго перпендикулярно к плоскости XY
-    // Камера всегда на фиксированной высоте
     camera.position.set(center.x, center.y, CAMERA_INITIAL_Z_POSITION);
     camera.lookAt(center.x, center.y, 0);
 
-    // Вычисляем zoom для подгонки объекта в видимую область
     const visibleHeight = camera.top - camera.bottom;
     const visibleWidth = camera.right - camera.left;
 
-    // Определяем какое измерение (ширина или высота) будет ограничивающим
     const scaleX = visibleWidth / (size.x * CAMERA_PADDING);
     const scaleY = visibleHeight / (size.y * CAMERA_PADDING);
 
-    // Используем меньший масштаб, чтобы весь объект поместился
+    // Use the smaller scale so the entire object fits in view
     camera.zoom = Math.min(scaleX, scaleY);
     camera.updateProjectionMatrix();
   };
 
-  // Обработка изменения размера контейнера (для ортогональной камеры)
-  // Обновляем только frustum aspect ratio и размер renderer, zoom и позиция камеры сохраняются
+  // Only updates frustum aspect ratio and renderer size; zoom and position are preserved
   const handleResize = (
     container: HTMLDivElement,
     camera: THREE.OrthographicCamera | null,

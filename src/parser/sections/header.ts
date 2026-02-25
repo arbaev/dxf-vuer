@@ -1,11 +1,6 @@
-// Парсер секции HEADER
-
 import type DxfScanner from "../scanner";
 import type { IPoint } from "../parseHelpers";
 
-/**
- * Парсит секцию HEADER — переменные ($ACADVER, $VIEWDIR и т.д.)
- */
 export function parseHeader(scanner: DxfScanner): Record<string, unknown> {
   let currVarName: string | null = null;
   let currVarValue: unknown = null;
@@ -34,6 +29,6 @@ export function parseHeader(scanner: DxfScanner): Record<string, unknown> {
     curr = scanner.next();
   }
 
-  curr = scanner.next(); // Проглатываем ENDSEC
+  curr = scanner.next();
   return header;
 }

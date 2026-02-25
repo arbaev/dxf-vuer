@@ -1,4 +1,3 @@
-// Создание геометрии Three.js из DXF данных
 import * as THREE from "three";
 import { NURBSCurve } from "three/examples/jsm/curves/NURBSCurve.js";
 import type { DxfVertex, DxfEntity, DxfData, DxfLayer } from "@/types/dxf";
@@ -33,7 +32,6 @@ import {
 } from "@/constants";
 import { resolveEntityColor } from "@/utils/colorResolver";
 
-// Модули геометрии
 import {
   type EntityColorContext,
   degreesToRadians,
@@ -70,9 +68,6 @@ import {
   type Point2D,
 } from "./geometry/hatch";
 
-/**
- * Создание Three.js Mesh для треугольника/четырёхугольника (SOLID, 3DFACE)
- */
 const createFaceMesh = (
   pts: DxfVertex[],
   material: THREE.MeshBasicMaterial,
@@ -87,7 +82,6 @@ const createFaceMesh = (
     vertices.push(p.x, p.y, p.z || 0);
   }
 
-  // Треугольник или четырёхугольник (два треугольника)
   indices.push(0, 1, 2);
   if (pts.length >= 4) {
     indices.push(0, 2, 3);
@@ -99,14 +93,6 @@ const createFaceMesh = (
   return new THREE.Mesh(geometry, material);
 };
 
-/**
- * Создание группы объектов для блока (INSERT entity)
- * @param insertEntity - INSERT entity с ссылкой на блок
- * @param dxf - Данные DXF файла с блоками
- * @param colorCtx - Контекст цвета
- * @param depth - Текущая глубина рекурсии (защита от бесконечной рекурсии)
- * @returns THREE.Group с отрендеренным блоком или null если блок не найден
- */
 const createBlockGroup = (
   insertEntity: DxfEntity,
   dxf: DxfData,
@@ -116,7 +102,7 @@ const createBlockGroup = (
   const MAX_RECURSION_DEPTH = 10;
 
   if (depth > MAX_RECURSION_DEPTH) {
-    console.warn(`⚠️ Достигнута максимальная глубина рекурсии при обработке INSERT: ${depth}`);
+    console.warn(`Maximum recursion depth reached while processing INSERT: ${depth}`);
     return null;
   }
 
@@ -125,7 +111,7 @@ const createBlockGroup = (
   }
 
   if (!dxf.blocks || typeof dxf.blocks !== "object") {
-    console.warn("⚠️ DXF не содержит blocks!");
+    console.warn("DXF does not contain blocks!");
     return null;
   }
 
@@ -137,14 +123,13 @@ const createBlockGroup = (
   }
 
   if (!block.entities || block.entities.length === 0) {
-    // Блок существует, но пуст — возвращаем пустую группу (не unsupported)
     const emptyGroup = new THREE.Group();
     const position = insertEntity.position;
     emptyGroup.position.set(position.x, position.y, position.z || 0);
     return emptyGroup;
   }
 
-  // Вычисляем цвет INSERT entity для ByBlock наследования
+  // Compute INSERT entity color for ByBlock inheritance
   const insertColor = resolveEntityColor(insertEntity, colorCtx.layers, colorCtx.blockColor);
   const blockColorCtx: EntityColorContext = {
     layers: colorCtx.layers,
@@ -167,7 +152,7 @@ const createBlockGroup = (
         }
       }
     } catch (error) {
-      console.warn(`⚠️ Error processing entity in block "${blockName}":`, error);
+      console.warn(`Error processing entity in block "${blockName}":`, error);
     }
   });
 
@@ -186,21 +171,12 @@ const createBlockGroup = (
   return blockGroup;
 };
 
-/**
- * Обработка entity
- * @param entity - Entity для обработки
- * @param dxf - Данные DXF файла
- * @param colorCtx - Контекст цвета (слои, blockColor, кеш материалов)
- * @param depth - Глубина рекурсии для INSERT entities
- * @returns THREE.Object3D, массив объектов или null
- */
 const processEntity = (
   entity: DxfEntity,
   dxf: DxfData,
   colorCtx: EntityColorContext,
   depth = 0,
 ): THREE.Object3D | THREE.Object3D[] | null => {
-  // Вычисляем цвет для этого entity
   const entityColor = resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor);
   const lineMaterial = getLineMaterial(entityColor, colorCtx.materialCache);
 
@@ -242,7 +218,7 @@ const processEntity = (
       if (isArcEntity(entity)) {
         const startAngle = entity.startAngle;
         let endAngle = entity.endAngle;
-        // Нормализуем: если endAngle <= startAngle, добавляем полный оборот
+        // Normalize: if endAngle <= startAngle, add a full revolution
         if (endAngle <= startAngle) {
           endAngle += Math.PI * 2;
         }
@@ -274,18 +250,16 @@ const processEntity = (
         const majorX = entity.majorAxisEndPoint.x;
         const majorY = entity.majorAxisEndPoint.y;
 
-        // Длина большой полуоси
         const majorLength = Math.sqrt(majorX * majorX + majorY * majorY);
-        // Длина малой полуоси
         const minorLength = majorLength * entity.axisRatio;
 
-        // Угол поворота эллипса (угол большой оси относительно оси X)
+        // Ellipse rotation = angle of major axis relative to X axis
         const rotation = Math.atan2(majorY, majorX);
 
         let startAngle = entity.startAngle;
         let endAngle = entity.endAngle;
 
-        // Полный эллипс: startAngle≈0 и endAngle≈2π, или оба≈0
+        // Full ellipse: startAngle~0 and endAngle~2pi, or both~0
         const isFullEllipse =
           Math.abs(endAngle - startAngle - 2 * Math.PI) < EPSILON ||
           (Math.abs(startAngle) < EPSILON && Math.abs(endAngle) < EPSILON);
@@ -304,7 +278,7 @@ const processEntity = (
         const points: THREE.Vector3[] = [];
         for (let i = 0; i <= segments; i++) {
           const t = startAngle + (i / segments) * sweepAngle;
-          // Параметрическое уравнение эллипса с поворотом
+          // Parametric ellipse equation with rotation
           const localX = majorLength * Math.cos(t);
           const localY = minorLength * Math.sin(t);
           const worldX =
@@ -325,7 +299,6 @@ const processEntity = (
       if (isPolylineEntity(entity) && entity.vertices.length > 1) {
         const allPoints: THREE.Vector3[] = [];
 
-        // Обрабатываем каждый сегмент POLYLINE
         for (let i = 0; i < entity.vertices.length - 1; i++) {
           const v1 = entity.vertices[i];
           const v2 = entity.vertices[i + 1];
@@ -334,23 +307,20 @@ const processEntity = (
           const p1 = new THREE.Vector3(v1.x, v1.y, 0);
           const p2 = new THREE.Vector3(v2.x, v2.y, 0);
 
-          // Всегда добавляем первую точку первого сегмента
           if (i === 0) {
             allPoints.push(p1);
           }
 
-          // Если у вершины есть bulge - создаём дугу, иначе прямую линию
           if (v1.bulge && Math.abs(v1.bulge) > EPSILON) {
             const arcPoints = createBulgeArc(p1, p2, v1.bulge);
-            // Пропускаем первую точку дуги (она уже добавлена как p1 или конец предыдущего сегмента)
+            // Skip the first arc point (already added as p1 or end of previous segment)
             allPoints.push(...arcPoints.slice(1));
           } else {
-            // Прямая линия - добавляем конечную точку сегмента
             allPoints.push(p2);
           }
         }
 
-        // Замыкающий сегмент для closed полилиний (shape = true)
+        // Closing segment for closed polylines (shape = true)
         if (entity.shape && entity.vertices.length > 2) {
           const vLast = entity.vertices[entity.vertices.length - 1];
           const vFirst = entity.vertices[0];
@@ -373,7 +343,7 @@ const processEntity = (
 
     case "SPLINE": {
       if (isSplineEntity(entity)) {
-        // Если есть NURBS данные (degree, knots, controlPoints) - используем NURBSCurve
+        // If NURBS data is available (degree, knots, controlPoints), use NURBSCurve
         if (
           entity.controlPoints &&
           entity.controlPoints.length > 1 &&
@@ -384,21 +354,19 @@ const processEntity = (
           const degree = entity.degreeOfSplineCurve;
           const knots = entity.knotValues;
 
-          // Преобразуем controlPoints в Vector4 с весами (weights)
-          // Если weights нет - используем 1.0 для всех точек
+          // If weights are absent, use 1.0 for all points
           const controlPoints = entity.controlPoints.map((vertex: DxfVertex, i: number) => {
             const weight = entity.weights?.[i] ?? 1.0;
             return new THREE.Vector4(vertex.x, vertex.y, 0, weight);
           });
 
           try {
-            // startKnot/endKnot — индексы в массиве knots, ограничивающие валидный диапазон
-            // Для периодических сплайнов knots[0] < knots[degree], и без ограничения кривая "улетает"
+            // startKnot/endKnot — indices in the knots array bounding the valid range
+            // For periodic splines knots[0] < knots[degree], without bounds the curve diverges
             const startKnot = degree;
             const endKnot = controlPoints.length;
             const curve = new NURBSCurve(degree, knots, controlPoints, startKnot, endKnot);
 
-            // Количество сегментов для отрисовки: пропорционально количеству контрольных точек
             const segments = Math.max(
               controlPoints.length * NURBS_SEGMENTS_MULTIPLIER,
               MIN_NURBS_SEGMENTS,
@@ -408,11 +376,11 @@ const processEntity = (
             const geometry = new THREE.BufferGeometry().setFromPoints(interpolatedPoints);
             return new THREE.Line(geometry, lineMaterial);
           } catch (error) {
-            console.warn("⚠️ Ошибка создания NURBS, используем fallback:", error);
+            console.warn("NURBS creation error, using fallback:", error);
           }
         }
 
-        // Fallback: если нет NURBS данных, используем fitPoints/vertices
+        // Fallback: if no NURBS data, use fitPoints/vertices
         const splinePoints = entity.fitPoints || entity.vertices || entity.controlPoints;
         if (splinePoints && splinePoints.length > 1) {
           const points = splinePoints.map(
@@ -437,7 +405,6 @@ const processEntity = (
       if (isTextEntity(entity)) {
         const textPosition = entity.position || entity.startPoint;
         const textContent = entity.text;
-        // Пустой текст — пропускаем без ошибки
         if (!textContent) return new THREE.Group();
         const textHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
         const hAlign = getTextHAlign(entity.halign);
@@ -470,7 +437,6 @@ const processEntity = (
       if (isTextEntity(entity)) {
         const textPosition = entity.position || entity.startPoint;
         const textContent = entity.text;
-        // Пустой текст — пропускаем без ошибки
         if (!textContent) return new THREE.Group();
         const defaultHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
         const hAlign = getMTextHAlign(entity.attachmentPoint);
@@ -480,7 +446,6 @@ const processEntity = (
           const lines = parseMTextContent(textContent);
 
           if (lines.length === 1) {
-            // Одна строка — простой меш (или stacked)
             const line = lines[0];
             const h = line.height || defaultHeight;
             const c = line.color || entityColor;
@@ -518,8 +483,7 @@ const processEntity = (
             return textMesh;
           }
 
-          // Многострочный текст — Group с мешем на каждую строку
-          // Все строки выравниваем с vAlign="top": origin каждого меша на верхнем крае
+          // Multiline: each line uses vAlign="top" so lines stack downward
           const textGroup = new THREE.Group();
           const LINE_SPACING = 1.4;
           let yOffset = 0;
@@ -556,18 +520,17 @@ const processEntity = (
             yOffset -= h * LINE_SPACING;
             totalHeight += h * LINE_SPACING;
           }
-          // Корректируем totalHeight: последняя строка без trailing spacing
+          // Adjust totalHeight: last line without trailing spacing
           const lastLineHeight = lines[lines.length - 1].height || defaultHeight;
           totalHeight = totalHeight - lastLineHeight * LINE_SPACING + lastLineHeight;
 
-          // Вертикальное смещение группы в зависимости от vAlign
+          // Vertical offset of the group depending on vAlign
           let groupYOffset = 0;
           if (vAlign === "middle") {
             groupYOffset = totalHeight / 2;
           } else if (vAlign === "bottom") {
             groupYOffset = totalHeight;
           }
-          // Top: без смещения (строки идут вниз от позиции)
 
           textGroup.position.set(textPosition.x, textPosition.y + groupYOffset, 0);
 
@@ -585,25 +548,24 @@ const processEntity = (
 
     case "DIMENSION": {
       if (isDimensionEntity(entity)) {
-        // Строим из семантических данных
         const baseDimType = (entity.dimensionType ?? 0) & 0x0f;
 
-        // Ordinate dimension (тип 6 = Y-ordinate, тип 7 = X-ordinate)
+        // Ordinate dimension (type 6 = Y-ordinate, type 7 = X-ordinate)
         if ((baseDimType & 0x0e) === 6) {
           return createOrdinateDimension(entity, entityColor);
         }
 
-        // Angular dimension (тип 2)
+        // Angular dimension (type 2)
         if (baseDimType === 2) {
           return createAngularDimension(entity, entityColor);
         }
 
-        // Diametric dimension (тип 3)
+        // Diametric dimension (type 3)
         if (baseDimType === 3) {
           return createDiametricDimension(entity, entityColor);
         }
 
-        // Radial dimension (тип 4)
+        // Radial dimension (type 4)
         if (baseDimType === 4) {
           return createRadialDimension(entity, entityColor);
         }
@@ -613,7 +575,7 @@ const processEntity = (
           break;
         }
 
-        // Aligned dimension (тип 1): вычисляем угол из координат точек
+        // Aligned dimension (type 1): compute angle from point coordinates
         let dimAngle = dimData.angle;
         if (baseDimType === 1 && dimAngle === 0) {
           const dx = dimData.point2.x - dimData.point1.x;
@@ -674,7 +636,6 @@ const processEntity = (
       if (isPointEntity(entity)) {
         const pos = entity.position;
 
-        // Точка: одна вершина, рендерится как GL_POINTS
         const geometry = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(pos.x, pos.y, 0),
         ]);
@@ -692,7 +653,6 @@ const processEntity = (
     case "HATCH": {
       if (isHatchEntity(entity) && entity.boundaryPaths.length > 0) {
         if (entity.solid) {
-          // Solid fill — ShapeGeometry + MeshBasicMaterial
           const shapes: THREE.Shape[] = [];
 
           for (let i = 0; i < entity.boundaryPaths.length; i++) {
@@ -704,16 +664,12 @@ const processEntity = (
 
           if (shapes.length === 0) break;
 
-          // Если несколько shapes — первый основной, остальные holes
-          // (Если в DXF отдельные контуры, ShapeGeometry обработает каждый)
           const geometry = new THREE.ShapeGeometry(shapes);
           const meshMat = getMeshMaterial(entityColor, colorCtx.meshMaterialCache);
           return new THREE.Mesh(geometry, meshMat);
         } else {
-          // Pattern hatch — контуры + линии паттерна
           const objects: THREE.Object3D[] = [];
 
-          // Контуры boundary
           for (const bp of entity.boundaryPaths) {
             const pts = boundaryPathToLinePoints(bp);
             if (pts.length > 1) {
@@ -722,9 +678,7 @@ const processEntity = (
             }
           }
 
-          // Линии паттерна внутри boundary
           if (entity.patternLines && entity.patternLines.length > 0) {
-            // Собираем полигон из первого boundary path (основной контур)
             const boundaryPts = boundaryPathToLinePoints(entity.boundaryPaths[0]);
             if (boundaryPts.length > 2) {
               const polygon: Point2D[] = boundaryPts.map((v) => ({ x: v.x, y: v.y }));
@@ -750,7 +704,6 @@ const processEntity = (
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         const leaderLine = new THREE.Line(geometry, lineMaterial);
 
-        // Стрелка на первой вершине (если флаг arrowHeadFlag === 1)
         if (entity.arrowHeadFlag === 1 && points.length >= 2) {
           const group = new THREE.Group();
           group.add(leaderLine);
@@ -778,7 +731,7 @@ const processEntity = (
               (v) => new THREE.Vector3(v.x, v.y, v.z || 0),
             );
 
-            // Добавляем lastLeaderPoint как конечную точку (полка)
+            // Add lastLeaderPoint as final point (landing/shelf)
             if (leader.lastLeaderPoint) {
               points.push(new THREE.Vector3(
                 leader.lastLeaderPoint.x,
@@ -790,7 +743,6 @@ const processEntity = (
             const geo = new THREE.BufferGeometry().setFromPoints(points);
             group.add(new THREE.Line(geo, lineMaterial));
 
-            // Стрелка на первой вершине
             if (entity.hasArrowHead !== false && points.length >= 2) {
               const arrow = createArrow(points[1], points[0], arrowSize, arrowMat);
               group.add(arrow);
@@ -798,7 +750,6 @@ const processEntity = (
           }
         }
 
-        // Текст
         if (entity.text && entity.textPosition) {
           const textHeight = entity.textHeight || TEXT_HEIGHT;
           const textContent = replaceSpecialChars(entity.text);
@@ -827,7 +778,7 @@ const processEntity = (
       break;
     }
 
-    // Распознанные, но не рендерящиеся entity — тихий пропуск (не unsupported)
+    // Recognized but non-renderable entities — silent skip (not unsupported)
     case "VIEWPORT":
     case "IMAGE":
     case "WIPEOUT":
@@ -841,7 +792,6 @@ const processEntity = (
   return null;
 };
 
-// Создание Three.js объектов из DXF данных
 export function createThreeObjectsFromDXF(dxf: DxfData): {
   group: THREE.Group;
   warnings?: string;
@@ -850,17 +800,15 @@ export function createThreeObjectsFromDXF(dxf: DxfData): {
   const group = new THREE.Group();
 
   if (!dxf.entities || dxf.entities.length === 0) {
-    console.warn("⚠️ DXF не содержит entities!");
+    console.warn("DXF does not contain entities!");
     return { group };
   }
 
-  // Извлекаем слои из tables
   const layers: Record<string, DxfLayer> = {};
   if (dxf.tables?.layer?.layers) {
     Object.assign(layers, dxf.tables.layer.layers);
   }
 
-  // Контекст цвета с кешами материалов
   const colorCtx: EntityColorContext = {
     layers,
     materialCache: new Map(),
@@ -875,7 +823,6 @@ export function createThreeObjectsFromDXF(dxf: DxfData): {
     try {
       const obj = processEntity(entity, dxf, colorCtx, 0);
       if (obj) {
-        // Сохраняем имя слоя в userData для управления видимостью
         setLayerName(obj, entity.layer || "0");
 
         if (Array.isArray(obj)) {
@@ -892,7 +839,6 @@ export function createThreeObjectsFromDXF(dxf: DxfData): {
     }
   });
 
-  // Формируем итоговое предупреждение
   const totalIssues = errors.length + unsupportedTypes.length;
   if (totalIssues > 0) {
     const warningParts = [];

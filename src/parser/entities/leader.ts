@@ -7,8 +7,8 @@ export interface ILeaderEntity extends IEntityBase {
   type: "LEADER";
   vertices: IPoint[];
   styleName?: string;
-  arrowHeadFlag?: number; // 71: 0 = без стрелки, 1 = со стрелкой
-  numVertices?: number; // 76: количество вершин
+  arrowHeadFlag?: number; // 71: 0 = no arrowhead, 1 = with arrowhead
+  numVertices?: number; // 76: number of vertices
 }
 
 export function parseLeader(scanner: DxfScanner, curr: IGroup): ILeaderEntity {

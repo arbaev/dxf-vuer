@@ -28,7 +28,6 @@
 </template>
 
 <script setup lang="ts">
-// Emits
 interface Emits {
   (e: "file-selected", file: File): void;
 }
@@ -42,7 +41,7 @@ const handleFileChange = (event: Event) => {
   if (file) {
     emit("file-selected", file);
   }
-  // Сброс value чтобы повторный выбор того же файла вызывал change event
+  // Reset value so re-selecting the same file triggers a change event
   target.value = "";
 };
 </script>
