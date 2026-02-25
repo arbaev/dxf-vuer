@@ -1014,12 +1014,16 @@ const createRadialDimension = (
 
   const arcVec = new THREE.Vector3(arcPt.x, arcPt.y, 0);
 
-  // Направление стрелки: внутрь (к центру от точки на дуге)
+  // Направление от arcPt к центру (внутрь окружности)
   const dx = center.x - arcPt.x;
   const dy = center.y - arcPt.y;
   const len = Math.sqrt(dx * dx + dy * dy);
   const dirX = len > EPSILON ? dx / len : 1;
   const dirY = len > EPSILON ? dy / len : 0;
+
+  // Определяем, откуда идёт линия размерности к arcPt
+  // tailEnd — конец хвоста (текст/подчёркивание), определяет направление стрелки
+  let tailEndPoint: THREE.Vector3 | null = null;
 
   let textMesh: THREE.Mesh | null = null;
   if (textPos) {
@@ -1047,9 +1051,9 @@ const createRadialDimension = (
     const textLeft = textPos.x - textWidth / 2;
     const textRight = textPos.x + textWidth / 2;
 
-    // Хвост стрелки — от arcPt в направлении стрелки до underlineY
-    const tailEnd = new THREE.Vector3(intersectX, underlineY, 0);
-    const tailGeom = new THREE.BufferGeometry().setFromPoints([arcVec, tailEnd]);
+    // Хвост стрелки — от arcPt до underlineY
+    tailEndPoint = new THREE.Vector3(intersectX, underlineY, 0);
+    const tailGeom = new THREE.BufferGeometry().setFromPoints([arcVec, tailEndPoint]);
     objects.push(new THREE.Line(tailGeom, lineMat));
 
     // Подчёркивание — от точки пересечения с ножкой до дальнего края текста
@@ -1062,8 +1066,11 @@ const createRadialDimension = (
     objects.push(new THREE.Line(underlineGeom, lineMat));
   }
 
-  // 2. Стрелка на точке дуги, направлена внутрь (к центру)
-  const arrowFrom = new THREE.Vector3(arcPt.x - dirX * ARROW_SIZE, arcPt.y - dirY * ARROW_SIZE, 0.1);
+  // 2. Стрелка на arcPt — направлена от линии размерности к точке на дуге
+  // arrowFrom на стороне откуда приходит линия (tail или центр)
+  const arrowFrom = tailEndPoint
+    ? new THREE.Vector3(tailEndPoint.x, tailEndPoint.y, 0.1)
+    : new THREE.Vector3(center.x, center.y, 0.1);
   const arrow = createArrow(
     arrowFrom,
     new THREE.Vector3(arcPt.x, arcPt.y, 0.1),
