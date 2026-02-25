@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-02-26
+
+### Added
+
+- **Test suite** -- 379 test cases covering all testable business logic (Vitest 4)
+  - DXF parser core: scanner, parseHelpers, parseDxf, parseEntities
+  - All 21 entity handlers: LINE, CIRCLE, ARC, POINT, ELLIPSE, SOLID, 3DFACE, POLYLINE, LWPOLYLINE, SPLINE, TEXT, MTEXT, ATTDEF, DIMENSION, INSERT, HATCH, LEADER, MULTILEADER, VIEWPORT, IMAGE, WIPEOUT
+  - Section parsers: HEADER, TABLES, BLOCKS
+  - Utilities: colorResolver, dxfStatistics, 16 type guards
+  - Geometry: text formatting, dimension math, hatch clipping, angle conversion
+  - Vue composable: useLayers
+- **CI pipeline** -- GitHub Actions workflow (`ci.yml`) runs type check, build, and tests on push/PR to main (Node.js 20 + 22)
+
+### Fixed
+
+- TypeScript strict mode errors in test files (unused imports, type narrowing)
+
 ## [1.0.0] - 2026-02-25
 
 ### Added
@@ -38,4 +55,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dual package exports**: `dxf-vuer` (full library) and `dxf-vuer/parser` (parser only), plus `dxf-vuer/style.css`
 - **Demo application** deployed at [dxf-vuer.netlify.app](https://dxf-vuer.netlify.app)
 
+[1.0.1]: https://github.com/arbaev/dxf-vuer/releases/tag/v1.0.1
 [1.0.0]: https://github.com/arbaev/dxf-vuer/releases/tag/v1.0.0
