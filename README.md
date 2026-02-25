@@ -1,8 +1,27 @@
 # dxf-vuer
 
+[![npm](https://img.shields.io/npm/v/dxf-vuer)](https://www.npmjs.com/package/dxf-vuer)
+[![npm downloads](https://img.shields.io/npm/dm/dxf-vuer)](https://www.npmjs.com/package/dxf-vuer)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/dxf-vuer)](https://bundlephobia.com/package/dxf-vuer)
+[![license](https://img.shields.io/npm/l/dxf-vuer)](https://github.com/arbaev/dxf-vuer/blob/main/LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)](https://www.typescriptlang.org/)
+
 Vue 3 component for viewing DXF files in the browser. Built-in DXF parser, Three.js rendering, zero external DXF dependencies.
 
 [Live Demo](https://dxf-vuer.netlify.app)
+
+![dxf-vuer screenshot](https://raw.githubusercontent.com/arbaev/dxf-vuer/main/docs/screenshot.png)
+
+## Features
+
+- **16 DXF entity types** rendered: LINE, CIRCLE, ARC, ELLIPSE, SPLINE, POLYLINE, LWPOLYLINE, TEXT, MTEXT, DIMENSION, HATCH, INSERT, SOLID, 3DFACE, LEADER, MULTILEADER
+- **Built-in DXF parser** — no external parser dependencies, custom scanner with full type casting
+- **Parser-only entry point** — use `dxf-vuer/parser` in Node.js, React, or any JS/TS project (zero dependencies)
+- **TypeScript** — strict types, full `.d.ts` declarations
+- **Composables** — build custom viewers with `useDXFRenderer`, `useThreeScene`, `useCamera`, etc.
+- **CSS custom properties** — theme with `--dxf-vuer-*` variables, no global resets
+- **Layer panel** — toggle layer visibility with color indicators
+- **Lightweight** — ~75 KB main bundle, ~40 KB parser chunk (minified)
 
 ## Installation
 
