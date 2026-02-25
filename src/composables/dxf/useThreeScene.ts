@@ -85,7 +85,7 @@ export function useThreeScene() {
     if (!object) return;
 
     object.traverse((child) => {
-      if (child instanceof THREE.Mesh || child instanceof THREE.Line) {
+      if (child instanceof THREE.Mesh || child instanceof THREE.Line || child instanceof THREE.Points) {
         if (child.geometry) {
           child.geometry.dispose();
         }

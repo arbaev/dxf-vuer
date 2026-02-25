@@ -107,7 +107,6 @@ function parseLWPolylineVertices(n: number, scanner: DxfScanner): ILWVertex[] {
           if (vertexIsStarted) {
             vertices.push(vertex);
           }
-          scanner.rewind();
           return vertices;
       }
       curr = scanner.next();

@@ -33,7 +33,7 @@ export function resolveEntityColor(
   // 2. Конкретный цвет entity (colorIndex 1-255)
   if (colorIndex !== undefined && colorIndex >= 1 && colorIndex <= 255) {
     // trueColor (code 420) приоритетнее ACI
-    if (trueColor !== undefined && trueColor !== 0) {
+    if (trueColor !== undefined) {
       return rgbNumberToHex(trueColor);
     }
     // ACI 7 и 255 — белый цвет (0xFFFFFF), на светлом фоне показываем чёрным
@@ -47,6 +47,7 @@ export function resolveEntityColor(
   const layerName = entity.layer;
   if (layerName && layers[layerName]) {
     const layer = layers[layerName];
+    // layer.color — ACI-палитра (из getAcadColor), не trueColor
     if (layer.color !== undefined && layer.color !== 0) {
       const layerColorIndex = layer.colorIndex;
       // ACI 7 и 255 для слоя — белый цвет, на светлом фоне показываем чёрным

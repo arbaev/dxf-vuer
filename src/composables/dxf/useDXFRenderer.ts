@@ -134,6 +134,11 @@ export function useDXFRenderer() {
 
   // Полная очистка ресурсов
   const cleanup = () => {
+    // Удаляем listener перед очисткой controls
+    const controls = getControls();
+    if (controls) {
+      controls.removeEventListener("change", render);
+    }
     cleanupScene(currentDXFGroup);
     currentDXFGroup = null;
     resetResizing();

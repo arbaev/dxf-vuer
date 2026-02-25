@@ -97,6 +97,8 @@ function parseGroupValue(code: number, value: string): number | string | boolean
   if (code >= 110 && code <= 149) return parseFloat(value);
   if (code >= 160 && code <= 179) return parseInt(value);
   if (code >= 210 && code <= 239) return parseFloat(value);
+  if (code >= 240 && code <= 259) return parseFloat(value);
+  if (code >= 260 && code <= 269) return parseInt(value);
   if (code >= 270 && code <= 289) return parseInt(value);
   if (code >= 290 && code <= 299) return value === "1";
   if (code >= 300 && code <= 369) return value;

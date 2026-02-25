@@ -2,6 +2,7 @@
 import { ref, computed } from "vue";
 import type { DxfLayer } from "@/types/dxf";
 import { rgbNumberToHex } from "@/utils/colorResolver";
+import ACI_PALETTE from "@/parser/acadColorIndex";
 
 export interface LayerState {
   name: string;
@@ -22,11 +23,11 @@ export function useLayers() {
     const newLayers = new Map<string, LayerState>();
     for (const [name, layer] of Object.entries(dxfLayers)) {
       let color = "#FFFFFF";
-      if (layer.color !== undefined && layer.color !== 0) {
-        color = rgbNumberToHex(layer.color);
-      } else if (layer.colorIndex >= 1 && layer.colorIndex <= 255) {
-        // ACI 7 → чёрный на светлом фоне
-        color = layer.colorIndex === 7 ? "#000000" : rgbNumberToHex(layer.color || 0xFFFFFF);
+      if (layer.colorIndex >= 1 && layer.colorIndex <= 255) {
+        // ACI палитра, 7 и 255 → чёрный на светлом фоне
+        color = (layer.colorIndex === 7 || layer.colorIndex === 255)
+          ? "#000000"
+          : rgbNumberToHex(ACI_PALETTE[layer.colorIndex]);
       }
 
       newLayers.set(name, {

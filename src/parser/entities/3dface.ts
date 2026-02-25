@@ -39,7 +39,7 @@ function parse3DFaceVertices(scanner: DxfScanner, curr: IGroup): IPoint[] {
   let vertexIsFinished = false;
   const verticesPer3dFace = 4;
 
-  for (let i = 0; i <= verticesPer3dFace; i++) {
+  for (let i = 0; i < verticesPer3dFace; i++) {
     const vertex = {} as IPoint;
     while (!scanner.isEOF()) {
       if (curr.code === 0 || vertexIsFinished) break;

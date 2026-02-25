@@ -90,7 +90,6 @@ export function checkCommonEntityProperties(
       break;
     case 62:
       entity.colorIndex = curr.value as number;
-      entity.color = getAcadColor(Math.abs(curr.value as number));
       break;
     case 67:
       entity.inPaperSpace = curr.value !== 0;
