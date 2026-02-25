@@ -1,9 +1,9 @@
 # Netlify configuration for DXF Vuer
 
 [build]
-  command = "npm run build"
+  command = "npm run build:demo"
 
-  publish = "dist"
+  publish = "dist-demo"
 
   [build.environment]
     NODE_VERSION = "20"

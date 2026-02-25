@@ -1,23 +1,19 @@
-// Типы для работы с DXF
-
 export interface DxfVertex {
   x: number;
   y: number;
   z?: number;
-  bulge?: number; // Коэффициент изгиба для создания дуг в POLYLINE (0 = прямая, ±1 = полукруг)
+  bulge?: number; // Bulge factor for arcs in POLYLINE (0 = straight, +-1 = semicircle)
 }
 
-// Общие поля для всех entity
 export interface DxfEntityBase {
   handle?: string | number;
   ownerHandle?: string | number;
   layer?: string;
-  // Цвет и стиль (из dxf-parser IEntity)
-  colorIndex?: number; // ACI индекс: 0=ByBlock, 1-255=цвет, 256=ByLayer
+  colorIndex?: number; // ACI index: 0=ByBlock, 1-255=color, 256=ByLayer
   color?: number; // RGB truecolor (DXF code 420)
-  lineweight?: number; // -3=Standard, -2=ByLayer, -1=ByBlock, или значение в 0.01мм
-  lineType?: string; // Тип линии (CONTINUOUS, DASHED и т.д.)
-  visible?: boolean; // Видимость entity
+  lineweight?: number; // -3=Standard, -2=ByLayer, -1=ByBlock, or value in 0.01mm
+  lineType?: string;
+  visible?: boolean;
 }
 
 export interface DxfLineEntity extends DxfEntityBase {
@@ -51,7 +47,6 @@ export interface DxfSplineEntity extends DxfEntityBase {
   fitPoints?: DxfVertex[];
   vertices?: DxfVertex[];
   degree?: number;
-  // NURBS данные
   degreeOfSplineCurve?: number;
   knotValues?: number[];
   weights?: number[];
@@ -70,7 +65,7 @@ export interface DxfTextEntity extends DxfEntityBase {
   height?: number;
   textHeight?: number;
   rotation?: number;
-  directionVector?: DxfVertex; // MTEXT: вектор направления текста (code 11)
+  directionVector?: DxfVertex; // MTEXT: text direction vector (code 11)
   halign?: number;
   valign?: number;
   attachmentPoint?: number; // MTEXT: 1-9 (TopLeft..BottomRight)
@@ -78,15 +73,14 @@ export interface DxfTextEntity extends DxfEntityBase {
 
 export interface DxfDimensionEntity extends DxfEntityBase {
   type: "DIMENSION";
-  block?: string; // code 2 — имя блока размерности
-  styleName?: string; // code 3 — имя стиля размерности
+  block?: string; // code 2
+  styleName?: string; // code 3
   text?: string; // code 1
   actualMeasurement?: number; // code 42
   dimensionType?: number; // code 70
   attachmentPoint?: number; // code 71
   textHeight?: number; // code 140
   angle?: number; // code 50
-  // Точки
   anchorPoint?: DxfVertex; // code 10
   middleOfText?: DxfVertex; // code 11
   insertionPoint?: DxfVertex; // code 12
@@ -118,10 +112,10 @@ export interface DxfSolidEntity extends DxfEntityBase {
 export interface DxfEllipseEntity extends DxfEntityBase {
   type: "ELLIPSE";
   center: DxfVertex;
-  majorAxisEndPoint: DxfVertex; // Конец большой полуоси ОТНОСИТЕЛЬНО центра
-  axisRatio: number; // Отношение малой оси к большой (0 < ratio <= 1)
-  startAngle: number; // В радианах
-  endAngle: number; // В радианах
+  majorAxisEndPoint: DxfVertex; // Major semi-axis endpoint RELATIVE to center
+  axisRatio: number; // Minor-to-major axis ratio (0 < ratio <= 1)
+  startAngle: number; // In radians
+  endAngle: number; // In radians
 }
 
 export interface DxfPointEntity extends DxfEntityBase {
@@ -138,7 +132,6 @@ export interface Dxf3DFaceEntity extends DxfEntityBase {
   hasContinuousLinetypePattern?: boolean;
 }
 
-// HATCH boundary edge типы
 export interface HatchLineEdge {
   type: "line";
   start: DxfVertex;
@@ -149,18 +142,18 @@ export interface HatchArcEdge {
   type: "arc";
   center: DxfVertex;
   radius: number;
-  startAngle: number; // в градусах (из DXF)
-  endAngle: number;   // в градусах (из DXF)
+  startAngle: number; // in degrees (from DXF)
+  endAngle: number;   // in degrees (from DXF)
   ccw: boolean;
 }
 
 export interface HatchEllipseEdge {
   type: "ellipse";
   center: DxfVertex;
-  majorAxisEndPoint: DxfVertex; // конечная точка большой оси (относительно center)
-  axisRatio: number; // соотношение малой/большой оси
-  startAngle: number; // в радианах (из DXF)
-  endAngle: number;   // в радианах (из DXF)
+  majorAxisEndPoint: DxfVertex; // relative to center
+  axisRatio: number; // minor-to-major axis ratio
+  startAngle: number; // in radians (from DXF)
+  endAngle: number;   // in radians (from DXF)
   ccw: boolean;
 }
 
@@ -176,23 +169,21 @@ export interface HatchSplineEdge {
 export type HatchEdge = HatchLineEdge | HatchArcEdge | HatchEllipseEdge | HatchSplineEdge;
 
 export interface HatchBoundaryPath {
-  // Edge-based boundary
   edges?: HatchEdge[];
-  // Polyline-based boundary
   polylineVertices?: DxfVertex[];
 }
 
 export interface HatchPatternLine {
-  angle: number;        // градусы — code 53
-  basePoint: DxfVertex; // начало первой линии — codes 43/44
-  offset: DxfVertex;    // вектор смещения к следующей параллельной линии — codes 45/46
-  dashes: number[];     // длины дэшей — code 49 (+ = линия, - = пробел)
+  angle: number;        // degrees -- code 53
+  basePoint: DxfVertex; // first line origin -- codes 43/44
+  offset: DxfVertex;    // offset vector to next parallel line -- codes 45/46
+  dashes: number[];     // dash lengths -- code 49 (+ = line, - = gap)
 }
 
 export interface DxfHatchEntity extends DxfEntityBase {
   type: "HATCH";
   patternName: string;
-  solid: boolean; // code 70 = 1 → solid fill
+  solid: boolean; // code 70 = 1 -> solid fill
   boundaryPaths: HatchBoundaryPath[];
   patternLines?: HatchPatternLine[];
 }
@@ -201,20 +192,18 @@ export interface DxfLeaderEntity extends DxfEntityBase {
   type: "LEADER";
   vertices: DxfVertex[];
   styleName?: string;
-  arrowHeadFlag?: number; // 0 = без стрелки, 1 = со стрелкой
+  arrowHeadFlag?: number; // 0 = no arrow, 1 = with arrow
 }
 
-/** Линия лидера внутри MULTILEADER */
 export interface MLeaderLine {
   vertices: DxfVertex[];
 }
 
-/** Отдельный лидер (может содержать несколько линий) */
 export interface MLeaderBranch {
   lines: MLeaderLine[];
-  lastLeaderPoint?: DxfVertex; // Точка «приземления» — конец лидера ближе к тексту
-  doglegVector?: DxfVertex;    // Направление «горизонтальной» полки
-  doglegLength?: number;       // Длина полки
+  lastLeaderPoint?: DxfVertex; // Landing point -- leader end closest to text
+  doglegVector?: DxfVertex;    // Direction of the horizontal shelf
+  doglegLength?: number;
 }
 
 export interface DxfMLeaderEntity extends DxfEntityBase {
@@ -224,7 +213,7 @@ export interface DxfMLeaderEntity extends DxfEntityBase {
   textPosition?: DxfVertex;
   textHeight?: number;
   arrowSize?: number;
-  hasArrowHead?: boolean; // По умолчанию true для MLEADER
+  hasArrowHead?: boolean; // Defaults to true for MLEADER
 }
 
 export interface DxfAttdefEntity extends DxfEntityBase {
@@ -252,7 +241,6 @@ export interface DxfAttdefEntity extends DxfEntityBase {
   extrusionDirection?: DxfVertex;
 }
 
-// Для неизвестных или неподдерживаемых типов
 export interface DxfUnknownEntity extends DxfEntityBase {
   type: string;
   [key: string]: unknown;
@@ -341,16 +329,14 @@ export function isAttdefEntity(entity: DxfEntity): entity is DxfAttdefEntity {
   return entity.type === "ATTDEF";
 }
 
-// Слой DXF файла
 export interface DxfLayer {
   name: string;
   visible: boolean;
   colorIndex: number;
-  color: number; // RGB как число
+  color: number; // RGB as number
   frozen: boolean;
 }
 
-// Типизированные таблицы DXF
 export interface DxfTables {
   layer?: {
     handle?: string;
@@ -382,7 +368,7 @@ export interface DxfData {
 
 export interface DxfStatistics {
   fileName: string;
-  fileSize: number; // в байтах
+  fileSize: number; // in bytes
   totalEntities: number;
   entitiesByType: Record<string, number>;
   layersCount: number;

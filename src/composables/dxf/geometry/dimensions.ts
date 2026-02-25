@@ -16,14 +16,14 @@ import {
 import { createArrow } from "./primitives";
 import { replaceSpecialChars } from "./text";
 
-export const EXTENSION_LINE_OVERSHOOT = 2; // Выступ выносной линии за размерную
+export const EXTENSION_LINE_OVERSHOOT = 2;
 
 export const createExtensionLine = (
   from: THREE.Vector3,
   to: THREE.Vector3,
   material: THREE.LineBasicMaterial | THREE.LineDashedMaterial,
 ): THREE.Line => {
-  // Продлеваем пунктирные выносные линии за размерную на EXTENSION_LINE_OVERSHOOT
+  // Dashed extension lines extend beyond the dimension line per AutoCAD convention
   let endPoint = to;
   if (material instanceof THREE.LineDashedMaterial) {
     const dx = to.x - from.x;
@@ -41,6 +41,7 @@ export const createExtensionLine = (
   const geometry = new THREE.BufferGeometry().setFromPoints([from, endPoint]);
   const line = new THREE.Line(geometry, material);
 
+  // computeLineDistances required for LineDashedMaterial to render dashes
   if (material instanceof THREE.LineDashedMaterial) {
     line.computeLineDistances();
   }
@@ -48,9 +49,6 @@ export const createExtensionLine = (
   return line;
 };
 
-/**
- * Создание линий и стрелок для линейной размерности (горизонтальной или вертикальной)
- */
 export const createLinearDimensionLines = (
   point1: DxfVertex,
   point2: DxfVertex,
@@ -72,7 +70,7 @@ export const createLinearDimensionLines = (
   const max = Math.max(getMainCoord(point1), getMainCoord(point2));
   const anchorFixed = getFixedCoord(anchorPoint);
 
-  // 1. Размерная линия (с разрывом для текста)
+  // Split dimension line around text if text lies on the line
   if (textPos && Math.abs(getFixedCoord(textPos) - anchorFixed) < 1) {
     const gapStart = getMainCoord(textPos) - DIM_TEXT_GAP / 2;
     const gapEnd = getMainCoord(textPos) + DIM_TEXT_GAP / 2;
@@ -106,7 +104,6 @@ export const createLinearDimensionLines = (
     );
   }
 
-  // 2. Выносные линии (пунктирные)
   if (Math.abs(getFixedCoord(point1) - anchorFixed) > 0.1) {
     objects.push(
       createExtensionLine(
@@ -126,7 +123,6 @@ export const createLinearDimensionLines = (
     );
   }
 
-  // 3. Стрелки
   const arrow1 = createArrow(
     createVec3(max, anchorFixed, 0.1),
     createVec3(min, anchorFixed, 0.1),
@@ -147,7 +143,8 @@ export const createLinearDimensionLines = (
 };
 
 /**
- * Создание линий и стрелок для повёрнутой размерности (произвольный угол)
+ * Create lines and arrows for a rotated dimension (arbitrary angle).
+ * Projects measurement points onto the dimension line via dot product.
  */
 export const createRotatedDimensionLines = (
   point1: DxfVertex,
@@ -161,15 +158,14 @@ export const createRotatedDimensionLines = (
 ): THREE.Object3D[] => {
   const objects: THREE.Object3D[] = [];
 
-  // Направление размерной линии
   const dirX = Math.cos(angleRad);
   const dirY = Math.sin(angleRad);
 
-  // Проекция точек на размерную линию (anchorPoint лежит на ней)
+  // Project points onto dimension line direction (anchorPoint lies on it)
   const t1 = (point1.x - anchorPoint.x) * dirX + (point1.y - anchorPoint.y) * dirY;
   const t2 = (point2.x - anchorPoint.x) * dirX + (point2.y - anchorPoint.y) * dirY;
 
-  // Точки пересечения выносных линий с размерной линией
+  // Foot points: perpendicular intersections of measurement points with dimension line
   const foot1 = new THREE.Vector3(
     anchorPoint.x + t1 * dirX,
     anchorPoint.y + t1 * dirY,
@@ -194,7 +190,7 @@ export const createRotatedDimensionLines = (
     0,
   );
 
-  // 1. Размерная линия (с разрывом для текста если он на линии)
+  // Split dimension line around text if text lies on it (perpendicular distance < 1)
   if (textPos) {
     const tText = (textPos.x - anchorPoint.x) * dirX + (textPos.y - anchorPoint.y) * dirY;
     const perpDist = Math.abs(
@@ -238,7 +234,6 @@ export const createRotatedDimensionLines = (
     objects.push(createExtensionLine(minPt, maxPt, dimLineMaterial));
   }
 
-  // 2. Выносные линии (от точек измерения к размерной линии)
   const p1 = new THREE.Vector3(point1.x, point1.y, 0);
   const p2 = new THREE.Vector3(point2.x, point2.y, 0);
 
@@ -249,7 +244,6 @@ export const createRotatedDimensionLines = (
     objects.push(createExtensionLine(p2, foot2, extensionLineMaterial));
   }
 
-  // 3. Стрелки (направлены наружу)
   objects.push(
     createArrow(
       new THREE.Vector3(maxPt.x, maxPt.y, 0.1),
@@ -270,9 +264,6 @@ export const createRotatedDimensionLines = (
   return objects;
 };
 
-/**
- * Извлечение данных из DIMENSION entity
- */
 export const extractDimensionData = (entity: DxfDimensionEntity) => {
   let point1 = entity.linearOrAngularPoint1;
   let point2 = entity.linearOrAngularPoint2;
@@ -283,27 +274,26 @@ export const extractDimensionData = (entity: DxfDimensionEntity) => {
   let dimensionText = entity.text;
   let isRadial = false;
 
-  // Определяем radial ДО генерации текста, чтобы добавить префикс "R"
+  // Detect radial dimension BEFORE generating text to add "R" prefix
   if (!point1 && !point2 && diameterOrRadiusPoint && anchorPoint) {
     point1 = diameterOrRadiusPoint;
     point2 = anchorPoint;
     isRadial = true;
   }
 
-  // Замена <> на измерение (с префиксом "R" для radial)
+  // Replace <> placeholder with actual measurement (AutoCAD convention)
   if (dimensionText && typeof entity.actualMeasurement === "number") {
     const measStr =
       (isRadial ? "R" : "") + formatDimNumber(entity.actualMeasurement);
     dimensionText = dimensionText.replace(/<>/g, measStr);
   }
 
-  // Авто-текст если не задан в DXF
   if (!dimensionText && typeof entity.actualMeasurement === "number") {
     dimensionText =
       (isRadial ? "R" : "") + formatDimNumber(entity.actualMeasurement);
   }
 
-  // Вычислить измерение из координат если текст не задан в DXF
+  // Fallback: compute measurement from point coordinates
   if (!dimensionText && point1 && point2) {
     const dx = point2.x - point1.x;
     const dy = point2.y - point1.y;
@@ -333,16 +323,12 @@ export const extractDimensionData = (entity: DxfDimensionEntity) => {
   };
 };
 
-/**
- * Создание группы объектов для размерности
- * @param color - Цвет размерной линии (hex строка)
- */
 export const createDimensionGroup = (
   point1: DxfVertex,
   point2: DxfVertex,
   anchorPoint: DxfVertex,
   textPos: DxfVertex | undefined,
-  _textHeight: number, // Параметр не используется, но оставлен для совместимости
+  _textHeight: number,
   isRadial: boolean,
   color: string,
   angle: number = 0,
@@ -388,7 +374,6 @@ export const createDimensionGroup = (
   let dimensionObjects: THREE.Object3D[];
 
   if (angle !== 0) {
-    // Повёрнутая размерность — используем векторную геометрию с произвольным углом
     const angleRad = (angle * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
     dimensionObjects = createRotatedDimensionLines(
       point1,
@@ -401,7 +386,7 @@ export const createDimensionGroup = (
       angleRad,
     );
   } else {
-    // Стандартная размерность — определяем ориентацию по разбросу точек
+    // Determine orientation by comparing point spread in X vs Y
     const spreadX = Math.abs(point2.x - point1.x);
     const spreadY = Math.abs(point2.y - point1.y);
     const isHorizontal = spreadX >= spreadY;
@@ -424,17 +409,18 @@ export const createDimensionGroup = (
 };
 
 /**
- * Форматирование числа для dimension текста: до DIM_TEXT_DECIMAL_PLACES знаков, без лишних нулей.
- * 28 → "28", 28.28 → "28.28", 28.2842 → "28.2842", 28.10 → "28.1"
+ * Format dimension number: up to DIM_TEXT_DECIMAL_PLACES digits, no trailing zeros.
+ * 28 -> "28", 28.28 -> "28.28", 28.10 -> "28.1"
  */
 export const formatDimNumber = (value: number): string =>
   parseFloat(value.toFixed(DIM_TEXT_DECIMAL_PLACES)).toString();
 
 /**
- * Очистка MTEXT форматирования из dimension текста (кроме \S).
- * Возвращает текст с удалёнными \A, \f, \c, \H, \P, {}, и обработанными спецсимволами.
+ * Clean MTEXT formatting codes from dimension text (except \S for stacked fractions).
+ * Removes \A, \f, \c, \H, \P, {}, and processes Unicode escapes and special characters.
  */
 export const cleanDimensionMText = (rawText: string): string => {
+  // Protect escaped backslashes and braces with placeholders before stripping formatting
   let text = rawText.replace(/\\\\/g, "\x01").replace(/\\\{/g, "\x02").replace(/\\\}/g, "\x03");
 
   text = text.replace(/\\[Aa]\d+;/g, "");
@@ -455,9 +441,9 @@ export const cleanDimensionMText = (rawText: string): string => {
 };
 
 /**
- * Создание текстового меша для dimension с поддержкой stacked text (\S).
- * Формат \S: \Sверх^низ; — рисует «верх» как надстрочный и «низ» как подстрочный текст.
- * Текст рисуется у нижнего края canvas — низ видимых символов совпадает с позицией меша.
+ * Create a text mesh for a dimension with stacked text (\S) support.
+ * \S format: \Stop^bottom; -- renders "top" as superscript and "bottom" as subscript.
+ * Text baseline aligns with mesh position (drawn at bottom edge of canvas).
  */
 export const createDimensionTextMesh = (
   rawText: string,
@@ -467,14 +453,13 @@ export const createDimensionTextMesh = (
 ): THREE.Mesh => {
   const cleaned = cleanDimensionMText(rawText);
 
-  // Ищем паттерн \S: \Sверх^низ; или \Sверх/низ;
   const stackedMatch = cleaned.match(/^(.*?)\\S([^^/;]*)\^([^;]*);(.*)$/);
 
   const CANVAS_SCALE = 10;
   const PADDING = 4;
   const STACKED_RATIO = 0.6;
   const STACKED_GAP = 2;
-  const STACKED_V_GAP = 4; // Вертикальный зазор между superscript и subscript
+  const STACKED_V_GAP = 4;
 
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d")!;
@@ -483,11 +468,10 @@ export const createDimensionTextMesh = (
   const DIM_FONT = `"Cascadia Code", "Consolas", "Liberation Mono", monospace`;
   const mainFont = `100 ${mainFontSize}px ${DIM_FONT}`;
 
-  // Эталонная высота canvas как в createTextMesh — для нормализации размера шрифта
+  // Reference height for font size normalization (keeps dimensions consistent with createTextMesh)
   const refCanvasHeight = Math.ceil(mainFontSize * 1.2) + PADDING * 2;
 
   if (!stackedMatch) {
-    // Нет stacked text — простой рендеринг
     const plain = cleaned.replace(/\\S[^;]*;/g, "").trim();
 
     context.font = mainFont;
@@ -510,13 +494,13 @@ export const createDimensionTextMesh = (
     texture.needsUpdate = true;
     const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
 
-    // meshHeight нормализован по эталонному canvas — шрифт того же размера что в createTextMesh
+    // Normalize mesh height by reference canvas so font matches createTextMesh sizing
     const meshHeight = (height * canvasHeight) / refCanvasHeight;
     const aspectRatio = canvasWidth / canvasHeight;
     const meshWidth = meshHeight * aspectRatio;
     const geometry = new THREE.PlaneGeometry(meshWidth, meshHeight);
 
-    // baseline чуть выше textPos.y (зазор для подчёркивания)
+    // Offset baseline slightly above textPos.y to leave room for descenders
     const baselineGap = height * 0.15;
     const bottomPaddingFrac = (PADDING - Math.ceil(descent)) / canvasHeight;
     const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
@@ -529,7 +513,7 @@ export const createDimensionTextMesh = (
     return new THREE.Mesh(geometry, material);
   }
 
-  // Stacked text: mainText + superscript/subscript
+  // Stacked text: prefix + superscript/subscript pair
   const mainText = stackedMatch[1].trim();
   const topText = stackedMatch[2].trim();
   const bottomText = stackedMatch[3].trim();
@@ -537,7 +521,6 @@ export const createDimensionTextMesh = (
   const stackedFontSize = mainFontSize * STACKED_RATIO;
   const stackedFont = `100 ${stackedFontSize}px ${DIM_FONT}`;
 
-  // Измеряем ширины и метрики
   context.font = mainFont;
   const mainMetrics = mainText ? context.measureText(mainText) : null;
   const mainWidth = mainMetrics ? mainMetrics.width : 0;
@@ -555,10 +538,9 @@ export const createDimensionTextMesh = (
   const subAscent = subMetrics?.actualBoundingBoxAscent ?? stackedFontSize * 0.8;
   const subDescent = subMetrics?.actualBoundingBoxDescent ?? stackedFontSize * 0.05;
 
-  // Stacked текст центрируется по визуальному центру основного текста
+  // Center stacked text on the visual center of main text glyphs
   const mainCenterAboveBaseline = mainAscent / 2;
 
-  // Расстояния от baseline: вверх и вниз (с учётом вертикального зазора между super/subscript)
   const halfVGap = STACKED_V_GAP / 2;
   const topExtent = Math.max(
     mainAscent,
@@ -579,30 +561,26 @@ export const createDimensionTextMesh = (
 
   context.fillStyle = color;
 
-  // Baseline в canvas: padding сверху + topExtent (оставляем место для superscript)
+  // Baseline position: leave room above for superscript
   const baselineY = PADDING + Math.ceil(topExtent);
-  // Визуальный центр основного текста — точка разделения super/subscript
+  // Visual center of main text -- split point between super/subscript
   const stackedCenterY = baselineY - mainCenterAboveBaseline;
 
-  // Рисуем основной текст
   if (mainText) {
     context.font = mainFont;
     context.textBaseline = "alphabetic";
     context.fillText(mainText, PADDING, baselineY);
   }
 
-  // Stacked текст: по центру основного текста
   const stackedX = PADDING + mainWidth + gap;
   context.font = stackedFont;
 
   if (topText) {
-    // alphabetic baseline: низ видимых глифов = stackedCenterY - halfVGap
     context.textBaseline = "alphabetic";
     context.fillText(topText, stackedX, stackedCenterY - halfVGap - topDescentSt);
   }
 
   if (bottomText) {
-    // alphabetic baseline: верх видимых глифов = stackedCenterY + halfVGap
     context.textBaseline = "alphabetic";
     context.fillText(bottomText, stackedX, stackedCenterY + halfVGap + subAscent);
   }
@@ -611,13 +589,11 @@ export const createDimensionTextMesh = (
   texture.needsUpdate = true;
   const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
 
-  // meshHeight нормализован по эталонному canvas — шрифт того же размера что в createTextMesh
   const meshHeight = (height * canvasHeight) / refCanvasHeight;
   const aspectRatio = canvasWidth / canvasHeight;
   const meshWidth = meshHeight * aspectRatio;
   const geometry = new THREE.PlaneGeometry(meshWidth, meshHeight);
 
-  // Сдвигаем меш: baseline основного текста чуть выше textPos.y (зазор для подчёркивания)
   const baselineGap = height * 0.15;
   const belowBaselineFrac = (Math.ceil(bottomExtent) + PADDING) / canvasHeight;
   const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
@@ -627,28 +603,23 @@ export const createDimensionTextMesh = (
 };
 
 /**
- * Создание ординатного размера (ordinate dimension).
- * Ординатный размер показывает координату точки (X или Y) и состоит из:
- * 1. Горизонтальной линии от feature point
- * 2. Диагонали до leader point
- * 3. Горизонтальной линии от leader до конца текста
- * Без стрелок и пунктирных линий — только сплошные линии.
+ * Create an ordinate dimension (type 6/7).
+ * Displays the X or Y coordinate of a point with a dog-leg leader.
+ * No arrows or dashed lines -- solid lines only (per AutoCAD convention).
  */
 export const createOrdinateDimension = (
   entity: DxfDimensionEntity,
   color: string,
 ): THREE.Object3D[] | null => {
-  const feature = entity.linearOrAngularPoint1; // Code 13 — точка на объекте
-  const leader = entity.linearOrAngularPoint2; // Code 14 — конец диагонали
+  const feature = entity.linearOrAngularPoint1; // Code 13 -- point on object
+  const leader = entity.linearOrAngularPoint2; // Code 14 -- end of diagonal
   const textPos = entity.middleOfText; // Code 11
 
   if (!feature || !leader) return null;
 
-  // Получаем текст dimension
   let dimensionText = entity.text;
   const measurement = entity.actualMeasurement;
 
-  // Замена <> на actualMeasurement
   if (dimensionText && typeof measurement === "number") {
     dimensionText = dimensionText.replace(/<>/g, formatDimNumber(measurement));
   }
@@ -663,13 +634,12 @@ export const createOrdinateDimension = (
   const objects: THREE.Object3D[] = [];
   const material = new THREE.LineBasicMaterial({ color });
 
-  // Создаём текстовый меш первым, чтобы узнать реальную ширину текста
+  // Create text mesh first to determine actual width for leader endpoint
   let textMesh: THREE.Mesh | null = null;
   let actualTextWidth = 0;
   if (textPos) {
     textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
     textMesh.position.set(textPos.x, textPos.y - textHeight / 2, 0.2);
-    // Ширина из PlaneGeometry — реальная ширина меша в мировых координатах
     textMesh.geometry.computeBoundingBox();
     const bbox = textMesh.geometry.boundingBox;
     if (bbox) {
@@ -677,30 +647,28 @@ export const createOrdinateDimension = (
     }
   }
 
-  // X-ordinate (бит 0 установлен) или Y-ordinate (бит 0 сброшен)
+  // X-ordinate (bit 0 set in dimensionType) or Y-ordinate (bit 0 clear)
   const isXOrdinate = ((entity.dimensionType ?? 0) & 1) !== 0;
 
   const featureVec = new THREE.Vector3(feature.x, feature.y, 0);
   const leaderVec = new THREE.Vector3(leader.x, leader.y, 0);
 
   if (!isXOrdinate) {
-    // Y-ordinate: горизонтальная выноска (измеряет Y координату)
+    // Y-ordinate: horizontal leader (measures Y coordinate)
     const dy = leader.y - feature.y;
 
     if (Math.abs(dy) < EPSILON) {
-      // Одна горизонтальная линия от feature до конца текста
       const endX = textPos ? textPos.x + actualTextWidth / 2 : leader.x;
       const points = [featureVec, new THREE.Vector3(Math.max(leader.x, endX), leader.y, 0)];
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       objects.push(new THREE.Line(geometry, material));
     } else {
-      // Dog-leg: 3 сегмента
-      // Смещение диагонали от leader = abs(dy)/2 (угол ~63°)
+      // Dog-leg: diagonal offset = abs(dy)/2 (~63 degree angle)
       const diagDx = Math.abs(dy) / 2;
       const dirX = leader.x - feature.x !== 0 ? Math.sign(leader.x - feature.x) : 1;
       let kneeX = leader.x - dirX * diagDx;
 
-      // Ограничиваем knee: не за feature
+      // Clamp knee so it doesn't extend beyond feature point
       if (dirX > 0) {
         kneeX = Math.max(kneeX, feature.x);
       } else {
@@ -709,17 +677,14 @@ export const createOrdinateDimension = (
 
       const kneeVec = new THREE.Vector3(kneeX, feature.y, 0);
 
-      // Сегмент 1: горизонтальный от feature до knee
       if (Math.abs(kneeX - feature.x) > EPSILON) {
         const geom1 = new THREE.BufferGeometry().setFromPoints([featureVec, kneeVec]);
         objects.push(new THREE.Line(geom1, material));
       }
 
-      // Сегмент 2: диагональ от knee до leader
       const geom2 = new THREE.BufferGeometry().setFromPoints([kneeVec, leaderVec]);
       objects.push(new THREE.Line(geom2, material));
 
-      // Сегмент 3: горизонтальный от leader до конца текста
       const textEndX = textPos ? textPos.x + actualTextWidth / 2 : leader.x;
       if (Math.abs(textEndX - leader.x) > EPSILON && dirX * (textEndX - leader.x) > 0) {
         const geom3 = new THREE.BufferGeometry().setFromPoints([
@@ -730,7 +695,7 @@ export const createOrdinateDimension = (
       }
     }
   } else {
-    // X-ordinate: вертикальная выноска (измеряет X координату)
+    // X-ordinate: vertical leader (measures X coordinate)
     const dx = leader.x - feature.x;
 
     if (Math.abs(dx) < EPSILON) {
@@ -770,7 +735,6 @@ export const createOrdinateDimension = (
     }
   }
 
-  // Добавляем текстовый меш (создан выше для расчёта ширины)
   if (textMesh) {
     objects.push(textMesh);
   }
@@ -779,21 +743,21 @@ export const createOrdinateDimension = (
 };
 
 /**
- * Создание радиального размера (radial dimension, тип 4).
- * Линия от правого края текста до точки на дуге, стрелка на дуге направлена наружу.
+ * Create a radial dimension (type 4).
+ * Line from text edge to the point on the arc, arrow pointing outward at the arc.
  */
 export const createRadialDimension = (
   entity: DxfDimensionEntity,
   color: string,
 ): THREE.Object3D[] | null => {
-  const center = entity.anchorPoint; // code 10 — центр дуги
-  const arcPt = entity.diameterOrRadiusPoint; // code 15 — точка на дуге
+  const center = entity.anchorPoint; // code 10
+  const arcPt = entity.diameterOrRadiusPoint; // code 15
   const textPos = entity.middleOfText; // code 11
 
   if (!center || !arcPt) return null;
 
-  // Текст dimension — вычисляем радиус из координат если measurement отсутствует
   let dimensionText = entity.text;
+  // Fallback: compute radius from coordinates if actualMeasurement is absent
   const measurement = entity.actualMeasurement ??
     Math.sqrt((center.x - arcPt.x) ** 2 + (center.y - arcPt.y) ** 2);
 
@@ -813,30 +777,28 @@ export const createRadialDimension = (
 
   const arcVec = new THREE.Vector3(arcPt.x, arcPt.y, 0);
 
-  // Направление от arcPt к центру (внутрь окружности)
+  // Direction from arcPt toward center (inward)
   const dx = center.x - arcPt.x;
   const dy = center.y - arcPt.y;
   const len = Math.sqrt(dx * dx + dy * dy);
   const dirX = len > EPSILON ? dx / len : 1;
   const dirY = len > EPSILON ? dy / len : 0;
 
-  // Определяем, откуда идёт линия размерности к arcPt
-  // tailEnd — конец хвоста (текст/подчёркивание), определяет направление стрелки
+  // tailEndPoint determines arrow direction (from tail toward arc point)
   let tailEndPoint: THREE.Vector3 | null = null;
 
   let textMesh: THREE.Mesh | null = null;
   if (textPos) {
-    // textPos — середина текста (по спецификации DXF "middle point of dimension text")
+    // textPos is the middle of text per DXF spec ("middle point of dimension text")
     const underlineY = textPos.y - textHeight / 2;
 
-    // Вычисляем пересечение хвоста с горизонталью подчёркивания
+    // Compute where the leader line intersects the text underline horizontal
     let intersectX = textPos.x;
     if (Math.abs(dirY) > EPSILON) {
       const t = (underlineY - arcPt.y) / dirY;
       intersectX = arcPt.x + t * dirX;
     }
 
-    // Создаём текстовый меш (center-aligned по textPos.x, baseline на underlineY)
     textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
     textMesh.position.set(textPos.x, underlineY, 0.2);
     textMesh.geometry.computeBoundingBox();
@@ -846,16 +808,15 @@ export const createRadialDimension = (
       textWidth = bbox.max.x - bbox.min.x;
     }
 
-    // Координаты подчёркивания (текст центрирован по textPos.x)
     const textLeft = textPos.x - textWidth / 2;
     const textRight = textPos.x + textWidth / 2;
 
-    // Хвост стрелки — от arcPt до underlineY
+    // Leader line from arc point to text underline
     tailEndPoint = new THREE.Vector3(intersectX, underlineY, 0);
     const tailGeom = new THREE.BufferGeometry().setFromPoints([arcVec, tailEndPoint]);
     objects.push(new THREE.Line(tailGeom, lineMat));
 
-    // Подчёркивание — от точки пересечения с ножкой до дальнего края текста
+    // Underline extends from leader intersection to far text edge
     const underlineLeft = intersectX <= textPos.x ? intersectX : textLeft;
     const underlineRight = intersectX <= textPos.x ? textRight : intersectX;
     const underlineGeom = new THREE.BufferGeometry().setFromPoints([
@@ -865,8 +826,7 @@ export const createRadialDimension = (
     objects.push(new THREE.Line(underlineGeom, lineMat));
   }
 
-  // 2. Стрелка на arcPt — направлена от линии размерности к точке на дуге
-  // arrowFrom на стороне откуда приходит линия (tail или центр)
+  // Arrow at arc point, directed from the line origin (tail or center) toward the arc
   const arrowFrom = tailEndPoint
     ? new THREE.Vector3(tailEndPoint.x, tailEndPoint.y, 0.1)
     : new THREE.Vector3(center.x, center.y, 0.1);
@@ -878,7 +838,6 @@ export const createRadialDimension = (
   );
   objects.push(arrow);
 
-  // Текст
   if (textMesh) {
     objects.push(textMesh);
   }
@@ -887,21 +846,20 @@ export const createRadialDimension = (
 };
 
 /**
- * Создание diametric dimension (диаметральный размер, тип 3).
- * Рисует линию диаметра между двумя точками на окружности, стрелки на обоих концах,
- * и текст с выноской (ножка + подчёркивание).
+ * Create a diametric dimension (type 3).
+ * Diameter line between two points on the circle with arrows on both ends.
+ * Text can be along the line or offset with a leader.
  */
 export const createDiametricDimension = (
   entity: DxfDimensionEntity,
   color: string,
 ): THREE.Object3D[] | null => {
-  const p10 = entity.anchorPoint; // code 10 — первая точка на окружности
-  const p15 = entity.diameterOrRadiusPoint; // code 15 — противоположная точка (второй конец диаметра)
+  const p10 = entity.anchorPoint; // code 10 -- first point on circle
+  const p15 = entity.diameterOrRadiusPoint; // code 15 -- opposite point
   const textPos = entity.middleOfText; // code 11
 
   if (!p10 || !p15) return null;
 
-  // Текст dimension — вычисляем диаметр из координат если measurement отсутствует
   let dimensionText = entity.text;
   const measurement = entity.actualMeasurement ??
     Math.sqrt((p10.x - p15.x) ** 2 + (p10.y - p15.y) ** 2);
@@ -919,19 +877,18 @@ export const createDiametricDimension = (
   const lineMat = new THREE.LineBasicMaterial({ color });
   const arrowMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
 
-  // Центр окружности — середина отрезка p10<->p15
   const cx = (p10.x + p15.x) / 2;
   const cy = (p10.y + p15.y) / 2;
 
-  // Направление от p10 к центру (для стрелки на p10)
   const dx10 = cx - p10.x;
   const dy10 = cy - p10.y;
   const len10 = Math.sqrt(dx10 * dx10 + dy10 * dy10);
   const dir10x = len10 > EPSILON ? dx10 / len10 : 1;
   const dir10y = len10 > EPSILON ? dy10 / len10 : 0;
 
-  // Определяем: текст вдоль линии диаметра или вынесен наружу
-  // Проекция textPos на линию p15->p10 (параметр t и перпендикулярное расстояние)
+  // Determine if text sits on the diameter line (within textHeight perpendicular distance
+  // and between endpoints). This controls arrow direction: outward when text is inside,
+  // inward when text is offset outside.
   let textOnLine = false;
   if (textPos) {
     const fullLen = len10 * 2;
@@ -944,9 +901,7 @@ export const createDiametricDimension = (
     }
   }
 
-  // Стрелки на обоих концах
-  // Тип 1 (текст внутри): стрелки наружу (от центра к окружности)
-  // Тип 2 (текст вынесен): стрелки внутрь (к центру)
+  // Arrow direction: outward (from center) when text inside, inward when text offset
   const arrowSign = textOnLine ? 1 : -1;
   const arrow10From = new THREE.Vector3(
     p10.x + arrowSign * dir10x * ARROW_SIZE,
@@ -965,7 +920,6 @@ export const createDiametricDimension = (
     createArrow(arrow15From, new THREE.Vector3(p15.x, p15.y, 0.1), ARROW_SIZE, arrowMat),
   );
 
-  // Линия диаметра: всегда сплошная от p15 до p10
   const diamLineGeom = new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(p15.x, p15.y, 0),
     new THREE.Vector3(p10.x, p10.y, 0),
@@ -975,8 +929,9 @@ export const createDiametricDimension = (
   let textMesh: THREE.Mesh | null = null;
 
   if (textPos && textOnLine) {
-    // Текст вдоль линии диаметра — повёрнут по углу линии, без выноски
+    // Text along diameter line -- rotated to match line angle
     textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
+    // Keep text readable (not upside down)
     let angle = Math.atan2(p10.y - p15.y, p10.x - p15.x);
     if (angle > Math.PI / 2) angle -= Math.PI;
     if (angle < -Math.PI / 2) angle += Math.PI;
@@ -984,8 +939,7 @@ export const createDiametricDimension = (
     textMesh.rotation.z = angle;
   } else if (textPos) {
 
-    // Текст вынесен наружу — выноска (ножка + подчёркивание)
-    // Ножка идёт от ближайшего конца линии в направлении стрелки
+    // Text offset outside -- leader from nearest line end toward text
     const dist10 = (textPos.x - p10.x) ** 2 + (textPos.y - p10.y) ** 2;
     const dist15 = (textPos.x - p15.x) ** 2 + (textPos.y - p15.y) ** 2;
     const nearPt = dist10 <= dist15 ? p10 : p15;
@@ -1028,7 +982,6 @@ export const createDiametricDimension = (
     ]);
     objects.push(new THREE.Line(underlineGeom, lineMat));
   } else {
-    // Fallback: сплошная линия + текст в центре
     const diamLineGeom = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(p15.x, p15.y, 0),
       new THREE.Vector3(p10.x, p10.y, 0),
@@ -1046,9 +999,8 @@ export const createDiametricDimension = (
 };
 
 /**
- * Вычисление пересечения двух линий (2D).
- * Line1: p1 -> p2, Line2: p3 -> p4.
- * Возвращает точку пересечения или null если линии параллельны.
+ * Compute intersection of two infinite lines (2D).
+ * Returns null if lines are parallel.
  */
 export const intersectLines2D = (
   p1x: number,
@@ -1070,17 +1022,13 @@ export const intersectLines2D = (
   return { x: p1x + t * d1x, y: p1y + t * d1y };
 };
 
-/**
- * Нормализация угла в диапазон [0, 2pi)
- */
+/** Normalize angle to [0, 2pi) */
 export const normalizeAngle = (a: number): number => {
   const TWO_PI = Math.PI * 2;
   return ((a % TWO_PI) + TWO_PI) % TWO_PI;
 };
 
-/**
- * Проверка: лежит ли угол testAngle внутри дуги от startAngle до endAngle (CCW sweep).
- */
+/** Check whether testAngle lies within the CCW arc from startAngle to endAngle. */
 export const isAngleInSweep = (startAngle: number, endAngle: number, testAngle: number): boolean => {
   const s = normalizeAngle(startAngle);
   const e = normalizeAngle(endAngle);
@@ -1088,40 +1036,40 @@ export const isAngleInSweep = (startAngle: number, endAngle: number, testAngle: 
   if (s < e) {
     return t >= s && t <= e;
   }
-  // Дуга пересекает 0
+  // Arc crosses 0
   return t >= s || t <= e;
 };
 
 /**
- * Создание angular dimension (угловой размер между двумя линиями, тип 2).
- * Рисует дугу между лучами, выносные линии, стрелки и текст с градусами.
+ * Create an angular dimension (type 2).
+ * Arc between two rays with extension lines, arrows, and angle text in degrees.
  */
 export const createAngularDimension = (
   entity: DxfDimensionEntity,
   color: string,
 ): THREE.Object3D[] | null => {
-  const p13 = entity.linearOrAngularPoint1; // code 13 — конец 1 первой линии
-  const p14 = entity.linearOrAngularPoint2; // code 14 — конец 2 первой линии
-  const p15 = entity.diameterOrRadiusPoint; // code 15 — конец 1 второй линии
-  const p10 = entity.anchorPoint; // code 10 — конец 2 второй линии
-  const p16 = entity.arcPoint; // code 16 — точка на дуге (определяет радиус и угол)
+  const p13 = entity.linearOrAngularPoint1; // code 13 -- end 1 of first line
+  const p14 = entity.linearOrAngularPoint2; // code 14 -- end 2 of first line
+  const p15 = entity.diameterOrRadiusPoint; // code 15 -- end 1 of second line
+  const p10 = entity.anchorPoint; // code 10 -- end 2 of second line
+  const p16 = entity.arcPoint; // code 16 -- point on arc (defines radius)
   const textPos = entity.middleOfText; // code 11
 
   if (!p13 || !p14 || !p15 || !p10) return null;
 
-  // 1. Найти вершину угла (пересечение двух линий)
+  // Find the angle vertex (intersection of the two lines)
   let vertex: { x: number; y: number };
   const dist14_15 = Math.sqrt((p14.x - p15.x) ** 2 + (p14.y - p15.y) ** 2);
   if (dist14_15 < EPSILON) {
-    // Линии сходятся в одной точке
+    // Lines converge at the same point
     vertex = { x: p14.x, y: p14.y };
   } else {
     const v = intersectLines2D(p13.x, p13.y, p14.x, p14.y, p15.x, p15.y, p10.x, p10.y);
-    if (!v) return null; // Параллельные линии — не можем построить угловой размер
+    if (!v) return null; // Parallel lines
     vertex = v;
   }
 
-  // 2. Определить дальние концы лучей (дальние от вершины на каждой линии)
+  // Use the endpoint farthest from vertex on each line to determine ray directions
   const dist13 = Math.sqrt((p13.x - vertex.x) ** 2 + (p13.y - vertex.y) ** 2);
   const dist14 = Math.sqrt((p14.x - vertex.x) ** 2 + (p14.y - vertex.y) ** 2);
   const farA = dist13 >= dist14 ? p13 : p14;
@@ -1130,24 +1078,21 @@ export const createAngularDimension = (
   const dist10 = Math.sqrt((p10.x - vertex.x) ** 2 + (p10.y - vertex.y) ** 2);
   const farB = dist15 >= dist10 ? p15 : p10;
 
-  // 3. Углы лучей
   const angleA = Math.atan2(farA.y - vertex.y, farA.x - vertex.x);
   const angleB = Math.atan2(farB.y - vertex.y, farB.x - vertex.x);
 
-  // 4. Радиус дуги
   const radius = p16
     ? Math.sqrt((p16.x - vertex.x) ** 2 + (p16.y - vertex.y) ** 2)
     : Math.max(dist13, dist14, dist15, dist10) * 0.8;
 
   if (radius < EPSILON) return null;
 
-  // 5. Определить startAngle/endAngle по arcPoint
+  // Use arcPoint to determine which of the two possible sweep directions to use
   let startAngle: number;
   let endAngle: number;
 
   if (p16) {
     const arcAngle = Math.atan2(p16.y - vertex.y, p16.x - vertex.x);
-    // Проверяем оба варианта sweep (A->B CCW и B->A CCW)
     if (isAngleInSweep(angleA, angleB, arcAngle)) {
       startAngle = angleA;
       endAngle = angleB;
@@ -1160,11 +1105,10 @@ export const createAngularDimension = (
     endAngle = angleB;
   }
 
-  // Вычисляем sweep (всегда CCW)
+  // Always CCW sweep
   let sweep = normalizeAngle(endAngle - startAngle);
   if (sweep < EPSILON) sweep = Math.PI * 2;
 
-  // 6. Рисуем
   const objects: THREE.Object3D[] = [];
   const lineMat = new THREE.LineBasicMaterial({ color });
   const dashedMat = new THREE.LineDashedMaterial({
@@ -1174,7 +1118,6 @@ export const createAngularDimension = (
   });
   const arrowMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
 
-  // 6a. Дуга
   const segments = Math.max(MIN_ARC_SEGMENTS, Math.floor((sweep * CIRCLE_SEGMENTS) / (Math.PI * 2)));
   const arcPoints: THREE.Vector3[] = [];
   for (let i = 0; i <= segments; i++) {
@@ -1186,7 +1129,7 @@ export const createAngularDimension = (
   const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPoints);
   objects.push(new THREE.Line(arcGeom, lineMat));
 
-  // 6b. Выносные линии (от дальних концов к точкам на дуге)
+  // Extension lines from ray endpoints to points on the arc
   const arcStartPt = new THREE.Vector3(
     vertex.x + radius * Math.cos(startAngle),
     vertex.y + radius * Math.sin(startAngle),
@@ -1212,10 +1155,9 @@ export const createAngularDimension = (
   );
   objects.push(extLineB);
 
-  // 6c. Стрелки — направление по хорде дуги (следует кривизне, а не чистой касательной)
+  // Arrows follow arc curvature (chord direction, not pure tangent)
   const arrowArcAngle = ARROW_SIZE / radius;
 
-  // На startAngle: хорда от точки внутри дуги (startAngle + delta) к arcStartPt
   const innerStartA = startAngle + arrowArcAngle;
   const arrowStartFrom = new THREE.Vector3(
     vertex.x + radius * Math.cos(innerStartA),
@@ -1224,7 +1166,6 @@ export const createAngularDimension = (
   );
   objects.push(createArrow(arrowStartFrom, new THREE.Vector3(arcStartPt.x, arcStartPt.y, 0.1), ARROW_SIZE, arrowMat));
 
-  // На endAngle: хорда от точки внутри дуги (endAngle - delta) к arcEndPt
   const innerEndA = endAngle - arrowArcAngle;
   const arrowEndFrom = new THREE.Vector3(
     vertex.x + radius * Math.cos(innerEndA),
@@ -1233,10 +1174,10 @@ export const createAngularDimension = (
   );
   objects.push(createArrow(arrowEndFrom, new THREE.Vector3(arcEndPt.x, arcEndPt.y, 0.1), ARROW_SIZE, arrowMat));
 
-  // 6d. Текст
   let dimensionText = entity.text;
   const measurement = entity.actualMeasurement;
 
+  // Angular measurement is stored in radians; convert to degrees for display
   if (typeof measurement === "number") {
     const degrees = (measurement * DEGREES_TO_RADIANS_DIVISOR) / Math.PI;
     const measStr = formatDimNumber(degrees) + "\u00B0";
@@ -1251,14 +1192,13 @@ export const createAngularDimension = (
     const textHeight = entity.textHeight || DIM_TEXT_HEIGHT;
     const textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
 
-    // Угол от вершины к позиции текста — для поворота вдоль касательной
     let textAngle: number;
 
     if (textPos) {
       textMesh.position.set(textPos.x, textPos.y, 0.2);
       textAngle = Math.atan2(textPos.y - vertex.y, textPos.x - vertex.x);
     } else {
-      // Разместить текст посередине дуги
+      // Default: place text at arc midpoint, offset outward
       const midAngle = startAngle + sweep / 2;
       const textRadius = radius + textHeight * 0.8;
       textMesh.position.set(
@@ -1269,9 +1209,8 @@ export const createAngularDimension = (
       textAngle = midAngle;
     }
 
-    // Поворот текста вдоль касательной к дуге (перпендикулярно радиусу)
+    // Rotate text along arc tangent (perpendicular to radius), keep it readable
     let textRotation = textAngle + Math.PI / 2;
-    // Нормализация: текст не должен быть вверх ногами
     const norm = normalizeAngle(textRotation);
     if (norm > Math.PI / 2 && norm < Math.PI * 1.5) {
       textRotation += Math.PI;

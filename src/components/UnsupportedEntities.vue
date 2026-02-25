@@ -24,7 +24,7 @@
     <transition name="expand">
       <div v-if="isExpanded" class="entities-list">
         <div v-for="(entity, index) in entities" :key="index" class="entity-item">
-          <span class="entity-bullet">•</span>
+          <span class="entity-bullet">&#8226;</span>
           <span class="entity-text">{{ entity }}</span>
         </div>
       </div>
@@ -32,7 +32,7 @@
 
     <div class="warning-footer">
       <span class="warning-note">
-        ℹ️ These elements will not be displayed on the drawing
+        &#8505;&#65039; These elements will not be displayed on the drawing
       </span>
     </div>
   </div>
@@ -41,7 +41,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
-// Props
 interface Props {
   entities: string[];
 }
@@ -55,16 +54,16 @@ const isExpanded = ref(true);
 .unsupported-entities {
   background-color: #fff3cd;
   border: 2px solid #ffc107;
-  border-radius: var(--border-radius);
-  padding: var(--spacing-md);
-  margin: var(--spacing-md);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
+  padding: var(--dxf-vuer-spacing-md, 16px);
+  margin: var(--dxf-vuer-spacing-md, 16px);
 }
 
 .warning-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-sm);
+  gap: var(--dxf-vuer-spacing-sm, 8px);
+  margin-bottom: var(--dxf-vuer-spacing-sm, 8px);
 }
 
 .warning-header svg {
@@ -84,7 +83,7 @@ const isExpanded = ref(true);
   font-size: 12px;
   background-color: white;
   border: 1px solid #ffc107;
-  border-radius: var(--border-radius);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
   color: #856404;
   cursor: pointer;
   font-weight: 500;
@@ -99,17 +98,17 @@ const isExpanded = ref(true);
 .entities-list {
   max-height: 200px;
   overflow-y: auto;
-  margin-top: var(--spacing-sm);
-  padding: var(--spacing-sm);
+  margin-top: var(--dxf-vuer-spacing-sm, 8px);
+  padding: var(--dxf-vuer-spacing-sm, 8px);
   background-color: white;
-  border-radius: var(--border-radius);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
   border: 1px solid #ffc107;
 }
 
 .entity-item {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-sm);
+  gap: var(--dxf-vuer-spacing-sm, 8px);
   padding: 4px 0;
   font-size: 13px;
   color: #856404;
@@ -126,8 +125,8 @@ const isExpanded = ref(true);
 }
 
 .warning-footer {
-  margin-top: var(--spacing-sm);
-  padding-top: var(--spacing-sm);
+  margin-top: var(--dxf-vuer-spacing-sm, 8px);
+  padding-top: var(--dxf-vuer-spacing-sm, 8px);
   border-top: 1px solid #ffc107;
 }
 
@@ -137,7 +136,6 @@ const isExpanded = ref(true);
   font-style: italic;
 }
 
-/* Transition для expand/collapse */
 .expand-enter-active,
 .expand-leave-active {
   transition: all 0.3s ease;
@@ -151,7 +149,6 @@ const isExpanded = ref(true);
   opacity: 0;
 }
 
-/* Scrollbar styling */
 .entities-list::-webkit-scrollbar {
   width: 6px;
 }
@@ -172,8 +169,8 @@ const isExpanded = ref(true);
 
 @media (max-width: 768px) {
   .unsupported-entities {
-    padding: var(--spacing-sm);
-    margin: var(--spacing-sm);
+    padding: var(--dxf-vuer-spacing-sm, 8px);
+    margin: var(--dxf-vuer-spacing-sm, 8px);
   }
 
   .warning-title {

@@ -1,5 +1,3 @@
-// Парсер секции BLOCKS
-
 import type DxfScanner from "../scanner";
 import type { IPoint } from "../parseHelpers";
 import { parsePointInline } from "../parseHelpers";
@@ -18,9 +16,6 @@ export interface IBlock {
   paperSpace?: boolean;
 }
 
-/**
- * Парсит секцию BLOCKS
- */
 export function parseBlocks(scanner: DxfScanner): Record<string, IBlock> {
   const blocks: Record<string, IBlock> = {};
   let lastHandle = 0;

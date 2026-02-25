@@ -5,7 +5,6 @@
 }
 
 :root {
-  /* Цвета */
   --primary-color: #1040b0;
   --secondary-color: #103080;
   --error-color: #f44336;
@@ -14,7 +13,6 @@
   --text-secondary: #757575;
   --border-color: #e0e0e0;
 
-  /* Размеры */
   --header-height: 64px;
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -22,7 +20,6 @@
   --spacing-lg: 24px;
   --border-radius: 4px;
 
-  /* Шрифты */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell,
     "Helvetica Neue", sans-serif;
   font-synthesis: none;

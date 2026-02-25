@@ -23,12 +23,12 @@ export function parseInsert(scanner: DxfScanner, curr: IGroup): IInsertEntity {
   curr = scanner.next();
   while (!scanner.isEOF()) {
     if (curr.code === 0) {
-      // Пропускаем ATTRIB-сущности до SEQEND
+      // Skip ATTRIB entities until SEQEND
       if (curr.value === "ATTRIB") {
         while (!scanner.isEOF()) {
           curr = scanner.next();
           if (curr.code === 0 && curr.value === "SEQEND") {
-            curr = scanner.next(); // Читаем группу после SEQEND
+            curr = scanner.next(); // Read the group after SEQEND
             break;
           }
         }

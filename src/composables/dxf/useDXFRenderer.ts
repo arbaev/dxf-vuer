@@ -1,4 +1,3 @@
-// Основной composable для рендеринга DXF файлов
 import { ref } from "vue";
 import * as THREE from "three";
 import type { Group } from "three";
@@ -42,14 +41,12 @@ export function useDXFRenderer() {
   const initThreeJS = (container: HTMLDivElement, options: ThreeJSOptions = {}) => {
     initThreeJSScene(container, options);
 
-    // Добавляем слушатель события change от OrbitControls для автоматического рендеринга
     const controls = getControls();
     if (controls) {
       controls.addEventListener("change", render);
     }
   };
 
-  // Парсинг DXF из текста
   const parseDXF = (dxfText: string): DxfData => {
     try {
       return parseDxf(dxfText);
@@ -59,8 +56,6 @@ export function useDXFRenderer() {
     }
   };
 
-  // Отображение DXF данных на сцене
-  // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: возвращаем unsupportedEntities
   const displayDXF = (dxf: DxfData): string[] | undefined => {
     const scene = getScene();
     const camera = getCamera();
@@ -69,7 +64,6 @@ export function useDXFRenderer() {
       return undefined;
     }
 
-    // Удаляем предыдущий DXF объект если он есть
     if (currentDXFGroup) {
       disposeObject3D(currentDXFGroup);
       scene.remove(currentDXFGroup);
@@ -79,40 +73,31 @@ export function useDXFRenderer() {
     const result = createThreeObjectsFromDXF(dxf);
     scene.add(result.group);
 
-    // Сохраняем ссылку на текущий объект для resize
     currentDXFGroup = result.group;
 
     if (camera) {
-      // Получаем центр объекта для установки target
       const box = new THREE.Box3().setFromObject(result.group);
       const center = box.getCenter(new THREE.Vector3());
 
-      // Устанавливаем target OrbitControls на центр объекта (на плоскости z=0)
+      // Set OrbitControls target to object center (on the z=0 plane)
       setOrbitTarget(center.x, center.y, 0);
-
-      // Подгоняем камеру под объект
       fitCameraToObject(result.group, camera);
-
-      // Сохраняем состояние
       saveOrbitState();
     }
 
     render();
 
     if (result.warnings) {
-      console.warn("⚠️ Предупреждения при обработке DXF:", result.warnings);
+      console.warn("Warnings during DXF processing:", result.warnings);
     }
 
-    // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: возвращаем unsupportedEntities для отображения на странице
     return result.unsupportedEntities;
   };
 
-  // Обработка resize
   const handleResize = (container: HTMLDivElement) => {
     handleCameraResize(container, getCamera(), getRenderer(), getScene());
   };
 
-  // Сброс камеры и объекта в исходное состояние
   const resetView = () => {
     if (currentDXFGroup && getCamera()) {
       resetOrbitControls();
@@ -120,7 +105,6 @@ export function useDXFRenderer() {
     }
   };
 
-  // Применить видимость слоёв к объектам на сцене
   const applyLayerVisibility = (visibleLayers: Set<string>) => {
     if (!currentDXFGroup) return;
     currentDXFGroup.traverse((child) => {
@@ -132,9 +116,8 @@ export function useDXFRenderer() {
     render();
   };
 
-  // Полная очистка ресурсов
   const cleanup = () => {
-    // Удаляем listener перед очисткой controls
+    // Remove listener before cleaning up controls
     const controls = getControls();
     if (controls) {
       controls.removeEventListener("change", render);

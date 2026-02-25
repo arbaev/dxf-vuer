@@ -1,5 +1,3 @@
-// Парсер IMAGE entity — заглушка (парсится, но не рендерится)
-
 import type DxfScanner from "../scanner";
 import type { IGroup } from "../scanner";
 import * as helpers from "../parseHelpers";

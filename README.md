@@ -1,69 +1,164 @@
-# DXF Vuer
+# dxf-vuer
 
-Lightweight DXF file viewer built with Vue 3 + TypeScript + Three.js.
+Vue 3 component for viewing DXF files in the browser. Built-in DXF parser, Three.js rendering, zero external DXF dependencies.
 
-Zero external DXF dependencies — includes a custom built-in parser.
+[Live Demo](https://dxf-vuer.netlify.app)
 
-## Features
+## Installation
 
-- **15 entity types**: LINE, CIRCLE, ARC, ELLIPSE, POINT, POLYLINE, LWPOLYLINE, SPLINE, TEXT, MTEXT, DIMENSION, INSERT, SOLID, 3DFACE, ATTDEF
-- **Layer management**: toggle layer visibility via collapsible panel with color indicators
-- **Color support**: AutoCAD Color Index (ACI), TrueColor (code 420), ByLayer/ByBlock inheritance
-- **Block references**: INSERT with nested blocks, position/scale/rotation transforms
-- **Orthographic view**: zoom and pan navigation via OrbitControls
-- **File statistics**: entity counts, layers, blocks, AutoCAD version
-- **Display of unsupported entities** on the page
+```bash
+npm install dxf-vuer three
+# or
+yarn add dxf-vuer three
+```
+
+Peer dependencies: `vue >= 3.4`, `three >= 0.160`.
+
+## Quick Start
+
+```vue
+<script setup>
+import { ref } from 'vue'
+import { DXFViewer, parseDxf } from 'dxf-vuer'
+import 'dxf-vuer/style.css'
+
+const dxfData = ref(null)
+
+async function loadFile(file) {
+  const text = await file.text()
+  dxfData.value = parseDxf(text)
+}
+</script>
+
+<template>
+  <input type="file" accept=".dxf" @change="loadFile($event.target.files[0])" />
+  <DXFViewer
+    :dxf-data="dxfData"
+    show-reset-button
+    style="width: 100%; height: 600px"
+  />
+</template>
+```
+
+Or use the imperative API for better loading UX (shows a spinner):
+
+```vue
+<script setup>
+import { ref } from 'vue'
+import { DXFViewer } from 'dxf-vuer'
+import 'dxf-vuer/style.css'
+
+const viewer = ref(null)
+
+async function loadFile(file) {
+  const text = await file.text()
+  viewer.value.loadDXFFromText(text)
+}
+</script>
+
+<template>
+  <input type="file" accept=".dxf" @change="loadFile($event.target.files[0])" />
+  <DXFViewer ref="viewer" show-reset-button style="width: 100%; height: 600px" />
+</template>
+```
+
+## DXFViewer
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `dxfData` | `DxfData \| null` | `null` | Parsed DXF data to display |
+| `fileName` | `string` | `""` | File name shown in the top-left corner |
+| `showResetButton` | `boolean` | `false` | Show a reset-view button |
+| `autoFit` | `boolean` | `true` | Auto-fit camera to content |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `dxf-loaded` | `boolean` | Emitted after load attempt (true = success) |
+| `dxf-data` | `DxfData \| null` | Parsed data after successful load |
+| `error` | `string` | Error message on failure |
+| `unsupported-entities` | `string[]` | List of entity types that could not be rendered |
+| `reset-view` | — | Emitted when user clicks reset button |
+
+### Exposed Methods
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `loadDXFFromText` | `(text: string) => void` | Parse and display DXF from raw text (shows loading spinner) |
+| `loadDXFFromData` | `(data: DxfData) => void` | Display pre-parsed DXF data |
+| `resetView` | `() => void` | Reset camera to fit content |
+| `resize` | `() => void` | Trigger manual resize |
+
+## Other Components
+
+| Component | Description |
+|-----------|-------------|
+| `FileUploader` | File input styled as a button. Emits `file-selected` with `File` |
+| `LayerPanel` | Collapsible layer visibility panel with color indicators |
+| `UnsupportedEntities` | Collapsible list of unsupported entity types |
+| `DXFStatistics` | File statistics display (entities, layers, blocks, AutoCAD version) |
+
+## Parser-Only Usage
+
+Use the parser without Vue or Three.js — works in Node.js, React, or any JS environment:
+
+```ts
+import { parseDxf } from 'dxf-vuer/parser'
+import type { DxfData, DxfLineEntity, isLineEntity } from 'dxf-vuer/parser'
+
+const dxf: DxfData = parseDxf(dxfText)
+
+for (const entity of dxf.entities) {
+  if (isLineEntity(entity)) {
+    console.log(entity.startPoint, entity.endPoint)
+  }
+}
+```
+
+The `dxf-vuer/parser` entry has zero dependencies.
+
+## Composables
+
+For building custom viewers:
+
+```ts
+import { useDXFRenderer, useThreeScene, useCamera, useOrbitControls, useLayers } from 'dxf-vuer'
+import { createThreeObjectsFromDXF } from 'dxf-vuer'
+import { resolveEntityColor } from 'dxf-vuer'
+```
+
+## Supported DXF Entities
+
+**Rendered** (16 types): LINE, CIRCLE, ARC, ELLIPSE, POINT, POLYLINE, LWPOLYLINE, SPLINE, TEXT, MTEXT, DIMENSION, INSERT, SOLID, 3DFACE, HATCH, LEADER, MULTILEADER
+
+**Parsed but not rendered**: ATTDEF, VIEWPORT, IMAGE, WIPEOUT
+
+## CSS Customization
+
+Override CSS custom properties to match your app's theme:
+
+```css
+:root {
+  --dxf-vuer-primary-color: #ff6600;
+  --dxf-vuer-bg-color: #ffffff;
+  --dxf-vuer-border-color: #cccccc;
+  --dxf-vuer-border-radius: 8px;
+  --dxf-vuer-text-color: #333333;
+  --dxf-vuer-text-secondary: #666666;
+  --dxf-vuer-error-color: #ff0000;
+  --dxf-vuer-spacing-xs: 4px;
+  --dxf-vuer-spacing-sm: 8px;
+  --dxf-vuer-spacing-md: 16px;
+  --dxf-vuer-spacing-lg: 24px;
+}
+```
 
 ## Tech Stack
 
-| Package | Version |
-|---------|---------|
-| Vue | 3.5 |
-| Three.js | 0.182 |
-| TypeScript | 5.9 |
-| Vite | 7 |
-
-Only two runtime dependencies: `vue` and `three`.
-
-## Installation and Running
-
-Install dependencies:
-
-```bash
-yarn install
-```
-
-### Development Mode
-
-```bash
-yarn dev
-```
-
-### Production Build
-
-```bash
-yarn build
-```
-
-Built files will be in the `dist/` directory.
-
-### Preview
-
-```bash
-yarn preview
-```
-
-## Project Structure
-
-```
-src/
-  parser/              — Built-in DXF parser (lexer, sections, 15 entity handlers)
-  composables/dxf/     — Rendering logic (scene, camera, geometry, layers)
-  components/          — Vue components (viewer, uploader, layer panel, stats)
-  utils/               — Color resolver, statistics collector
-  types/               — DXF type definitions
-  constants/           — Rendering constants
-```
+Vue 3.5, TypeScript 5.9, Three.js 0.182, Vite 7.
 
 ## License
 

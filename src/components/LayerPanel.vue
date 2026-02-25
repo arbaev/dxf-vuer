@@ -21,7 +21,6 @@
           :class="{ hidden: !layer.visible, frozen: layer.frozen }"
           @click="!layer.frozen && $emit('toggle-layer', layer.name)"
         >
-          <!-- Иконка глаза -->
           <svg
             v-if="layer.visible"
             class="eye-icon"
@@ -49,13 +48,8 @@
             <line x1="1" y1="1" x2="23" y2="23" />
           </svg>
 
-          <!-- Цветовой индикатор -->
           <span class="color-swatch" :style="{ backgroundColor: layer.color }"></span>
-
-          <!-- Имя слоя -->
           <span class="layer-name" :title="layer.name">{{ layer.name }}</span>
-
-          <!-- Количество entity -->
           <span class="layer-count">{{ layer.entityCount }}</span>
         </div>
       </div>
@@ -85,12 +79,12 @@ const isExpanded = ref(true);
 <style scoped>
 .layer-panel {
   position: absolute;
-  bottom: var(--spacing-sm);
-  left: var(--spacing-sm);
+  bottom: var(--dxf-vuer-spacing-sm, 8px);
+  left: var(--dxf-vuer-spacing-sm, 8px);
   z-index: 10;
   background-color: rgba(255, 255, 255, 0.95);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  border: 1px solid var(--dxf-vuer-border-color, #e0e0e0);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   max-height: 50%;
   display: flex;
@@ -110,7 +104,7 @@ const isExpanded = ref(true);
   padding: 6px 10px;
   cursor: pointer;
   user-select: none;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--dxf-vuer-border-color, #e0e0e0);
   flex-shrink: 0;
 }
 
@@ -121,7 +115,7 @@ const isExpanded = ref(true);
 .layer-panel-title {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-color);
+  color: var(--dxf-vuer-text-color, #212121);
 }
 
 .collapse-btn {
@@ -130,7 +124,7 @@ const isExpanded = ref(true);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--dxf-vuer-text-secondary, #757575);
   padding: 0 4px;
   line-height: 1;
 }
@@ -145,7 +139,7 @@ const isExpanded = ref(true);
   display: flex;
   gap: 4px;
   padding: 4px 10px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--dxf-vuer-border-color, #e0e0e0);
   flex-shrink: 0;
 }
 
@@ -153,16 +147,16 @@ const isExpanded = ref(true);
   padding: 2px 8px;
   font-size: 11px;
   background: none;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--dxf-vuer-border-color, #e0e0e0);
   border-radius: 3px;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--dxf-vuer-text-secondary, #757575);
   transition: all 0.15s;
 }
 
 .action-btn:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
+  border-color: var(--dxf-vuer-primary-color, #1040b0);
+  color: var(--dxf-vuer-primary-color, #1040b0);
 }
 
 .layer-list {
@@ -196,11 +190,11 @@ const isExpanded = ref(true);
 
 .eye-icon {
   flex-shrink: 0;
-  color: var(--text-color);
+  color: var(--dxf-vuer-text-color, #212121);
 }
 
 .eye-icon.off {
-  color: var(--text-secondary);
+  color: var(--dxf-vuer-text-secondary, #757575);
 }
 
 .color-swatch {
@@ -216,13 +210,13 @@ const isExpanded = ref(true);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-color);
+  color: var(--dxf-vuer-text-color, #212121);
 }
 
 .layer-count {
   flex-shrink: 0;
   font-size: 11px;
-  color: var(--text-secondary);
+  color: var(--dxf-vuer-text-secondary, #757575);
 }
 
 @media (max-width: 768px) {

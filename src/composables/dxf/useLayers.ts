@@ -1,4 +1,3 @@
-// Composable для управления слоями DXF
 import { ref, computed } from "vue";
 import type { DxfLayer } from "@/types/dxf";
 import { rgbNumberToHex } from "@/utils/colorResolver";
@@ -6,16 +5,15 @@ import ACI_PALETTE from "@/parser/acadColorIndex";
 
 export interface LayerState {
   name: string;
-  visible: boolean; // Управляется пользователем
-  frozen: boolean; // Из DXF (read-only)
-  color: string; // Hex цвет слоя
+  visible: boolean;
+  frozen: boolean;
+  color: string;
   entityCount: number;
 }
 
 export function useLayers() {
   const layers = ref<Map<string, LayerState>>(new Map());
 
-  /** Инициализация слоёв из DXF данных */
   const initLayers = (
     dxfLayers: Record<string, DxfLayer>,
     entityLayerCounts: Record<string, number>,
@@ -24,7 +22,7 @@ export function useLayers() {
     for (const [name, layer] of Object.entries(dxfLayers)) {
       let color = "#FFFFFF";
       if (layer.colorIndex >= 1 && layer.colorIndex <= 255) {
-        // ACI палитра, 7 и 255 → чёрный на светлом фоне
+        // ACI 7 and 255 are white in the palette but rendered as black on light background
         color = (layer.colorIndex === 7 || layer.colorIndex === 255)
           ? "#000000"
           : rgbNumberToHex(ACI_PALETTE[layer.colorIndex]);
@@ -41,7 +39,6 @@ export function useLayers() {
     layers.value = newLayers;
   };
 
-  /** Переключить видимость слоя */
   const toggleLayerVisibility = (layerName: string) => {
     const layer = layers.value.get(layerName);
     if (layer && !layer.frozen) {
@@ -49,21 +46,18 @@ export function useLayers() {
     }
   };
 
-  /** Показать все слои */
   const showAllLayers = () => {
     layers.value.forEach((layer) => {
       if (!layer.frozen) layer.visible = true;
     });
   };
 
-  /** Скрыть все слои */
   const hideAllLayers = () => {
     layers.value.forEach((layer) => {
       layer.visible = false;
     });
   };
 
-  /** Множество видимых слоёв */
   const visibleLayerNames = computed(() => {
     const names = new Set<string>();
     layers.value.forEach((layer) => {
@@ -72,10 +66,8 @@ export function useLayers() {
     return names;
   });
 
-  /** Список слоёв для UI */
   const layerList = computed(() => Array.from(layers.value.values()));
 
-  /** Сброс слоёв */
   const clearLayers = () => {
     layers.value = new Map();
   };

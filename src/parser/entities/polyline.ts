@@ -67,7 +67,7 @@ export function parsePolyline(scanner: DxfScanner, curr: IGroup): IPolylineEntit
     curr = scanner.next();
   }
 
-  // Парсим VERTEX sub-entities до SEQEND
+  // Parse VERTEX sub-entities until SEQEND
   entity.vertices = parsePolylineVertices(scanner, curr);
 
   return entity;
@@ -84,7 +84,7 @@ function parsePolylineVertices(scanner: DxfScanner, curr: IGroup): IVertexEntity
         parseSeqEnd(scanner, curr);
         break;
       } else {
-        // Неизвестная entity — выходим, чтобы не зациклиться
+        // Unknown entity — break out to avoid infinite loop
         break;
       }
     } else {

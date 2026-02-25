@@ -1,5 +1,3 @@
-// Парсер секции TABLES (LAYER, LTYPE и другие таблицы)
-
 import type DxfScanner from "../scanner";
 import type { IGroup } from "../scanner";
 import { getAcadColor, parsePointInline } from "../parseHelpers";
@@ -32,9 +30,6 @@ interface ITableDefinition {
   parseTableRecords: () => unknown;
 }
 
-/**
- * Парсит секцию TABLES
- */
 export function parseTables(scanner: DxfScanner): Record<string, IBaseTable> {
   const tables: Record<string, IBaseTable> = {};
   let curr = scanner.next();
@@ -70,19 +65,19 @@ export function parseTables(scanner: DxfScanner): Record<string, IBaseTable> {
         tables[tableDef.tableName] = parseTable(scanner, curr, tableDef);
         curr = scanner.lastReadGroup;
       } else {
-        // Пропускаем неизвестные таблицы до ENDTAB
+        // Skip unknown tables until ENDTAB
         while (!scanner.isEOF()) {
           curr = scanner.next();
           if (curr.code === 0 && curr.value === "ENDTAB") break;
         }
-        curr = scanner.next(); // Проглатываем ENDTAB
+        curr = scanner.next();
       }
     } else {
       curr = scanner.next();
     }
   }
 
-  curr = scanner.next(); // Проглатываем ENDSEC
+  curr = scanner.next();
   return tables;
 }
 
@@ -122,7 +117,7 @@ function parseTable(
         curr = scanner.next();
     }
   }
-  curr = scanner.next(); // Проглатываем ENDTAB
+  curr = scanner.next();
   return table;
 }
 
@@ -140,18 +135,19 @@ function parseLayers(scanner: DxfScanner): Record<string, ILayer> {
         curr = scanner.next();
         break;
       case 62:
+        // Negative colorIndex means layer is off (invisible) in AutoCAD
         layer.visible = (curr.value as number) >= 0;
         layer.colorIndex = Math.abs(curr.value as number);
         layer.color = getAcadColor(layer.colorIndex);
         curr = scanner.next();
         break;
       case 70:
+        // Bits 1 and 2: frozen and frozen by default in new viewports
         layer.frozen =
           ((curr.value as number) & 1) !== 0 || ((curr.value as number) & 2) !== 0;
         curr = scanner.next();
         break;
       case 0:
-        // Новый слой или неизвестное значение — сохраняем слой и продвигаем сканер
         if (curr.value === "LAYER") {
           layers[layerName!] = layer;
           layer = {} as ILayer;
@@ -164,7 +160,7 @@ function parseLayers(scanner: DxfScanner): Record<string, ILayer> {
         break;
     }
   }
-  // Не вызываем scanner.next() — parseTable() сам обработает ENDTAB
+  // Don't call scanner.next() -- parseTable() will handle ENDTAB itself
   if (layerName) layers[layerName] = layer;
   return layers;
 }
@@ -245,7 +241,6 @@ function parseViewPortRecords(scanner: DxfScanner): Record<string, unknown>[] {
         curr = scanner.next();
         break;
       case 0:
-        // Новый VPORT или неизвестное значение — сохраняем и продвигаем сканер
         if (curr.value === "VPORT") {
           viewPorts.push(viewPort);
           viewPort = {};

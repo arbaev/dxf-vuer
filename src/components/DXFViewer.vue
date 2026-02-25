@@ -1,6 +1,5 @@
 <template>
   <div ref="dxfContainer" class="dxf-viewer">
-    <!-- Ошибка WebGL -->
     <div v-if="!webGLSupported" class="message-overlay">
       <div class="message-content error">
         <svg
@@ -22,12 +21,10 @@
       </div>
     </div>
 
-    <!-- Имя файла в левом верхнем углу -->
     <div v-if="fileName && hasDXFData" class="file-name-overlay">
       {{ fileName }}
     </div>
 
-    <!-- Кнопка сброса вида в правом верхнем углу -->
     <button
       v-if="showResetButton && hasDXFData"
       class="reset-button-overlay"
@@ -48,7 +45,6 @@
       </svg>
     </button>
 
-    <!-- Панель слоёв -->
     <LayerPanel
       v-if="hasDXFData && layerList.length > 0"
       :layers="layerList"
@@ -57,7 +53,6 @@
       @hide-all="handleHideAllLayers"
     />
 
-    <!-- Лоадер при загрузке файла -->
     <div v-if="isLoading" class="message-overlay loading-overlay">
       <div class="message-content">
         <div class="spinner"></div>
@@ -65,7 +60,6 @@
       </div>
     </div>
 
-    <!-- Placeholder когда нет данных -->
     <div v-else-if="!hasDXFData" class="message-overlay">
       <div class="message-content placeholder">
         <svg
@@ -92,7 +86,6 @@ import { useLayers } from "@/composables/dxf/useLayers";
 import type { DxfData, DxfLayer } from "@/types/dxf";
 import LayerPanel from "./LayerPanel.vue";
 
-// Props
 interface Props {
   dxfData?: DxfData | null;
   fileName?: string;
@@ -107,7 +100,6 @@ const props = withDefaults(defineProps<Props>(), {
   autoFit: true,
 });
 
-// Emits
 interface Emits {
   (e: "dxf-loaded", success: boolean): void;
   (e: "dxf-data", data: DxfData | null): void;
@@ -147,7 +139,7 @@ const hasDXFData = computed(() => {
   return props.dxfData && props.dxfData.entities && props.dxfData.entities.length > 0;
 });
 
-// Ссылка на данные, загруженные через loadDXFFromText, чтобы watch не загружал их повторно
+// Reference to data loaded via loadDXFFromText so watch does not reload them
 let lastLoadedDxf: DxfData | null = null;
 
 const handleResetView = () => {
@@ -155,10 +147,8 @@ const handleResetView = () => {
   emit("reset-view");
 };
 
-// Инициализация слоёв из DXF данных
 const initLayersFromDXF = (dxf: DxfData) => {
   const dxfLayers = (dxf.tables?.layer?.layers || {}) as Record<string, DxfLayer>;
-  // Подсчёт entity по слоям
   const entityLayerCounts: Record<string, number> = {};
   for (const entity of dxf.entities) {
     const layerName = entity.layer || "0";
@@ -167,7 +157,6 @@ const initLayersFromDXF = (dxf: DxfData) => {
   initLayers(dxfLayers, entityLayerCounts);
 };
 
-// Обработчики событий панели слоёв
 const handleToggleLayer = (layerName: string) => {
   toggleLayerVisibility(layerName);
   applyLayerVisibility(visibleLayerNames.value);
@@ -185,8 +174,8 @@ const handleHideAllLayers = () => {
 
 const loadDXFFromText = (dxfText: string) => {
   isLoading.value = true;
-  // Двойной requestAnimationFrame гарантирует, что браузер успеет отрисовать спиннер
-  // перед синхронной блокировкой парсинга/рендеринга
+  // Double requestAnimationFrame ensures the browser renders the spinner
+  // before synchronous parsing/rendering blocks the main thread
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       try {
@@ -197,7 +186,6 @@ const loadDXFFromText = (dxfText: string) => {
         emit("dxf-loaded", true);
         emit("dxf-data", dxf);
 
-        // Передаем неподдерживаемые entity наружу
         if (unsupportedEntities && unsupportedEntities.length > 0) {
           emit("unsupported-entities", unsupportedEntities);
         }
@@ -221,7 +209,6 @@ const loadDXFFromData = (dxfData: DxfData) => {
     emit("dxf-loaded", true);
     emit("dxf-data", dxfData);
 
-    // Передаем неподдерживаемые entity наружу
     if (unsupportedEntities && unsupportedEntities.length > 0) {
       emit("unsupported-entities", unsupportedEntities);
     }
@@ -244,7 +231,7 @@ const resize = () => {
 watch(
   () => props.dxfData,
   (newData) => {
-    // Пропускаем если данные уже загружены через loadDXFFromText
+    // Skip if data was already loaded via loadDXFFromText
     if (newData && hasDXFData.value && newData !== lastLoadedDxf) {
       loadDXFFromData(newData);
     }
@@ -298,24 +285,24 @@ defineExpose({
   position: relative;
   width: 100%;
   flex: 1;
-  background-color: var(--bg-color);
-  border: 2px solid var(--border-color);
-  border-radius: var(--border-radius);
+  background-color: var(--dxf-vuer-bg-color, #fafafa);
+  border: 2px solid var(--dxf-vuer-border-color, #e0e0e0);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
   overflow: hidden;
 }
 
 .file-name-overlay {
   position: absolute;
-  top: var(--spacing-sm);
-  left: var(--spacing-sm);
+  top: var(--dxf-vuer-spacing-sm, 8px);
+  left: var(--dxf-vuer-spacing-sm, 8px);
   z-index: 10;
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--dxf-vuer-spacing-sm, 8px) var(--dxf-vuer-spacing-md, 16px);
   background-color: rgba(255, 255, 255, 0.95);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  border: 1px solid var(--dxf-vuer-border-color, #e0e0e0);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
   font-size: 14px;
-  color: var(--text-color);
-  max-width: calc(100% - var(--spacing-lg) * 2);
+  color: var(--dxf-vuer-text-color, #212121);
+  max-width: calc(100% - var(--dxf-vuer-spacing-lg, 24px) * 2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -323,16 +310,16 @@ defineExpose({
 
 .reset-button-overlay {
   position: absolute;
-  top: var(--spacing-sm);
-  right: var(--spacing-sm);
+  top: var(--dxf-vuer-spacing-sm, 8px);
+  right: var(--dxf-vuer-spacing-sm, 8px);
   z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-sm);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  padding: var(--dxf-vuer-spacing-sm, 8px);
+  color: var(--dxf-vuer-text-color, #212121);
+  border: 1px solid var(--dxf-vuer-border-color, #e0e0e0);
+  border-radius: var(--dxf-vuer-border-radius, 4px);
   font-weight: 500;
   font-size: 14px;
   transition: all 0.2s;
@@ -343,7 +330,7 @@ defineExpose({
 }
 
 .reset-button-overlay:hover {
-  border-color: rgb(from var(--primary-color) r g b / 0.5);
+  border-color: rgb(from var(--dxf-vuer-primary-color, #1040b0) r g b / 0.5);
 }
 
 .reset-button-overlay:active {
@@ -363,34 +350,34 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-lg);
+  padding: var(--dxf-vuer-spacing-lg, 24px);
 }
 
 .message-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--dxf-vuer-spacing-md, 16px);
   text-align: center;
 }
 
 .message-content.error svg {
-  color: var(--error-color);
+  color: var(--dxf-vuer-error-color, #f44336);
 }
 
 .message-content.placeholder svg {
-  color: var(--border-color);
+  color: var(--dxf-vuer-border-color, #e0e0e0);
 }
 
 .message-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--text-color);
+  color: var(--dxf-vuer-text-color, #212121);
 }
 
 .message-text {
   font-size: 1rem;
-  color: var(--text-secondary);
+  color: var(--dxf-vuer-text-secondary, #757575);
   max-width: 300px;
 }
 
@@ -402,8 +389,8 @@ defineExpose({
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--primary-color);
+  border: 3px solid var(--dxf-vuer-border-color, #e0e0e0);
+  border-top-color: var(--dxf-vuer-primary-color, #1040b0);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -416,9 +403,9 @@ defineExpose({
 
 @media (max-width: 768px) {
   .file-name-overlay {
-    top: var(--spacing-sm);
-    left: var(--spacing-sm);
-    padding: 6px var(--spacing-sm);
+    top: var(--dxf-vuer-spacing-sm, 8px);
+    left: var(--dxf-vuer-spacing-sm, 8px);
+    padding: 6px var(--dxf-vuer-spacing-sm, 8px);
     font-size: 12px;
     max-width: calc(100% - 80px);
   }
