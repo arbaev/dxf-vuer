@@ -1,14 +1,52 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DXF Vuer</title>
+    <title>dxf-vuer — Vue 3 DXF Viewer | Live Demo</title>
+    <meta name="description" content="View AutoCAD DXF files in the browser. Vue 3 component with built-in parser and Three.js/WebGL rendering. Upload and view DXF drawings online." />
+    <meta name="keywords" content="dxf viewer, dxf viewer online, vue dxf, autocad viewer, cad viewer online, view dxf, dxf browser" />
+    <link rel="canonical" href="https://dxf-vuer.netlify.app/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="dxf-vuer — DXF Viewer for Vue 3" />
+    <meta property="og:description" content="View AutoCAD DXF drawings in the browser. Built-in parser, Three.js rendering, TypeScript support." />
+    <meta property="og:url" content="https://dxf-vuer.netlify.app/" />
+    <meta property="og:image" content="https://raw.githubusercontent.com/arbaev/dxf-vuer/main/docs/screenshot.png" />
+    <meta property="og:site_name" content="dxf-vuer" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="dxf-vuer — DXF Viewer for Vue 3" />
+    <meta name="twitter:description" content="View AutoCAD DXF drawings in the browser. Built-in parser, Three.js rendering." />
+    <meta name="twitter:image" content="https://raw.githubusercontent.com/arbaev/dxf-vuer/main/docs/screenshot.png" />
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "dxf-vuer",
+      "description": "Vue 3 DXF file viewer and parser — render AutoCAD DXF drawings in the browser with Three.js",
+      "url": "https://dxf-vuer.netlify.app/",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Web Browser",
+      "license": "https://opensource.org/licenses/MIT",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
+
+    <!-- Favicons -->
     <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <meta name="apple-mobile-web-app-title" content="DXF Vuer" />
+    <meta name="apple-mobile-web-app-title" content="dxf-vuer" />
     <link rel="manifest" href="/site.webmanifest" />
   </head>
   <body>

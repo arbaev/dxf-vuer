@@ -1,7 +1,7 @@
 {
   "name": "dxf-vuer",
   "version": "1.0.0",
-  "description": "Vue 3 DXF file viewer component with built-in parser and Three.js rendering",
+  "description": "Vue 3 DXF file viewer and parser — render AutoCAD DXF drawings in the browser with Three.js. Built-in parser, zero dependencies, TypeScript support.",
   "type": "module",
   "license": "MIT",
   "author": "Timur Arbaev",
@@ -13,11 +13,22 @@
   "keywords": [
     "vue",
     "vue3",
+    "vuejs",
     "dxf",
+    "dxf-viewer",
+    "dxf-parser",
     "viewer",
-    "threejs",
     "cad",
-    "autocad"
+    "cad-viewer",
+    "autocad",
+    "threejs",
+    "three.js",
+    "webgl",
+    "engineering",
+    "drawing",
+    "technical-drawing",
+    "blueprint",
+    "typescript"
   ],
   "main": "./dist/dxf-vuer-index.es.js",
   "module": "./dist/dxf-vuer-index.es.js",
