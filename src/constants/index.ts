@@ -4,9 +4,6 @@
 // CAMERA - настройки камеры Three.js
 // ============================================================================
 
-// Угол обзора (Field of View) камеры в градусах
-export const CAMERA_FOV = 75;
-
 // Ближняя плоскость отсечения камеры
 export const CAMERA_NEAR_PLANE = -2000;
 
@@ -30,14 +27,8 @@ export const SCENE_BG_COLOR = "#fafafa";
 // COLORS - цвета для отрисовки DXF элементов
 // ============================================================================
 
-// Цвет текста
-export const TEXT_COLOR = "#1976d2";
-
-// Цвет линий
-export const LINE_COLOR = "#1976d2";
-
-// Цвет размерных линий
-export const DIM_LINE_COLOR = "#606060";
+// Цвет по умолчанию когда entity/layer цвет не определён (белый → чёрный на светлом фоне)
+export const DEFAULT_ENTITY_COLOR = "#000000";
 
 // ============================================================================
 // TEXT - настройки текста
@@ -47,7 +38,7 @@ export const DIM_LINE_COLOR = "#606060";
 export const TEXT_HEIGHT = 16;
 
 // Высота текста размерных линий
-export const DIM_TEXT_HEIGHT = 7;
+export const DIM_TEXT_HEIGHT = 5;
 
 // Коэффициент для расчета ширины разрыва размерной линии для текста
 export const DIM_TEXT_GAP_MULTIPLIER = 1.5;
@@ -55,15 +46,19 @@ export const DIM_TEXT_GAP_MULTIPLIER = 1.5;
 // Ширина разрыва размерной линии для текста
 export const DIM_TEXT_GAP = DIM_TEXT_HEIGHT * DIM_TEXT_GAP_MULTIPLIER;
 
-// Количество знаков после запятой для текста размерности
-export const DIM_TEXT_DECIMAL_PLACES = 0;
+// Максимальное количество знаков после запятой для текста размерности (лишние нули убираются)
+export const DIM_TEXT_DECIMAL_PLACES = 4;
+
+// Максимальный размер шрифта для canvas-рендеринга текста (в пикселях)
+// Ограничивает потребление памяти при больших мировых координатах текста
+export const MAX_TEXT_FONT_SIZE = 256;
 
 // ============================================================================
 // GEOMETRY - настройки геометрии
 // ============================================================================
 
 // Длина стрелки размерных линий
-export const ARROW_SIZE = 6;
+export const ARROW_SIZE = 3;
 
 // Делитель для расчета ширины основания стрелки (длина стрелки / 4)
 export const ARROW_BASE_WIDTH_DIVISOR = 4;
@@ -95,12 +90,18 @@ export const CATMULL_ROM_SEGMENTS_MULTIPLIER = 2;
 // Минимальное количество сегментов для CatmullRom сплайна
 export const MIN_CATMULL_ROM_SEGMENTS = 50;
 
+// Размер маркера точки POINT в пикселях (sizeAttenuation: false)
+export const POINT_MARKER_SIZE = 3;
+
 // ============================================================================
-// TIMING - временные константы
+// HATCH - лимиты для генерации паттернов штриховки
 // ============================================================================
 
-// Задержка debounce для resize и других операций (в миллисекундах)
-export const DEBOUNCE_DELAY = 300;
+// Максимальное количество сегментов в одном HATCH паттерне
+export const MAX_HATCH_SEGMENTS = 50000;
+
+// Максимальное количество линий на один patternLine (endIdx - startIdx)
+export const MAX_HATCH_LINES_PER_PATTERN = 1000;
 
 // ============================================================================
 // MATH - математические константы

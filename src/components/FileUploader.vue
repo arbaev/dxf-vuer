@@ -3,7 +3,6 @@
     <label for="dxf-file-input" class="file-input-label">
       <input
         id="dxf-file-input"
-        ref="fileInput"
         type="file"
         accept=".dxf"
         class="file-input"
@@ -29,27 +28,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
-
 // Emits
 interface Emits {
   (e: "file-selected", file: File): void;
-  (e: "file-cleared"): void;
 }
 
 const emit = defineEmits<Emits>();
-
-const fileInput = ref<HTMLInputElement | null>(null);
-const fileName = ref<string>("");
 
 const handleFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement;
   const file = target.files?.[0];
 
   if (file) {
-    fileName.value = file.name;
     emit("file-selected", file);
   }
+  // Сброс value чтобы повторный выбор того же файла вызывал change event
+  target.value = "";
 };
 </script>
 

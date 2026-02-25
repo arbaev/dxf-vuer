@@ -38,7 +38,6 @@ export function useThreeScene() {
 
   const {
     initControls,
-    updateControls,
     getControls,
     setTarget: setOrbitTarget,
     saveState: saveOrbitState,
@@ -85,7 +84,7 @@ export function useThreeScene() {
     if (!object) return;
 
     object.traverse((child) => {
-      if (child instanceof THREE.Mesh || child instanceof THREE.Line) {
+      if (child instanceof THREE.Mesh || child instanceof THREE.Line || child instanceof THREE.Points) {
         if (child.geometry) {
           child.geometry.dispose();
         }
@@ -145,11 +144,8 @@ export function useThreeScene() {
       renderer = new THREE.WebGLRenderer({
         antialias: true,
         alpha: true,
-        preserveDrawingBuffer: true,
       });
       renderer.setSize(containerWidth, containerHeight);
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Unknown error creating renderer";
@@ -214,7 +210,6 @@ export function useThreeScene() {
     getScene,
     getCamera,
     getRenderer,
-    updateControls,
     getControls,
     setOrbitTarget,
     saveOrbitState,

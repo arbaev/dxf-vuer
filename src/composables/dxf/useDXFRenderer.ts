@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import * as THREE from "three";
 import type { Group } from "three";
-import DxfParser from "dxf-parser";
+import { parseDxf } from "@/parser";
 import type { DxfData } from "@/types/dxf";
 import { useThreeScene, type ThreeJSOptions } from "./useThreeScene";
 import { useCamera } from "./useCamera";
@@ -52,9 +52,7 @@ export function useDXFRenderer() {
   // Парсинг DXF из текста
   const parseDXF = (dxfText: string): DxfData => {
     try {
-      const parser = new DxfParser();
-      const dxf = parser.parseSync(dxfText);
-      return dxf as unknown as DxfData;
+      return parseDxf(dxfText);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown parsing error";
       throw new Error(`DXF file parsing error: ${message}`);
@@ -111,7 +109,7 @@ export function useDXFRenderer() {
 
   // Обработка resize
   const handleResize = (container: HTMLDivElement) => {
-    handleCameraResize(container, getCamera(), getRenderer(), getScene(), currentDXFGroup);
+    handleCameraResize(container, getCamera(), getRenderer(), getScene());
   };
 
   // Сброс камеры и объекта в исходное состояние
@@ -122,8 +120,25 @@ export function useDXFRenderer() {
     }
   };
 
+  // Применить видимость слоёв к объектам на сцене
+  const applyLayerVisibility = (visibleLayers: Set<string>) => {
+    if (!currentDXFGroup) return;
+    currentDXFGroup.traverse((child) => {
+      const layerName = child.userData?.layerName;
+      if (layerName !== undefined) {
+        child.visible = visibleLayers.has(layerName);
+      }
+    });
+    render();
+  };
+
   // Полная очистка ресурсов
   const cleanup = () => {
+    // Удаляем listener перед очисткой controls
+    const controls = getControls();
+    if (controls) {
+      controls.removeEventListener("change", render);
+    }
     cleanupScene(currentDXFGroup);
     currentDXFGroup = null;
     resetResizing();
@@ -139,6 +154,7 @@ export function useDXFRenderer() {
     displayDXF,
     handleResize,
     resetView,
+    applyLayerVisibility,
     cleanup,
   };
 }

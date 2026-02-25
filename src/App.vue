@@ -3,7 +3,7 @@
     <header class="app-header">
       <h1 class="app-logo">DXF Vuer</h1>
 
-      <FileUploader @file-selected="handleFileSelected" @file-cleared="handleFileCleared" />
+      <FileUploader @file-selected="handleFileSelected" />
 
       <a
         href="https://github.com/arbaev/dxf-vuer"
@@ -100,15 +100,6 @@ const handleFileSelected = async (file: File) => {
     unsupportedEntities.value = [];
     statistics.value = null;
   }
-};
-
-const handleFileCleared = () => {
-  dxfData.value = null;
-  unsupportedEntities.value = [];
-  error.value = null;
-  currentFileName.value = "";
-  currentFileSize.value = 0;
-  statistics.value = null;
 };
 
 const handleUnsupportedEntities = (entities: string[]) => {

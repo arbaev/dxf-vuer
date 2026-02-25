@@ -15,16 +15,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.4.18",
-    "three": "^0.180.0",
-    "dxf-parser": "^1.1.2"
+    "vue": "^3.5.28",
+    "three": "^0.182.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.0",
-    "@types/three": "^0.180.0",
-    "typescript": "~5.5.3",
-    "vite": "^5.0.0",
-    "vue-tsc": "^2.0.29"
+    "@vitejs/plugin-vue": "^6.0.4",
+    "@types/three": "^0.182.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1",
+    "vue-tsc": "^3.2.4"
   },
   "packageManager": "yarn@1.22.19+sha1.4ba7fc5c6e704fce2066ecbfb0b0d8976fe62447"
 }

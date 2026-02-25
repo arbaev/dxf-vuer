@@ -9,8 +9,6 @@
   --primary-color: #1040b0;
   --secondary-color: #103080;
   --error-color: #f44336;
-  --warning-color: #ff9800;
-  --success-color: #4caf50;
   --bg-color: #fafafa;
   --text-color: #212121;
   --text-secondary: #757575;
@@ -18,6 +16,7 @@
 
   /* Размеры */
   --header-height: 64px;
+  --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
@@ -48,34 +47,6 @@ body {
   flex-direction: column;
 }
 
-.flex {
-  display: flex;
-}
-
-.flex-column {
-  flex-direction: column;
-}
-
-.items-center {
-  align-items: center;
-}
-
-.justify-center {
-  justify-content: center;
-}
-
-.text-center {
-  text-align: center;
-}
-
-.full-width {
-  width: 100%;
-}
-
-.full-height {
-  height: 100%;
-}
-
 button {
   font-family: inherit;
   font-size: 14px;
@@ -97,16 +68,6 @@ button:active {
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.btn-primary {
-  background-color: var(--primary-color);
-  color: white;
-}
-
-.btn-secondary {
-  background-color: var(--border-color);
-  color: var(--text-color);
 }
 
 @media (max-width: 768px) {

@@ -48,6 +48,23 @@
       </svg>
     </button>
 
+    <!-- Панель слоёв -->
+    <LayerPanel
+      v-if="hasDXFData && layerList.length > 0"
+      :layers="layerList"
+      @toggle-layer="handleToggleLayer"
+      @show-all="handleShowAllLayers"
+      @hide-all="handleHideAllLayers"
+    />
+
+    <!-- Лоадер при загрузке файла -->
+    <div v-if="isLoading" class="message-overlay loading-overlay">
+      <div class="message-content">
+        <div class="spinner"></div>
+        <div class="message-text">Loading DXF file...</div>
+      </div>
+    </div>
+
     <!-- Placeholder когда нет данных -->
     <div v-else-if="!hasDXFData" class="message-overlay">
       <div class="message-content placeholder">
@@ -69,10 +86,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { useDXFRenderer } from "@/composables/dxf/useDXFRenderer";
-import type { DxfData } from "@/types/dxf";
-import { DEBOUNCE_DELAY } from "@/constants";
+import { useLayers } from "@/composables/dxf/useLayers";
+import type { DxfData, DxfLayer } from "@/types/dxf";
+import LayerPanel from "./LayerPanel.vue";
 
 // Props
 interface Props {
@@ -103,6 +121,7 @@ const emit = defineEmits<Emits>();
 const dxfContainer = ref<HTMLDivElement | null>(null);
 
 const {
+  isLoading,
   webGLSupported,
   error: rendererError,
   initThreeJS,
@@ -110,40 +129,95 @@ const {
   displayDXF,
   handleResize,
   resetView,
+  applyLayerVisibility,
   cleanup,
 } = useDXFRenderer();
+
+const {
+  layerList,
+  visibleLayerNames,
+  initLayers,
+  toggleLayerVisibility,
+  showAllLayers,
+  hideAllLayers,
+  clearLayers,
+} = useLayers();
 
 const hasDXFData = computed(() => {
   return props.dxfData && props.dxfData.entities && props.dxfData.entities.length > 0;
 });
+
+// Ссылка на данные, загруженные через loadDXFFromText, чтобы watch не загружал их повторно
+let lastLoadedDxf: DxfData | null = null;
 
 const handleResetView = () => {
   resetView();
   emit("reset-view");
 };
 
-const loadDXFFromText = (dxfText: string) => {
-  try {
-    const dxf = parseDXF(dxfText);
-    const unsupportedEntities = displayDXF(dxf);
-    emit("dxf-loaded", true);
-    emit("dxf-data", dxf);
-
-    // Передаем неподдерживаемые entity наружу
-    if (unsupportedEntities && unsupportedEntities.length > 0) {
-      emit("unsupported-entities", unsupportedEntities);
-    }
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Unknown error loading DXF";
-    emit("error", errorMsg);
-    emit("dxf-loaded", false);
-    emit("dxf-data", null);
+// Инициализация слоёв из DXF данных
+const initLayersFromDXF = (dxf: DxfData) => {
+  const dxfLayers = (dxf.tables?.layer?.layers || {}) as Record<string, DxfLayer>;
+  // Подсчёт entity по слоям
+  const entityLayerCounts: Record<string, number> = {};
+  for (const entity of dxf.entities) {
+    const layerName = entity.layer || "0";
+    entityLayerCounts[layerName] = (entityLayerCounts[layerName] || 0) + 1;
   }
+  initLayers(dxfLayers, entityLayerCounts);
+};
+
+// Обработчики событий панели слоёв
+const handleToggleLayer = (layerName: string) => {
+  toggleLayerVisibility(layerName);
+  applyLayerVisibility(visibleLayerNames.value);
+};
+
+const handleShowAllLayers = () => {
+  showAllLayers();
+  applyLayerVisibility(visibleLayerNames.value);
+};
+
+const handleHideAllLayers = () => {
+  hideAllLayers();
+  applyLayerVisibility(visibleLayerNames.value);
+};
+
+const loadDXFFromText = (dxfText: string) => {
+  isLoading.value = true;
+  // Двойной requestAnimationFrame гарантирует, что браузер успеет отрисовать спиннер
+  // перед синхронной блокировкой парсинга/рендеринга
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      try {
+        const dxf = parseDXF(dxfText);
+        lastLoadedDxf = dxf;
+        const unsupportedEntities = displayDXF(dxf);
+        initLayersFromDXF(dxf);
+        emit("dxf-loaded", true);
+        emit("dxf-data", dxf);
+
+        // Передаем неподдерживаемые entity наружу
+        if (unsupportedEntities && unsupportedEntities.length > 0) {
+          emit("unsupported-entities", unsupportedEntities);
+        }
+      } catch (error) {
+        clearLayers();
+        const errorMsg = error instanceof Error ? error.message : "Unknown error loading DXF";
+        emit("error", errorMsg);
+        emit("dxf-loaded", false);
+        emit("dxf-data", null);
+      } finally {
+        isLoading.value = false;
+      }
+    });
+  });
 };
 
 const loadDXFFromData = (dxfData: DxfData) => {
   try {
     const unsupportedEntities = displayDXF(dxfData);
+    initLayersFromDXF(dxfData);
     emit("dxf-loaded", true);
     emit("dxf-data", dxfData);
 
@@ -152,6 +226,7 @@ const loadDXFFromData = (dxfData: DxfData) => {
       emit("unsupported-entities", unsupportedEntities);
     }
   } catch (error) {
+    clearLayers();
     const errorMsg =
       error instanceof Error ? error.message : "Unknown error displaying DXF";
     emit("error", errorMsg);
@@ -169,11 +244,11 @@ const resize = () => {
 watch(
   () => props.dxfData,
   (newData) => {
-    if (newData && hasDXFData.value) {
+    // Пропускаем если данные уже загружены через loadDXFFromText
+    if (newData && hasDXFData.value && newData !== lastLoadedDxf) {
       loadDXFFromData(newData);
     }
   },
-  { deep: true }
 );
 
 watch(rendererError, (newError) => {
@@ -183,20 +258,9 @@ watch(rendererError, (newError) => {
 });
 
 let resizeObserver: ResizeObserver | null = null;
-let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
-
-const debouncedResize = () => {
-  if (resizeTimeout) {
-    clearTimeout(resizeTimeout);
-  }
-
-  resizeTimeout = setTimeout(() => {
-    resize();
-  }, DEBOUNCE_DELAY);
-};
 
 onMounted(() => {
-  setTimeout(() => {
+  nextTick(() => {
     if (dxfContainer.value) {
       initThreeJS(dxfContainer.value, { enableControls: true });
 
@@ -205,19 +269,14 @@ onMounted(() => {
       }
 
       resizeObserver = new ResizeObserver(() => {
-        debouncedResize();
+        resize();
       });
       resizeObserver.observe(dxfContainer.value);
     }
-  }, 100);
+  });
 });
 
 onBeforeUnmount(() => {
-  if (resizeTimeout) {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = null;
-  }
-
   if (resizeObserver) {
     resizeObserver.disconnect();
     resizeObserver = null;
@@ -293,8 +352,6 @@ defineExpose({
 
 .dxf-viewer :deep(canvas) {
   display: block;
-  width: 100%;
-  height: 100%;
 }
 
 .message-overlay {
@@ -335,6 +392,26 @@ defineExpose({
   font-size: 1rem;
   color: var(--text-secondary);
   max-width: 300px;
+}
+
+.loading-overlay {
+  z-index: 20;
+  background-color: rgba(250, 250, 250, 0.85);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 768px) {
