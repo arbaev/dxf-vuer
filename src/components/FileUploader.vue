@@ -31,7 +31,6 @@
 // Emits
 interface Emits {
   (e: "file-selected", file: File): void;
-  (e: "file-cleared"): void;
 }
 
 const emit = defineEmits<Emits>();

@@ -38,7 +38,6 @@ export function useThreeScene() {
 
   const {
     initControls,
-    updateControls,
     getControls,
     setTarget: setOrbitTarget,
     saveState: saveOrbitState,
@@ -211,7 +210,6 @@ export function useThreeScene() {
     getScene,
     getCamera,
     getRenderer,
-    updateControls,
     getControls,
     setOrbitTarget,
     saveOrbitState,

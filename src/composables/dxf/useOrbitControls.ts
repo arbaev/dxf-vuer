@@ -56,12 +56,6 @@ export function useOrbitControls() {
     return controls;
   };
 
-  const updateControls = () => {
-    if (controls && controls.enableDamping) {
-      controls.update();
-    }
-  };
-
   const getControls = () => controls;
 
   // Установка target
@@ -95,7 +89,6 @@ export function useOrbitControls() {
 
   return {
     initControls,
-    updateControls,
     getControls,
     setTarget,
     saveState,
