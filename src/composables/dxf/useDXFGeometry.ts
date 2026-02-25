@@ -209,7 +209,6 @@ const createArrow = (
     ),
   );
   geometry.setIndex([0, 1, 2]);
-  geometry.computeVertexNormals();
 
   return new THREE.Mesh(geometry, material);
 };
@@ -2869,7 +2868,6 @@ const processEntity = (
 
         geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
         geometry.setIndex(indices);
-        geometry.computeVertexNormals();
 
         const material = new THREE.MeshBasicMaterial({
           color: entityColor,
@@ -2900,7 +2898,6 @@ const processEntity = (
 
         geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
         geometry.setIndex(indices);
-        geometry.computeVertexNormals();
 
         const material = new THREE.MeshBasicMaterial({
           color: entityColor,
@@ -2996,7 +2993,21 @@ const processEntity = (
           (v) => new THREE.Vector3(v.x, v.y, v.z || 0),
         );
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        return new THREE.Line(geometry, lineMaterial);
+        const leaderLine = new THREE.Line(geometry, lineMaterial);
+
+        // Стрелка на первой вершине (если флаг arrowHeadFlag === 1)
+        if (entity.arrowHeadFlag === 1 && points.length >= 2) {
+          const group = new THREE.Group();
+          group.add(leaderLine);
+          const arrowMat = new THREE.MeshBasicMaterial({
+            color: entityColor,
+            side: THREE.DoubleSide,
+          });
+          const arrow = createArrow(points[1], points[0], ARROW_SIZE, arrowMat);
+          group.add(arrow);
+          return group;
+        }
+        return leaderLine;
       }
       break;
     }

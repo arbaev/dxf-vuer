@@ -22,7 +22,19 @@ export function parseInsert(scanner: DxfScanner, curr: IGroup): IInsertEntity {
   const entity = { type: curr.value } as IInsertEntity;
   curr = scanner.next();
   while (!scanner.isEOF()) {
-    if (curr.code === 0) break;
+    if (curr.code === 0) {
+      // Пропускаем ATTRIB-сущности до SEQEND
+      if (curr.value === "ATTRIB") {
+        while (!scanner.isEOF()) {
+          curr = scanner.next();
+          if (curr.code === 0 && curr.value === "SEQEND") {
+            curr = scanner.next(); // Читаем группу после SEQEND
+            break;
+          }
+        }
+      }
+      break;
+    }
     switch (curr.code) {
       case 2:
         entity.name = curr.value as string;

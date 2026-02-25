@@ -10,6 +10,7 @@ export interface IArcEntity extends IEntityBase {
   startAngle: number;
   endAngle: number;
   angleLength?: number;
+  extrusionDirection?: IPoint;
 }
 
 export function parseArc(scanner: DxfScanner, curr: IGroup): IArcEntity {
@@ -32,13 +33,7 @@ export function parseArc(scanner: DxfScanner, curr: IGroup): IArcEntity {
         entity.angleLength = entity.endAngle - entity.startAngle;
         break;
       case 210:
-        entity.extrusionDirectionX = curr.value as number;
-        break;
-      case 220:
-        entity.extrusionDirectionY = curr.value as number;
-        break;
-      case 230:
-        entity.extrusionDirectionZ = curr.value as number;
+        entity.extrusionDirection = helpers.parsePoint(scanner);
         break;
       default:
         helpers.checkCommonEntityProperties(entity, curr, scanner);

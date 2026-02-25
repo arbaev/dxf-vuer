@@ -43,6 +43,8 @@ const handleFileChange = (event: Event) => {
   if (file) {
     emit("file-selected", file);
   }
+  // Сброс value чтобы повторный выбор того же файла вызывал change event
+  target.value = "";
 };
 </script>
 

@@ -86,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { useDXFRenderer } from "@/composables/dxf/useDXFRenderer";
 import { useLayers } from "@/composables/dxf/useLayers";
 import type { DxfData, DxfLayer } from "@/types/dxf";
@@ -260,7 +260,7 @@ watch(rendererError, (newError) => {
 let resizeObserver: ResizeObserver | null = null;
 
 onMounted(() => {
-  setTimeout(() => {
+  nextTick(() => {
     if (dxfContainer.value) {
       initThreeJS(dxfContainer.value, { enableControls: true });
 
@@ -273,7 +273,7 @@ onMounted(() => {
       });
       resizeObserver.observe(dxfContainer.value);
     }
-  }, 100);
+  });
 });
 
 onBeforeUnmount(() => {

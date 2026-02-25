@@ -10,6 +10,7 @@ export interface ISplineEntity extends IEntityBase {
   startTangent?: IPoint;
   endTangent?: IPoint;
   knotValues?: number[];
+  weights?: number[];
   closed?: boolean;
   periodic?: boolean;
   rational?: boolean;
@@ -45,6 +46,10 @@ export function parseSpline(scanner: DxfScanner, curr: IGroup): ISplineEntity {
       case 40:
         if (!entity.knotValues) entity.knotValues = [];
         entity.knotValues.push(curr.value as number);
+        break;
+      case 41:
+        if (!entity.weights) entity.weights = [];
+        entity.weights.push(curr.value as number);
         break;
       case 70:
         if (((curr.value as number) & 1) !== 0) entity.closed = true;

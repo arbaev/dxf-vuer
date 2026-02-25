@@ -6,6 +6,7 @@ import type { IPoint, IEntityBase } from "../parseHelpers";
 export interface IDimensionEntity extends IEntityBase {
   type: "DIMENSION";
   block?: string;
+  styleName?: string;
   anchorPoint?: IPoint;
   middleOfText?: IPoint;
   insertionPoint?: IPoint;
@@ -17,6 +18,7 @@ export interface IDimensionEntity extends IEntityBase {
   attachmentPoint?: number;
   actualMeasurement?: number;
   text?: string;
+  textHeight?: number;
   angle?: number;
 }
 
@@ -28,6 +30,9 @@ export function parseDimension(scanner: DxfScanner, curr: IGroup): IDimensionEnt
     switch (curr.code) {
       case 2:
         entity.block = curr.value as string;
+        break;
+      case 3:
+        entity.styleName = curr.value as string;
         break;
       case 10:
         entity.anchorPoint = helpers.parsePoint(scanner);
@@ -61,6 +66,9 @@ export function parseDimension(scanner: DxfScanner, curr: IGroup): IDimensionEnt
         break;
       case 1:
         entity.text = curr.value as string;
+        break;
+      case 140:
+        entity.textHeight = curr.value as number;
         break;
       case 50:
         entity.angle = curr.value as number;

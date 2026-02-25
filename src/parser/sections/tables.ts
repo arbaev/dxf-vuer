@@ -2,7 +2,7 @@
 
 import type DxfScanner from "../scanner";
 import type { IGroup } from "../scanner";
-import { getAcadColor, type IPoint } from "../parseHelpers";
+import { getAcadColor, parsePointInline } from "../parseHelpers";
 
 export interface ILayer {
   name: string;
@@ -69,8 +69,14 @@ export function parseTables(scanner: DxfScanner): Record<string, IBaseTable> {
       if (tableDef) {
         tables[tableDef.tableName] = parseTable(scanner, curr, tableDef);
         curr = scanner.lastReadGroup;
+      } else {
+        // Пропускаем неизвестные таблицы до ENDTAB
+        while (!scanner.isEOF()) {
+          curr = scanner.next();
+          if (curr.code === 0 && curr.value === "ENDTAB") break;
+        }
+        curr = scanner.next(); // Проглатываем ENDTAB
       }
-      // Пропускаем неизвестные таблицы
     } else {
       curr = scanner.next();
     }
@@ -253,25 +259,4 @@ function parseViewPortRecords(scanner: DxfScanner): Record<string, unknown>[] {
   }
   viewPorts.push(viewPort);
   return viewPorts;
-}
-
-/** Простой парсинг точки для использования внутри секций (без вызова parsePoint из helpers) */
-function parsePointInline(scanner: DxfScanner, curr: IGroup): IPoint {
-  const point = {} as IPoint;
-  const code = curr.code;
-  point.x = curr.value as number;
-
-  const nextY = scanner.next();
-  if (nextY.code === code + 10) {
-    point.y = nextY.value as number;
-    const nextZ = scanner.next();
-    if (nextZ.code === code + 20) {
-      point.z = nextZ.value as number;
-    } else {
-      scanner.rewind();
-    }
-  } else {
-    scanner.rewind();
-  }
-  return point;
 }

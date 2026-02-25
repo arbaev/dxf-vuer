@@ -25,6 +25,7 @@ export interface IAttdefEntity extends IEntityBase {
   horizontalJustification?: number;
   fieldLength?: number;
   verticalJustification?: number;
+  extrusionDirection?: IPoint;
 }
 
 export function parseAttdef(scanner: DxfScanner, curr: IGroup): IAttdefEntity {
@@ -92,13 +93,7 @@ export function parseAttdef(scanner: DxfScanner, curr: IGroup): IAttdefEntity {
       case 100:
         break;
       case 210:
-        entity.extrusionDirectionX = curr.value as number;
-        break;
-      case 220:
-        entity.extrusionDirectionY = curr.value as number;
-        break;
-      case 230:
-        entity.extrusionDirectionZ = curr.value as number;
+        entity.extrusionDirection = helpers.parsePoint(scanner);
         break;
       default:
         helpers.checkCommonEntityProperties(entity, curr, scanner);

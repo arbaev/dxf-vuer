@@ -2,6 +2,7 @@
 
 import type DxfScanner from "../scanner";
 import type { IPoint } from "../parseHelpers";
+import { parsePointInline } from "../parseHelpers";
 import { parseEntities } from "./entities";
 
 export interface IBlock {
@@ -70,7 +71,7 @@ function parseBlock(scanner: DxfScanner): IBlock {
         curr = scanner.next();
         break;
       case 10:
-        block.position = parseBlockPoint(scanner, curr);
+        block.position = parsePointInline(scanner, curr);
         curr = scanner.next();
         break;
       case 67:
@@ -106,27 +107,4 @@ function parseBlock(scanner: DxfScanner): IBlock {
   }
 
   return block;
-}
-
-function parseBlockPoint(
-  scanner: DxfScanner,
-  curr: { code: number; value: string | number | boolean },
-): IPoint {
-  const point = {} as IPoint;
-  const code = curr.code;
-  point.x = curr.value as number;
-
-  const nextY = scanner.next();
-  if (nextY.code === code + 10) {
-    point.y = nextY.value as number;
-    const nextZ = scanner.next();
-    if (nextZ.code === code + 20) {
-      point.z = nextZ.value as number;
-    } else {
-      scanner.rewind();
-    }
-  } else {
-    scanner.rewind();
-  }
-  return point;
 }

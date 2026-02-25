@@ -1,7 +1,7 @@
 import type DxfScanner from "../scanner";
 import type { IGroup } from "../scanner";
 import * as helpers from "../parseHelpers";
-import type { IEntityBase } from "../parseHelpers";
+import type { IPoint, IEntityBase } from "../parseHelpers";
 
 interface ILWVertex {
   x: number;
@@ -20,6 +20,7 @@ export interface ILWPolylineEntity extends IEntityBase {
   shape?: boolean;
   hasContinuousLinetypePattern?: boolean;
   width?: number;
+  extrusionDirection?: IPoint;
 }
 
 export function parseLWPolyline(scanner: DxfScanner, curr: IGroup): ILWPolylineEntity {
@@ -49,13 +50,7 @@ export function parseLWPolyline(scanner: DxfScanner, curr: IGroup): ILWPolylineE
         if (curr.value !== 0) entity.width = curr.value as number;
         break;
       case 210:
-        entity.extrusionDirectionX = curr.value as number;
-        break;
-      case 220:
-        entity.extrusionDirectionY = curr.value as number;
-        break;
-      case 230:
-        entity.extrusionDirectionZ = curr.value as number;
+        entity.extrusionDirection = helpers.parsePoint(scanner);
         break;
       default:
         helpers.checkCommonEntityProperties(entity, curr, scanner);

@@ -145,11 +145,8 @@ export function useThreeScene() {
       renderer = new THREE.WebGLRenderer({
         antialias: true,
         alpha: true,
-        preserveDrawingBuffer: true,
       });
       renderer.setSize(containerWidth, containerHeight);
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Unknown error creating renderer";

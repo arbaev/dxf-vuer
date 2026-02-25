@@ -61,6 +61,30 @@ export function parsePoint(scanner: DxfScanner): IPoint {
 }
 
 /**
+ * Парсит точку inline — без rewind, используется в секциях (BLOCKS, TABLES).
+ * Читает Y и Z координаты из следующих групп.
+ */
+export function parsePointInline(scanner: DxfScanner, curr: IGroup): IPoint {
+  const point = {} as IPoint;
+  const code = curr.code;
+  point.x = curr.value as number;
+
+  const nextY = scanner.next();
+  if (nextY.code === code + 10) {
+    point.y = nextY.value as number;
+    const nextZ = scanner.next();
+    if (nextZ.code === code + 20) {
+      point.z = nextZ.value as number;
+    } else {
+      scanner.rewind();
+    }
+  } else {
+    scanner.rewind();
+  }
+  return point;
+}
+
+/**
  * Обрабатывает общие свойства entity (layer, color, handle и т.д.).
  * Возвращает true если группа обработана.
  */
