@@ -10,6 +10,103 @@ import {
 import { createBulgeArc } from "./primitives";
 
 /**
+ * Получить начальную точку ребра HATCH
+ */
+const getEdgeStartPoint = (edge: HatchEdge): { x: number; y: number } => {
+  if (edge.type === "line") {
+    return { x: edge.start.x, y: edge.start.y };
+  } else if (edge.type === "arc") {
+    const startRad = (edge.startAngle * Math.PI) / 180;
+    return {
+      x: edge.center.x + edge.radius * Math.cos(startRad),
+      y: edge.center.y + edge.radius * Math.sin(startRad),
+    };
+  } else if (edge.type === "ellipse") {
+    const pts = ellipseEdgeToPoints(edge, 1);
+    return pts.length > 0 ? { x: pts[0].x, y: pts[0].y } : { x: 0, y: 0 };
+  } else if (edge.type === "spline") {
+    const pts = splineEdgeToPoints(edge);
+    return pts.length > 0 ? { x: pts[0].x, y: pts[0].y } : { x: 0, y: 0 };
+  }
+  return { x: 0, y: 0 };
+};
+
+/**
+ * Вычислить точки эллиптического ребра HATCH
+ * @param segmentOverride — количество сегментов (0 = авто)
+ */
+const ellipseEdgeToPoints = (
+  edge: { center: DxfVertex; majorAxisEndPoint: DxfVertex; axisRatio: number; startAngle: number; endAngle: number; ccw: boolean },
+  segmentOverride = 0,
+): THREE.Vector3[] => {
+  const majorX = edge.majorAxisEndPoint.x;
+  const majorY = edge.majorAxisEndPoint.y;
+  const majorLength = Math.sqrt(majorX * majorX + majorY * majorY);
+  if (majorLength < EPSILON) return [];
+  const minorLength = majorLength * edge.axisRatio;
+  const rotation = Math.atan2(majorY, majorX);
+
+  let startAngle = edge.startAngle; // уже в радианах для HATCH ellipse edge
+  let endAngle = edge.endAngle;
+
+  // Полный эллипс
+  const isFullEllipse =
+    Math.abs(endAngle - startAngle - 2 * Math.PI) < EPSILON ||
+    (Math.abs(startAngle) < EPSILON && Math.abs(endAngle) < EPSILON);
+  if (isFullEllipse) {
+    startAngle = 0;
+    endAngle = 2 * Math.PI;
+  }
+
+  let sweepAngle = endAngle - startAngle;
+  if (edge.ccw) {
+    if (sweepAngle < 0) sweepAngle += 2 * Math.PI;
+  } else {
+    if (sweepAngle > 0) sweepAngle -= 2 * Math.PI;
+  }
+
+  const segments = segmentOverride > 0 ? segmentOverride : Math.max(
+    MIN_ARC_SEGMENTS,
+    Math.floor((Math.abs(sweepAngle) * CIRCLE_SEGMENTS) / (2 * Math.PI)),
+  );
+
+  const points: THREE.Vector3[] = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = startAngle + (i / segments) * sweepAngle;
+    const localX = majorLength * Math.cos(t);
+    const localY = minorLength * Math.sin(t);
+    const worldX = edge.center.x + localX * Math.cos(rotation) - localY * Math.sin(rotation);
+    const worldY = edge.center.y + localX * Math.sin(rotation) + localY * Math.cos(rotation);
+    points.push(new THREE.Vector3(worldX, worldY, 0));
+  }
+  return points;
+};
+
+/**
+ * Вычислить точки сплайнового ребра HATCH (CatmullRom fallback)
+ */
+const splineEdgeToPoints = (
+  edge: { degree: number; knots: number[]; controlPoints: DxfVertex[]; fitPoints?: DxfVertex[] },
+): THREE.Vector3[] => {
+  // Используем fitPoints если есть, иначе controlPoints
+  const sourcePoints = edge.fitPoints && edge.fitPoints.length > 1
+    ? edge.fitPoints
+    : edge.controlPoints;
+
+  if (!sourcePoints || sourcePoints.length < 2) return [];
+
+  const pts = sourcePoints.map((p) => new THREE.Vector3(p.x, p.y, 0));
+
+  // Простой случай — 2 точки = прямая
+  if (pts.length === 2) return pts;
+
+  // CatmullRom интерполяция
+  const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
+  const segments = Math.max(pts.length * 4, 20);
+  return curve.getPoints(segments);
+};
+
+/**
  * Конвертация boundary path HATCH в THREE.ShapePath (для Shape/Path)
  */
 export const boundaryPathToShapePath = (bp: HatchBoundaryPath): THREE.ShapePath | null => {
@@ -18,16 +115,8 @@ export const boundaryPathToShapePath = (bp: HatchBoundaryPath): THREE.ShapePath 
   if (bp.edges && bp.edges.length > 0) {
     // Edge-based boundary
     const firstEdge = bp.edges[0];
-    if (firstEdge.type === "line") {
-      shapePath.moveTo(firstEdge.start.x, firstEdge.start.y);
-    } else {
-      // Для дуги — начальная точка на окружности
-      const startRad = (firstEdge.startAngle * Math.PI) / 180;
-      shapePath.moveTo(
-        firstEdge.center.x + firstEdge.radius * Math.cos(startRad),
-        firstEdge.center.y + firstEdge.radius * Math.sin(startRad),
-      );
-    }
+    const firstPt = getEdgeStartPoint(firstEdge);
+    shapePath.moveTo(firstPt.x, firstPt.y);
 
     for (const edge of bp.edges) {
       addEdgeToPath(shapePath, edge);
@@ -55,13 +144,13 @@ export const boundaryPathToShapePath = (bp: HatchBoundaryPath): THREE.ShapePath 
 };
 
 /**
- * Добавляет ребро HATCH (линия или дуга) в ShapePath
+ * Добавляет ребро HATCH (линия, дуга, эллипс, сплайн) в ShapePath
  */
 export const addEdgeToPath = (shapePath: THREE.ShapePath, edge: HatchEdge): void => {
   if (!shapePath.currentPath) return;
   if (edge.type === "line") {
     shapePath.currentPath.lineTo(edge.end.x, edge.end.y);
-  } else {
+  } else if (edge.type === "arc") {
     // Arc edge — углы в градусах, конвертируем в радианы
     const startRad = (edge.startAngle * Math.PI) / 180;
     const endRad = (edge.endAngle * Math.PI) / 180;
@@ -73,6 +162,18 @@ export const addEdgeToPath = (shapePath: THREE.ShapePath, edge: HatchEdge): void
       endRad,
       !edge.ccw, // THREE.js: aClockwise=true означает CW, DXF ccw=true означает CCW
     );
+  } else if (edge.type === "ellipse") {
+    // Ellipse edge — аппроксимируем точками
+    const pts = ellipseEdgeToPoints(edge);
+    for (let i = 1; i < pts.length; i++) {
+      shapePath.currentPath.lineTo(pts[i].x, pts[i].y);
+    }
+  } else if (edge.type === "spline") {
+    // Spline edge — аппроксимируем точками
+    const pts = splineEdgeToPoints(edge);
+    for (let i = 1; i < pts.length; i++) {
+      shapePath.currentPath.lineTo(pts[i].x, pts[i].y);
+    }
   }
 };
 
@@ -129,7 +230,7 @@ export const boundaryPathToLinePoints = (bp: HatchBoundaryPath): THREE.Vector3[]
           points.push(new THREE.Vector3(edge.start.x, edge.start.y, 0));
         }
         points.push(new THREE.Vector3(edge.end.x, edge.end.y, 0));
-      } else {
+      } else if (edge.type === "arc") {
         const startRad = (edge.startAngle * Math.PI) / 180;
         const endRad = (edge.endAngle * Math.PI) / 180;
         let sweep = endRad - startRad;
@@ -151,6 +252,19 @@ export const boundaryPathToLinePoints = (bp: HatchBoundaryPath): THREE.Vector3[]
               0,
             ),
           );
+        }
+      } else if (edge.type === "ellipse") {
+        const ePts = ellipseEdgeToPoints(edge);
+        // Пропускаем первую точку если уже есть точки (чтобы не дублировать)
+        const startIdx = points.length > 0 ? 1 : 0;
+        for (let i = startIdx; i < ePts.length; i++) {
+          points.push(ePts[i]);
+        }
+      } else if (edge.type === "spline") {
+        const sPts = splineEdgeToPoints(edge);
+        const startIdx = points.length > 0 ? 1 : 0;
+        for (let i = startIdx; i < sPts.length; i++) {
+          points.push(sPts[i]);
         }
       }
     }

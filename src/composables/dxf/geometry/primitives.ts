@@ -7,13 +7,16 @@ import {
   MIN_ARC_SEGMENTS,
   ARROW_BASE_WIDTH_DIVISOR,
   DEGREES_TO_RADIANS_DIVISOR,
+  POINT_MARKER_SIZE,
 } from "@/constants";
 
 /** Контекст цвета для передачи в processEntity */
 export interface EntityColorContext {
   layers: Record<string, DxfLayer>;
   blockColor?: string; // Цвет INSERT entity для ByBlock наследования
-  materialCache: Map<string, THREE.LineBasicMaterial>; // Кеш материалов по цвету
+  materialCache: Map<string, THREE.LineBasicMaterial>; // Кеш линейных материалов по цвету
+  meshMaterialCache: Map<string, THREE.MeshBasicMaterial>; // Кеш mesh материалов (color + DoubleSide)
+  pointsMaterialCache: Map<string, THREE.PointsMaterial>; // Кеш материалов для точек
 }
 
 /** Преобразование градусов в радианы */
@@ -28,6 +31,36 @@ export const getLineMaterial = (
   let mat = cache.get(color);
   if (!mat) {
     mat = new THREE.LineBasicMaterial({ color });
+    cache.set(color, mat);
+  }
+  return mat;
+};
+
+/** Получить MeshBasicMaterial (color + DoubleSide) из кеша или создать новый */
+export const getMeshMaterial = (
+  color: string,
+  cache: Map<string, THREE.MeshBasicMaterial>,
+): THREE.MeshBasicMaterial => {
+  let mat = cache.get(color);
+  if (!mat) {
+    mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
+    cache.set(color, mat);
+  }
+  return mat;
+};
+
+/** Получить PointsMaterial из кеша или создать новый */
+export const getPointsMaterial = (
+  color: string,
+  cache: Map<string, THREE.PointsMaterial>,
+): THREE.PointsMaterial => {
+  let mat = cache.get(color);
+  if (!mat) {
+    mat = new THREE.PointsMaterial({
+      color,
+      size: POINT_MARKER_SIZE,
+      sizeAttenuation: false,
+    });
     cache.set(color, mat);
   }
   return mat;

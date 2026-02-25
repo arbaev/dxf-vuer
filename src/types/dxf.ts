@@ -154,7 +154,26 @@ export interface HatchArcEdge {
   ccw: boolean;
 }
 
-export type HatchEdge = HatchLineEdge | HatchArcEdge;
+export interface HatchEllipseEdge {
+  type: "ellipse";
+  center: DxfVertex;
+  majorAxisEndPoint: DxfVertex; // конечная точка большой оси (относительно center)
+  axisRatio: number; // соотношение малой/большой оси
+  startAngle: number; // в радианах (из DXF)
+  endAngle: number;   // в радианах (из DXF)
+  ccw: boolean;
+}
+
+export interface HatchSplineEdge {
+  type: "spline";
+  degree: number;
+  knots: number[];
+  controlPoints: DxfVertex[];
+  weights?: number[];
+  fitPoints?: DxfVertex[];
+}
+
+export type HatchEdge = HatchLineEdge | HatchArcEdge | HatchEllipseEdge | HatchSplineEdge;
 
 export interface HatchBoundaryPath {
   // Edge-based boundary
@@ -183,6 +202,29 @@ export interface DxfLeaderEntity extends DxfEntityBase {
   vertices: DxfVertex[];
   styleName?: string;
   arrowHeadFlag?: number; // 0 = без стрелки, 1 = со стрелкой
+}
+
+/** Линия лидера внутри MULTILEADER */
+export interface MLeaderLine {
+  vertices: DxfVertex[];
+}
+
+/** Отдельный лидер (может содержать несколько линий) */
+export interface MLeaderBranch {
+  lines: MLeaderLine[];
+  lastLeaderPoint?: DxfVertex; // Точка «приземления» — конец лидера ближе к тексту
+  doglegVector?: DxfVertex;    // Направление «горизонтальной» полки
+  doglegLength?: number;       // Длина полки
+}
+
+export interface DxfMLeaderEntity extends DxfEntityBase {
+  type: "MULTILEADER";
+  leaders: MLeaderBranch[];
+  text?: string;
+  textPosition?: DxfVertex;
+  textHeight?: number;
+  arrowSize?: number;
+  hasArrowHead?: boolean; // По умолчанию true для MLEADER
 }
 
 export interface DxfAttdefEntity extends DxfEntityBase {
@@ -231,6 +273,7 @@ export type DxfEntity =
   | Dxf3DFaceEntity
   | DxfHatchEntity
   | DxfLeaderEntity
+  | DxfMLeaderEntity
   | DxfAttdefEntity
   | DxfUnknownEntity;
 
@@ -288,6 +331,10 @@ export function isHatchEntity(entity: DxfEntity): entity is DxfHatchEntity {
 
 export function isLeaderEntity(entity: DxfEntity): entity is DxfLeaderEntity {
   return entity.type === "LEADER";
+}
+
+export function isMLeaderEntity(entity: DxfEntity): entity is DxfMLeaderEntity {
+  return entity.type === "MULTILEADER";
 }
 
 export function isAttdefEntity(entity: DxfEntity): entity is DxfAttdefEntity {

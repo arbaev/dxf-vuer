@@ -17,6 +17,7 @@ import {
   is3DFaceEntity,
   isHatchEntity,
   isLeaderEntity,
+  isMLeaderEntity,
 } from "@/types/dxf";
 import {
   TEXT_HEIGHT,
@@ -28,7 +29,6 @@ import {
   MIN_NURBS_SEGMENTS,
   CATMULL_ROM_SEGMENTS_MULTIPLIER,
   MIN_CATMULL_ROM_SEGMENTS,
-  POINT_MARKER_SIZE,
   ARROW_SIZE,
 } from "@/constants";
 import { resolveEntityColor } from "@/utils/colorResolver";
@@ -38,6 +38,8 @@ import {
   type EntityColorContext,
   degreesToRadians,
   getLineMaterial,
+  getMeshMaterial,
+  getPointsMaterial,
   createBulgeArc,
   createArrow,
   setLayerName,
@@ -71,7 +73,10 @@ import {
 /**
  * Создание Three.js Mesh для треугольника/четырёхугольника (SOLID, 3DFACE)
  */
-const createFaceMesh = (pts: DxfVertex[], color: string): THREE.Mesh | null => {
+const createFaceMesh = (
+  pts: DxfVertex[],
+  material: THREE.MeshBasicMaterial,
+): THREE.Mesh | null => {
   if (!pts || pts.length < 3) return null;
 
   const geometry = new THREE.BufferGeometry();
@@ -91,10 +96,6 @@ const createFaceMesh = (pts: DxfVertex[], color: string): THREE.Mesh | null => {
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
   geometry.setIndex(indices);
 
-  const material = new THREE.MeshBasicMaterial({
-    color,
-    side: THREE.DoubleSide,
-  });
   return new THREE.Mesh(geometry, material);
 };
 
@@ -149,6 +150,8 @@ const createBlockGroup = (
     layers: colorCtx.layers,
     blockColor: insertColor,
     materialCache: colorCtx.materialCache,
+    meshMaterialCache: colorCtx.meshMaterialCache,
+    pointsMaterialCache: colorCtx.pointsMaterialCache,
   };
 
   const blockGroup = new THREE.Group();
@@ -653,14 +656,16 @@ const processEntity = (
 
     case "SOLID": {
       if (isSolidEntity(entity)) {
-        return createFaceMesh(entity.points, entityColor);
+        const meshMat = getMeshMaterial(entityColor, colorCtx.meshMaterialCache);
+        return createFaceMesh(entity.points, meshMat);
       }
       break;
     }
 
     case "3DFACE": {
       if (is3DFaceEntity(entity)) {
-        return createFaceMesh(entity.vertices, entityColor);
+        const meshMat = getMeshMaterial(entityColor, colorCtx.meshMaterialCache);
+        return createFaceMesh(entity.vertices, meshMat);
       }
       break;
     }
@@ -673,12 +678,8 @@ const processEntity = (
         const geometry = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(pos.x, pos.y, 0),
         ]);
-        const pointMaterial = new THREE.PointsMaterial({
-          color: entityColor,
-          size: POINT_MARKER_SIZE,
-          sizeAttenuation: false,
-        });
-        return new THREE.Points(geometry, pointMaterial);
+        const pointMat = getPointsMaterial(entityColor, colorCtx.pointsMaterialCache);
+        return new THREE.Points(geometry, pointMat);
       }
       break;
     }
@@ -706,11 +707,8 @@ const processEntity = (
           // Если несколько shapes — первый основной, остальные holes
           // (Если в DXF отдельные контуры, ShapeGeometry обработает каждый)
           const geometry = new THREE.ShapeGeometry(shapes);
-          const material = new THREE.MeshBasicMaterial({
-            color: entityColor,
-            side: THREE.DoubleSide,
-          });
-          return new THREE.Mesh(geometry, material);
+          const meshMat = getMeshMaterial(entityColor, colorCtx.meshMaterialCache);
+          return new THREE.Mesh(geometry, meshMat);
         } else {
           // Pattern hatch — контуры + линии паттерна
           const objects: THREE.Object3D[] = [];
@@ -756,15 +754,75 @@ const processEntity = (
         if (entity.arrowHeadFlag === 1 && points.length >= 2) {
           const group = new THREE.Group();
           group.add(leaderLine);
-          const arrowMat = new THREE.MeshBasicMaterial({
-            color: entityColor,
-            side: THREE.DoubleSide,
-          });
+          const arrowMat = getMeshMaterial(entityColor, colorCtx.meshMaterialCache);
           const arrow = createArrow(points[1], points[0], ARROW_SIZE, arrowMat);
           group.add(arrow);
           return group;
         }
         return leaderLine;
+      }
+      break;
+    }
+
+    case "MULTILEADER":
+    case "MLEADER": {
+      if (isMLeaderEntity(entity) && entity.leaders.length > 0) {
+        const group = new THREE.Group();
+        const arrowSize = entity.arrowSize || ARROW_SIZE;
+        const arrowMat = getMeshMaterial(entityColor, colorCtx.meshMaterialCache);
+
+        for (const leader of entity.leaders) {
+          for (const line of leader.lines) {
+            if (line.vertices.length < 2) continue;
+            const points = line.vertices.map(
+              (v) => new THREE.Vector3(v.x, v.y, v.z || 0),
+            );
+
+            // Добавляем lastLeaderPoint как конечную точку (полка)
+            if (leader.lastLeaderPoint) {
+              points.push(new THREE.Vector3(
+                leader.lastLeaderPoint.x,
+                leader.lastLeaderPoint.y,
+                leader.lastLeaderPoint.z || 0,
+              ));
+            }
+
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
+            group.add(new THREE.Line(geo, lineMaterial));
+
+            // Стрелка на первой вершине
+            if (entity.hasArrowHead !== false && points.length >= 2) {
+              const arrow = createArrow(points[1], points[0], arrowSize, arrowMat);
+              group.add(arrow);
+            }
+          }
+        }
+
+        // Текст
+        if (entity.text && entity.textPosition) {
+          const textHeight = entity.textHeight || TEXT_HEIGHT;
+          const textContent = replaceSpecialChars(entity.text);
+          if (textContent) {
+            const textMesh = createTextMesh(
+              textContent,
+              textHeight,
+              entityColor,
+              false,
+              false,
+              "left",
+              "Arial",
+              "middle",
+            );
+            textMesh.position.set(
+              entity.textPosition.x,
+              entity.textPosition.y,
+              0,
+            );
+            group.add(textMesh);
+          }
+        }
+
+        return group.children.length > 0 ? group : null;
       }
       break;
     }
@@ -795,10 +853,12 @@ export function createThreeObjectsFromDXF(dxf: DxfData): {
     Object.assign(layers, dxf.tables.layer.layers);
   }
 
-  // Контекст цвета с кешем материалов
+  // Контекст цвета с кешами материалов
   const colorCtx: EntityColorContext = {
     layers,
     materialCache: new Map(),
+    meshMaterialCache: new Map(),
+    pointsMaterialCache: new Map(),
   };
 
   const errors: string[] = [];

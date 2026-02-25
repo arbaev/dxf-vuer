@@ -20,7 +20,26 @@ interface IHatchEdgeArc {
   ccw: boolean;
 }
 
-type IHatchEdge = IHatchEdgeLine | IHatchEdgeArc;
+interface IHatchEdgeEllipse {
+  type: "ellipse";
+  center: IPoint;
+  majorAxisEndPoint: IPoint;
+  axisRatio: number;
+  startAngle: number;
+  endAngle: number;
+  ccw: boolean;
+}
+
+interface IHatchEdgeSpline {
+  type: "spline";
+  degree: number;
+  knots: number[];
+  controlPoints: IPoint[];
+  weights?: number[];
+  fitPoints?: IPoint[];
+}
+
+type IHatchEdge = IHatchEdgeLine | IHatchEdgeArc | IHatchEdgeEllipse | IHatchEdgeSpline;
 
 interface IHatchBoundaryPath {
   edges?: IHatchEdge[];
@@ -104,8 +123,83 @@ function parseEdgeBoundary(scanner: DxfScanner, curr: IGroup): { path: IHatchBou
         endAngle,
         ccw,
       });
+    } else if (edgeType === 3) {
+      // Ellipse edge: center (10/20), majorAxisEndPoint (11/21), axisRatio (40),
+      // startAngle (50), endAngle (51), ccw (73)
+      let cx = 0, cy = 0, mx = 0, my = 0, ratio = 1, startAngle = 0, endAngle = 0, ccw = false;
+      while (curr.code !== 0 && curr.code !== 72 && curr.code !== 92 && curr.code !== 93 && curr.code !== 97) {
+        switch (curr.code) {
+          case 10: cx = curr.value as number; break;
+          case 20: cy = curr.value as number; break;
+          case 11: mx = curr.value as number; break;
+          case 21: my = curr.value as number; break;
+          case 40: ratio = curr.value as number; break;
+          case 50: startAngle = curr.value as number; break;
+          case 51: endAngle = curr.value as number; break;
+          case 73: ccw = (curr.value as number) !== 0; break;
+        }
+        if (curr.code === 73) { curr = scanner.next(); break; }
+        curr = scanner.next();
+      }
+      edges.push({
+        type: "ellipse",
+        center: { x: cx, y: cy },
+        majorAxisEndPoint: { x: mx, y: my },
+        axisRatio: ratio,
+        startAngle,
+        endAngle,
+        ccw,
+      });
+    } else if (edgeType === 4) {
+      // Spline edge: degree (94), rational (73), periodic (74),
+      // numKnots (95), numControlPoints (96), knots (40×N), controlPoints (10/20×N), weights (42×N),
+      // numFitPoints (97), fitPoints (11/21×N)
+      let degree = 3;
+      const knots: number[] = [];
+      const controlPoints: IPoint[] = [];
+      const weights: number[] = [];
+      const fitPoints: IPoint[] = [];
+
+      // Читаем заголовочные поля сплайна
+      while (curr.code !== 0 && curr.code !== 72 && curr.code !== 92 && curr.code !== 93) {
+        switch (curr.code) {
+          case 94: degree = curr.value as number; break;
+          case 73: break; // rational flag
+          case 74: break; // periodic flag
+          case 95: break; // numKnots — информационное
+          case 96: break; // numControlPoints — информационное
+          case 40: knots.push(curr.value as number); break;
+          case 10: {
+            const px = curr.value as number;
+            curr = scanner.next();
+            const py = curr.code === 20 ? (curr.value as number) : 0;
+            controlPoints.push({ x: px, y: py });
+            break;
+          }
+          case 42: weights.push(curr.value as number); break;
+          case 97: break; // numFitPoints — информационное
+          case 11: {
+            const fx = curr.value as number;
+            curr = scanner.next();
+            const fy = curr.code === 21 ? (curr.value as number) : 0;
+            fitPoints.push({ x: fx, y: fy });
+            break;
+          }
+          default: break;
+        }
+        curr = scanner.next();
+      }
+      const edge: IHatchEdgeSpline = {
+        type: "spline",
+        degree,
+        knots,
+        controlPoints,
+      };
+      if (weights.length > 0) edge.weights = weights;
+      if (fitPoints.length > 0) edge.fitPoints = fitPoints;
+      edges.push(edge);
     } else {
-      // Ellipse edge (3), spline edge (4) и другие — пропускаем
+      // Неизвестный тип ребра — пропускаем
       while (curr.code !== 0 && curr.code !== 72 && curr.code !== 92 && curr.code !== 93 && curr.code !== 97) {
         curr = scanner.next();
       }

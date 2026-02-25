@@ -16,5 +16,12 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          three: ["three", "three/examples/jsm/curves/NURBSCurve.js"],
+        },
+      },
+    },
   },
 });

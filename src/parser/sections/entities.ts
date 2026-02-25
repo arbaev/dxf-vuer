@@ -21,6 +21,10 @@ import { parsePolyline } from "../entities/polyline";
 import { parseLWPolyline } from "../entities/lwpolyline";
 import { parseHatch } from "../entities/hatch";
 import { parseLeader } from "../entities/leader";
+import { parseMultiLeader } from "../entities/multileader";
+import { parseViewport } from "../entities/viewport";
+import { parseImage } from "../entities/image";
+import { parseWipeout } from "../entities/wipeout";
 
 type EntityHandler = (scanner: DxfScanner, curr: IGroup) => IEntityBase;
 
@@ -42,6 +46,11 @@ const entityHandlers: Record<string, EntityHandler> = {
   LWPOLYLINE: parseLWPolyline,
   HATCH: parseHatch,
   LEADER: parseLeader,
+  MULTILEADER: parseMultiLeader,
+  MLEADER: parseMultiLeader,
+  VIEWPORT: parseViewport,
+  IMAGE: parseImage,
+  WIPEOUT: parseWipeout,
 };
 
 /**
@@ -71,11 +80,23 @@ export function parseEntities(
 
       const handler = entityHandlers[curr.value as string];
       if (handler) {
-        const entity = handler(scanner, curr);
-        curr = scanner.lastReadGroup;
-        // Гарантируем наличие handle
-        if (!entity.handle) entity.handle = lastHandle++;
-        entities.push(entity);
+        try {
+          const entity = handler(scanner, curr);
+          curr = scanner.lastReadGroup;
+          // Гарантируем наличие handle
+          if (!entity.handle) entity.handle = lastHandle++;
+          entities.push(entity);
+        } catch (error) {
+          console.warn(
+            `⚠️ Ошибка парсинга entity "${curr.value}":`,
+            error instanceof Error ? error.message : error,
+          );
+          // Пропускаем повреждённый entity — читаем до следующего code 0
+          curr = scanner.lastReadGroup;
+          while (!scanner.isEOF() && curr.code !== 0) {
+            curr = scanner.next();
+          }
+        }
       } else {
         // Неизвестный entity — пропускаем
         curr = scanner.next();
