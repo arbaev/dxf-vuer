@@ -45,6 +45,9 @@ import {
   CATMULL_ROM_SEGMENTS_MULTIPLIER,
   MIN_CATMULL_ROM_SEGMENTS,
   POINT_MARKER_SIZE,
+  MAX_HATCH_SEGMENTS,
+  MAX_HATCH_LINES_PER_PATTERN,
+  MAX_TEXT_FONT_SIZE,
 } from "@/constants";
 import { resolveEntityColor, rgbNumberToHex } from "@/utils/colorResolver";
 import ACI_PALETTE from "@/parser/acadColorIndex";
@@ -1816,7 +1819,7 @@ const createStackedTextMesh = (
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d")!;
 
-  const fontSize = Math.max(height * CANVAS_SCALE, TEXT_HEIGHT);
+  const fontSize = Math.min(Math.max(height * CANVAS_SCALE, TEXT_HEIGHT), MAX_TEXT_FONT_SIZE);
   const fontStyle = `${italic ? "italic " : ""}${bold ? "bold " : ""}${fontSize}px '${fontFamily}', Arial, sans-serif`;
   const stackedFontSize = fontSize * STACKED_RATIO;
   const stackedFontStyle = `${italic ? "italic " : ""}${bold ? "bold " : ""}${stackedFontSize}px '${fontFamily}', Arial, sans-serif`;
@@ -1928,7 +1931,7 @@ const createTextMesh = (
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d")!;
 
-  const fontSize = Math.max(height * CANVAS_SCALE, TEXT_HEIGHT);
+  const fontSize = Math.min(Math.max(height * CANVAS_SCALE, TEXT_HEIGHT), MAX_TEXT_FONT_SIZE);
   const fontStyle = `${italic ? "italic " : ""}${bold ? "bold " : ""}${fontSize}px '${fontFamily}', Arial, sans-serif`;
   context.font = fontStyle;
   const textMetrics = context.measureText(text);
@@ -2283,12 +2286,18 @@ const generateHatchPattern = (
     const startIdx = Math.floor(minProj / spacing);
     const endIdx = Math.ceil(maxProj / spacing);
 
+    // Защита от слишком большого количества линий
+    if (endIdx - startIdx > MAX_HATCH_LINES_PER_PATTERN) continue;
+
     // Общая длина одного повтора дэш-паттерна
     const dashTotal = pl.dashes.reduce((s, d) => s + Math.abs(d), 0);
     // Если нет дэшей — сплошная линия
     const isSolid = pl.dashes.length === 0 || dashTotal < EPSILON;
 
     for (let i = startIdx; i <= endIdx; i++) {
+      // Защита от слишком большого количества сегментов
+      if (allSegments.length >= MAX_HATCH_SEGMENTS) break;
+
       // Начало линии: basePoint + i * spacing * perp + i * stagger * dir
       const ox = pl.basePoint.x + i * spacing * perpX + i * stagger * dirX;
       const oy = pl.basePoint.y + i * spacing * perpY + i * stagger * dirY;
@@ -2336,6 +2345,9 @@ const generateHatchPattern = (
         }
       }
     }
+
+    // Защита от слишком большого количества сегментов (между patternLines)
+    if (allSegments.length >= MAX_HATCH_SEGMENTS) break;
   }
 
   return allSegments;
@@ -2590,11 +2602,13 @@ const processEntity = (
       if (isTextEntity(entity)) {
         const textPosition = entity.position || entity.startPoint;
         const textContent = entity.text;
+        // Пустой текст — пропускаем без ошибки
+        if (!textContent) return new THREE.Group();
         const textHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
         const hAlign = getTextHAlign(entity.halign);
         const vAlign = getTextVAlign(entity.valign);
 
-        if (textPosition && textContent) {
+        if (textPosition) {
           const textMesh = createTextMesh(
             replaceSpecialChars(textContent),
             textHeight,
@@ -2622,11 +2636,13 @@ const processEntity = (
       if (isTextEntity(entity)) {
         const textPosition = entity.position || entity.startPoint;
         const textContent = entity.text;
+        // Пустой текст — пропускаем без ошибки
+        if (!textContent) return new THREE.Group();
         const defaultHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
         const hAlign = getMTextHAlign(entity.attachmentPoint);
         const vAlign = getMTextVAlign(entity.attachmentPoint);
 
-        if (textPosition && textContent) {
+        if (textPosition) {
           const lines = parseMTextContent(textContent);
 
           if (lines.length === 1) {

@@ -83,7 +83,12 @@ function parsePolylineVertices(scanner: DxfScanner, curr: IGroup): IVertexEntity
       } else if (curr.value === "SEQEND") {
         parseSeqEnd(scanner, curr);
         break;
+      } else {
+        // Неизвестная entity — выходим, чтобы не зациклиться
+        break;
       }
+    } else {
+      curr = scanner.next();
     }
   }
   return vertices;

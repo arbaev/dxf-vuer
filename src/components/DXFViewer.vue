@@ -57,6 +57,14 @@
       @hide-all="handleHideAllLayers"
     />
 
+    <!-- Лоадер при загрузке файла -->
+    <div v-if="isLoading" class="message-overlay loading-overlay">
+      <div class="message-content">
+        <div class="spinner"></div>
+        <div class="message-text">Loading DXF file...</div>
+      </div>
+    </div>
+
     <!-- Placeholder когда нет данных -->
     <div v-else-if="!hasDXFData" class="message-overlay">
       <div class="message-content placeholder">
@@ -113,6 +121,7 @@ const emit = defineEmits<Emits>();
 const dxfContainer = ref<HTMLDivElement | null>(null);
 
 const {
+  isLoading,
   webGLSupported,
   error: rendererError,
   initThreeJS,
@@ -175,25 +184,34 @@ const handleHideAllLayers = () => {
 };
 
 const loadDXFFromText = (dxfText: string) => {
-  try {
-    const dxf = parseDXF(dxfText);
-    lastLoadedDxf = dxf;
-    const unsupportedEntities = displayDXF(dxf);
-    initLayersFromDXF(dxf);
-    emit("dxf-loaded", true);
-    emit("dxf-data", dxf);
+  isLoading.value = true;
+  // Двойной requestAnimationFrame гарантирует, что браузер успеет отрисовать спиннер
+  // перед синхронной блокировкой парсинга/рендеринга
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      try {
+        const dxf = parseDXF(dxfText);
+        lastLoadedDxf = dxf;
+        const unsupportedEntities = displayDXF(dxf);
+        initLayersFromDXF(dxf);
+        emit("dxf-loaded", true);
+        emit("dxf-data", dxf);
 
-    // Передаем неподдерживаемые entity наружу
-    if (unsupportedEntities && unsupportedEntities.length > 0) {
-      emit("unsupported-entities", unsupportedEntities);
-    }
-  } catch (error) {
-    clearLayers();
-    const errorMsg = error instanceof Error ? error.message : "Unknown error loading DXF";
-    emit("error", errorMsg);
-    emit("dxf-loaded", false);
-    emit("dxf-data", null);
-  }
+        // Передаем неподдерживаемые entity наружу
+        if (unsupportedEntities && unsupportedEntities.length > 0) {
+          emit("unsupported-entities", unsupportedEntities);
+        }
+      } catch (error) {
+        clearLayers();
+        const errorMsg = error instanceof Error ? error.message : "Unknown error loading DXF";
+        emit("error", errorMsg);
+        emit("dxf-loaded", false);
+        emit("dxf-data", null);
+      } finally {
+        isLoading.value = false;
+      }
+    });
+  });
 };
 
 const loadDXFFromData = (dxfData: DxfData) => {
@@ -374,6 +392,26 @@ defineExpose({
   font-size: 1rem;
   color: var(--text-secondary);
   max-width: 300px;
+}
+
+.loading-overlay {
+  z-index: 20;
+  background-color: rgba(250, 250, 250, 0.85);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 768px) {

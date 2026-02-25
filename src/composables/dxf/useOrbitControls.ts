@@ -5,8 +5,8 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 // Настройки OrbitControls
 const ENABLE_DAMPING = false; // Плавное затухание движения (отключено для экономии ресурсов)
 const DAMPING_FACTOR = 0.05; // Коэффициент затухания
-const MIN_ZOOM = 0.1; // Минимальный zoom для OrthographicCamera
-const MAX_ZOOM = 50; // Максимальный zoom для OrthographicCamera
+const MIN_ZOOM = 0.00001; // Минимальный zoom для OrthographicCamera (большие чертежи)
+const MAX_ZOOM = 1000; // Максимальный zoom для OrthographicCamera
 const PAN_SPEED = 1.0; // Скорость панорамирования
 const ZOOM_SPEED = 1.0; // Скорость зума
 

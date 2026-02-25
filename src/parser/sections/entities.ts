@@ -63,7 +63,7 @@ export function parseEntities(
     curr = scanner.lastReadGroup;
   }
 
-  while (true) {
+  while (!scanner.isEOF()) {
     if (curr.code === 0) {
       if (curr.value === endingOnValue) {
         break;

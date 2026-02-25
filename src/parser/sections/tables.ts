@@ -145,13 +145,13 @@ function parseLayers(scanner: DxfScanner): Record<string, ILayer> {
         curr = scanner.next();
         break;
       case 0:
-        // Новый слой
+        // Новый слой или неизвестное значение — сохраняем слой и продвигаем сканер
         if (curr.value === "LAYER") {
           layers[layerName!] = layer;
           layer = {} as ILayer;
           layerName = undefined;
-          curr = scanner.next();
         }
+        curr = scanner.next();
         break;
       default:
         curr = scanner.next();
@@ -239,11 +239,12 @@ function parseViewPortRecords(scanner: DxfScanner): Record<string, unknown>[] {
         curr = scanner.next();
         break;
       case 0:
+        // Новый VPORT или неизвестное значение — сохраняем и продвигаем сканер
         if (curr.value === "VPORT") {
           viewPorts.push(viewPort);
           viewPort = {};
-          curr = scanner.next();
         }
+        curr = scanner.next();
         break;
       default:
         curr = scanner.next();
