@@ -25,6 +25,7 @@ import {
   isPointEntity,
   is3DFaceEntity,
   isHatchEntity,
+  isLeaderEntity,
 } from "@/types/dxf";
 import {
   TEXT_HEIGHT,
@@ -1562,48 +1563,49 @@ const createBlockGroup = (
   return blockGroup;
 };
 
-/**
- * Рендерит анонимный блок (*Dxx) для DIMENSION entity.
- * Приоритет: готовая геометрия от AutoCAD (LINE, MTEXT, SOLID).
- * Координаты в блоке абсолютные — трансформации не нужны.
- */
-const renderDimensionBlock = (
-  dimEntity: DxfDimensionEntity,
-  dxf: DxfData,
-  colorCtx: EntityColorContext,
-  depth: number,
-): THREE.Object3D[] | null => {
-  const blockName = dimEntity.block;
-  if (!blockName || !dxf.blocks?.[blockName]) return null;
-
-  const block = dxf.blocks[blockName];
-  if (!block.entities || block.entities.length === 0) return null;
-
-  // Цвет DIMENSION entity для ByBlock наследования (entity внутри блока имеют color=0)
-  const dimColor = resolveEntityColor(dimEntity, colorCtx.layers, colorCtx.blockColor);
-  const blockColorCtx: EntityColorContext = {
-    layers: colorCtx.layers,
-    blockColor: dimColor,
-    materialCache: colorCtx.materialCache,
-  };
-
-  const objects: THREE.Object3D[] = [];
-  for (const entity of block.entities) {
-    // Defpoints — служебный слой AutoCAD, не отображается
-    if (entity.layer?.toLowerCase() === "defpoints") continue;
-    try {
-      const obj = processEntity(entity, dxf, blockColorCtx, depth + 1);
-      if (obj) {
-        if (Array.isArray(obj)) objects.push(...obj);
-        else objects.push(obj);
-      }
-    } catch (error) {
-      console.warn(`⚠️ Ошибка в dimension block "${blockName}":`, error);
-    }
-  }
-
-  return objects.length > 0 ? objects : null;
-};
+// TODO: включить после доработки fallback-рендера
+// /**
+//  * Рендерит анонимный блок (*Dxx) для DIMENSION entity.
+//  * Приоритет: готовая геометрия от AutoCAD (LINE, MTEXT, SOLID).
+//  * Координаты в блоке абсолютные — трансформации не нужны.
+//  */
+// const renderDimensionBlock = (
+//   dimEntity: DxfDimensionEntity,
+//   dxf: DxfData,
+//   colorCtx: EntityColorContext,
+//   depth: number,
+// ): THREE.Object3D[] | null => {
+//   const blockName = dimEntity.block;
+//   if (!blockName || !dxf.blocks?.[blockName]) return null;
+//
+//   const block = dxf.blocks[blockName];
+//   if (!block.entities || block.entities.length === 0) return null;
+//
+//   // Цвет DIMENSION entity для ByBlock наследования (entity внутри блока имеют color=0)
+//   const dimColor = resolveEntityColor(dimEntity, colorCtx.layers, colorCtx.blockColor);
+//   const blockColorCtx: EntityColorContext = {
+//     layers: colorCtx.layers,
+//     blockColor: dimColor,
+//     materialCache: colorCtx.materialCache,
+//   };
+//
+//   const objects: THREE.Object3D[] = [];
+//   for (const entity of block.entities) {
+//     // Defpoints — служебный слой AutoCAD, не отображается
+//     if (entity.layer?.toLowerCase() === "defpoints") continue;
+//     try {
+//       const obj = processEntity(entity, dxf, blockColorCtx, depth + 1);
+//       if (obj) {
+//         if (Array.isArray(obj)) objects.push(...obj);
+//         else objects.push(obj);
+//       }
+//     } catch (error) {
+//       console.warn(`⚠️ Ошибка в dimension block "${blockName}":`, error);
+//     }
+//   }
+//
+//   return objects.length > 0 ? objects : null;
+// };
 
 /** Строка MTEXT с опциональным переопределением цвета, высоты и стиля */
 interface MTextLine {
@@ -2735,11 +2737,12 @@ const processEntity = (
 
     case "DIMENSION": {
       if (isDimensionEntity(entity)) {
+        // TODO: включить после доработки fallback-рендера
         // Приоритет: рендерим анонимный блок от AutoCAD (точное совпадение)
-        const blockResult = renderDimensionBlock(entity, dxf, colorCtx, depth);
-        if (blockResult) return blockResult;
+        // const blockResult = renderDimensionBlock(entity, dxf, colorCtx, depth);
+        // if (blockResult) return blockResult;
 
-        // Fallback: строим из семантических данных
+        // Строим из семантических данных
         const baseDimType = (entity.dimensionType ?? 0) & 0x0f;
 
         // Ordinate dimension (тип 6 = Y-ordinate, тип 7 = X-ordinate)
@@ -2939,6 +2942,17 @@ const processEntity = (
 
           return objects.length > 0 ? objects : null;
         }
+      }
+      break;
+    }
+
+    case "LEADER": {
+      if (isLeaderEntity(entity) && entity.vertices.length >= 2) {
+        const points = entity.vertices.map(
+          (v) => new THREE.Vector3(v.x, v.y, v.z || 0),
+        );
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        return new THREE.Line(geometry, lineMaterial);
       }
       break;
     }

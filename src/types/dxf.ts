@@ -186,6 +186,13 @@ export interface DxfHatchEntity extends DxfEntityBase {
   patternLines?: HatchPatternLine[];
 }
 
+export interface DxfLeaderEntity extends DxfEntityBase {
+  type: "LEADER";
+  vertices: DxfVertex[];
+  styleName?: string;
+  arrowHeadFlag?: number; // 0 = без стрелки, 1 = со стрелкой
+}
+
 // Для неизвестных или неподдерживаемых типов
 export interface DxfUnknownEntity extends DxfEntityBase {
   type: string;
@@ -206,6 +213,7 @@ export type DxfEntity =
   | DxfPointEntity
   | Dxf3DFaceEntity
   | DxfHatchEntity
+  | DxfLeaderEntity
   | DxfUnknownEntity;
 
 export function isLineEntity(entity: DxfEntity): entity is DxfLineEntity {
@@ -258,6 +266,10 @@ export function is3DFaceEntity(entity: DxfEntity): entity is Dxf3DFaceEntity {
 
 export function isHatchEntity(entity: DxfEntity): entity is DxfHatchEntity {
   return entity.type === "HATCH";
+}
+
+export function isLeaderEntity(entity: DxfEntity): entity is DxfLeaderEntity {
+  return entity.type === "LEADER";
 }
 
 // Слой DXF файла
