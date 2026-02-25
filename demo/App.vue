@@ -1,7 +1,7 @@
 <template>
   <div class="app">
     <header class="app-header">
-      <h1 class="app-logo">DXF Vuer</h1>
+      <a href="/" class="app-logo">DXF Vuer</a>
 
       <FileUploader @file-selected="handleFileSelected" />
 
@@ -21,6 +21,15 @@
     </header>
 
     <main class="app-main">
+      <section class="hero">
+        <h1>DXF Viewer for Vue 3</h1>
+        <p class="hero-subtitle">
+          View AutoCAD DXF drawings in the browser. Built-in parser,
+          Three.js rendering, TypeScript-ready.
+        </p>
+        <code class="hero-install">npm install dxf-vuer three</code>
+      </section>
+
       <div v-if="error" class="error-message">
         <svg
           width="20"
@@ -53,35 +62,70 @@
         />
       </div>
 
-      <DXFStatistics v-if="statistics" :statistics="statistics" />
+      <section class="features">
+        <div class="feature-card">
+          <h3>Built-in Parser</h3>
+          <p>Custom DXF parser with zero external dependencies.
+            16 entity types including dimensions, hatches, and splines.</p>
+        </div>
+        <div class="feature-card">
+          <h3>WebGL Rendering</h3>
+          <p>Three.js-powered rendering with pan, zoom, layer visibility,
+            and AutoCAD Color Index support.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Framework Flexible</h3>
+          <p>Vue 3 component or standalone parser via dxf-vuer/parser.
+            Works in Node.js, React, or any JS runtime.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Lightweight</h3>
+          <p>~75 KB main bundle, ~40 KB parser.
+            Tree-shakeable composables for custom builds.</p>
+        </div>
+      </section>
+
+      <footer class="app-footer">
+        MIT License &middot;
+        <a href="https://www.npmjs.com/package/dxf-vuer" target="_blank" rel="noopener noreferrer">npm</a> &middot;
+        <a href="https://github.com/arbaev/dxf-vuer" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </footer>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted, nextTick } from "vue";
 import FileUploader from "@/components/FileUploader.vue";
 import UnsupportedEntities from "@/components/UnsupportedEntities.vue";
 import DXFViewer from "@/components/DXFViewer.vue";
-import DXFStatistics from "@/components/DXFStatistics.vue";
-import type { DxfData, DxfStatistics } from "@/types/dxf";
-import { collectDXFStatistics } from "@/utils/dxfStatistics";
+import type { DxfData } from "@/types/dxf";
 
 const dxfData = ref<DxfData | null>(null);
 const unsupportedEntities = ref<string[]>([]);
 const error = ref<string | null>(null);
 const currentFileName = ref<string>("");
-const currentFileSize = ref<number>(0);
-const statistics = ref<DxfStatistics | null>(null);
 const dxfViewerRef = ref<InstanceType<typeof DXFViewer> | null>(null);
+
+onMounted(async () => {
+  await nextTick();
+  try {
+    const response = await fetch("/entities.dxf");
+    const text = await response.text();
+    currentFileName.value = "entities.dxf";
+    if (dxfViewerRef.value) {
+      dxfViewerRef.value.loadDXFFromText(text);
+    }
+  } catch {
+    // Sample file not available — ignore
+  }
+});
 
 const handleFileSelected = async (file: File) => {
   try {
     error.value = null;
     unsupportedEntities.value = [];
-    statistics.value = null;
     currentFileName.value = file.name;
-    currentFileSize.value = file.size;
 
     const text = await file.text();
 
@@ -94,7 +138,6 @@ const handleFileSelected = async (file: File) => {
     error.value = err instanceof Error ? err.message : "Error loading file";
     dxfData.value = null;
     unsupportedEntities.value = [];
-    statistics.value = null;
   }
 };
 
@@ -114,12 +157,6 @@ const handleDXFLoaded = (success: boolean) => {
 
 const handleDXFData = (data: DxfData | null) => {
   dxfData.value = data;
-
-  if (data && currentFileName.value) {
-    statistics.value = collectDXFStatistics(data, currentFileName.value, currentFileSize.value);
-  } else {
-    statistics.value = null;
-  }
 };
 
 const resetView = () => {
@@ -153,6 +190,8 @@ const resetView = () => {
   font-weight: 600;
   letter-spacing: -0.5px;
   white-space: nowrap;
+  text-decoration: none;
+  color: inherit;
 }
 
 .github-link {
@@ -175,14 +214,97 @@ const resetView = () => {
   flex-direction: column;
   padding: var(--spacing-lg);
   width: 100%;
-  height: calc(100vh - var(--header-height) - var(--spacing-lg) * 2);
 }
 
 .viewer-container {
-  flex: 1;
   display: flex;
+  height: 500px;
+  max-width: var(--content-max-width);
+  width: 100%;
+  margin: 0 auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+.hero {
+  text-align: center;
+  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-md);
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+}
+
+.hero h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-color);
+  margin-bottom: var(--spacing-sm);
+}
+
+.hero-subtitle {
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin: 0 auto var(--spacing-md);
+  line-height: 1.6;
+}
+
+.hero-install {
+  display: inline-block;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: #f5f5f5;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.9rem;
+  color: var(--text-color);
+  user-select: all;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-md);
+  max-width: var(--content-max-width);
+  margin: var(--spacing-lg) auto 0;
+  padding: 0;
+}
+
+.feature-card {
+  padding: var(--spacing-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: white;
+}
+
+.feature-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  color: var(--text-color);
+}
+
+.feature-card p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
   margin: 0;
-  height: 100%;
+}
+
+.app-footer {
+  text-align: center;
+  padding: var(--spacing-lg);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.app-footer a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.app-footer a:hover {
+  text-decoration: underline;
 }
 
 .error-message {
@@ -214,11 +336,22 @@ const resetView = () => {
 
   .app-main {
     padding: var(--spacing-md);
-    height: calc(100vh - var(--header-height) - var(--spacing-md) * 2);
+  }
+
+  .hero h1 {
+    font-size: 1.5rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
   }
 
   .viewer-container {
-    margin: 0;
+    height: 350px;
+  }
+
+  .features {
+    grid-template-columns: 1fr;
   }
 }
 </style>
