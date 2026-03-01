@@ -562,7 +562,7 @@ const processEntity = (
 
         // Angular dimension (type 2)
         if (baseDimType === 2) {
-          return createAngularDimension(entity, entityColor);
+          return createAngularDimension(entity, entityColor, colorCtx.globalLtScale);
         }
 
         // Diametric dimension (type 3)
@@ -597,6 +597,7 @@ const processEntity = (
           dimData.isRadial,
           entityColor,
           dimAngle,
+          colorCtx.globalLtScale,
         );
 
         const objects: THREE.Object3D[] = [dimGroup];

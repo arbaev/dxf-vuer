@@ -16,7 +16,7 @@ import {
 import { createArrow } from "./primitives";
 import { replaceSpecialChars } from "./text";
 
-export const EXTENSION_LINE_OVERSHOOT = 2;
+const EXTENSION_LINE_OVERSHOOT = 2;
 
 export const createExtensionLine = (
   from: THREE.Vector3,
@@ -26,13 +26,16 @@ export const createExtensionLine = (
   // Dashed extension lines extend beyond the dimension line per AutoCAD convention
   let endPoint = to;
   if (material instanceof THREE.LineDashedMaterial) {
+    // Scale overshoot proportionally to the dash size
+    const scale = material.dashSize / EXTENSION_LINE_DASH_SIZE;
+    const overshoot = EXTENSION_LINE_OVERSHOOT * scale;
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const len = Math.sqrt(dx * dx + dy * dy);
     if (len > EPSILON) {
       endPoint = new THREE.Vector3(
-        to.x + (dx / len) * EXTENSION_LINE_OVERSHOOT,
-        to.y + (dy / len) * EXTENSION_LINE_OVERSHOOT,
+        to.x + (dx / len) * overshoot,
+        to.y + (dy / len) * overshoot,
         to.z,
       );
     }
@@ -332,14 +335,15 @@ export const createDimensionGroup = (
   isRadial: boolean,
   color: string,
   angle: number = 0,
+  dimScale: number = 1,
 ): THREE.Group => {
   const dimGroup = new THREE.Group();
 
   const dimLineMaterial = new THREE.LineBasicMaterial({ color });
   const extensionLineMaterial = new THREE.LineDashedMaterial({
     color,
-    dashSize: EXTENSION_LINE_DASH_SIZE,
-    gapSize: EXTENSION_LINE_GAP_SIZE,
+    dashSize: EXTENSION_LINE_DASH_SIZE * dimScale,
+    gapSize: EXTENSION_LINE_GAP_SIZE * dimScale,
   });
   const arrowMaterial = new THREE.MeshBasicMaterial({
     color,
@@ -1047,6 +1051,7 @@ export const isAngleInSweep = (startAngle: number, endAngle: number, testAngle: 
 export const createAngularDimension = (
   entity: DxfDimensionEntity,
   color: string,
+  dimScale: number = 1,
 ): THREE.Object3D[] | null => {
   const p13 = entity.linearOrAngularPoint1; // code 13 -- end 1 of first line
   const p14 = entity.linearOrAngularPoint2; // code 14 -- end 2 of first line
@@ -1113,8 +1118,8 @@ export const createAngularDimension = (
   const lineMat = new THREE.LineBasicMaterial({ color });
   const dashedMat = new THREE.LineDashedMaterial({
     color,
-    dashSize: EXTENSION_LINE_DASH_SIZE,
-    gapSize: EXTENSION_LINE_GAP_SIZE,
+    dashSize: EXTENSION_LINE_DASH_SIZE * dimScale,
+    gapSize: EXTENSION_LINE_GAP_SIZE * dimScale,
   });
   const arrowMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
 
