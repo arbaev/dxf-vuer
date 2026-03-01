@@ -31,6 +31,7 @@ import {
   ARROW_SIZE,
 } from "@/constants";
 import { resolveEntityColor } from "@/utils/colorResolver";
+import { resolveEntityLinetype } from "@/utils/linetypeResolver";
 
 import {
   type EntityColorContext,
@@ -40,6 +41,7 @@ import {
   getPointsMaterial,
   createBulgeArc,
   createArrow,
+  createLine,
   setLayerName,
 } from "./geometry/primitives";
 import {
@@ -137,6 +139,9 @@ const createBlockGroup = (
     materialCache: colorCtx.materialCache,
     meshMaterialCache: colorCtx.meshMaterialCache,
     pointsMaterialCache: colorCtx.pointsMaterialCache,
+    lineTypes: colorCtx.lineTypes,
+    globalLtScale: colorCtx.globalLtScale,
+    blockLineType: insertEntity.lineType || colorCtx.blockLineType,
   };
 
   const blockGroup = new THREE.Group();
@@ -178,6 +183,13 @@ const processEntity = (
   depth = 0,
 ): THREE.Object3D | THREE.Object3D[] | null => {
   const entityColor = resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor);
+  const ltInfo = resolveEntityLinetype(
+    entity,
+    colorCtx.layers,
+    colorCtx.lineTypes,
+    colorCtx.globalLtScale,
+    colorCtx.blockLineType,
+  );
   const lineMaterial = getLineMaterial(entityColor, colorCtx.materialCache);
 
   switch (entity.type) {
@@ -189,8 +201,7 @@ const processEntity = (
           new THREE.Vector3(vertex0.x, vertex0.y, 0),
           new THREE.Vector3(vertex1.x, vertex1.y, 0),
         ];
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        return new THREE.Line(geometry, lineMaterial);
+        return createLine(points, lineMaterial, ltInfo?.pattern);
       }
       break;
     }
@@ -208,8 +219,7 @@ const processEntity = (
             ),
           );
         }
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        return new THREE.Line(geometry, lineMaterial);
+        return createLine(points, lineMaterial, ltInfo?.pattern);
       }
       break;
     }
@@ -239,8 +249,7 @@ const processEntity = (
             ),
           );
         }
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        return new THREE.Line(geometry, lineMaterial);
+        return createLine(points, lineMaterial, ltInfo?.pattern);
       }
       break;
     }
@@ -288,8 +297,7 @@ const processEntity = (
           points.push(new THREE.Vector3(worldX, worldY, 0));
         }
 
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        return new THREE.Line(geometry, lineMaterial);
+        return createLine(points, lineMaterial, ltInfo?.pattern);
       }
       break;
     }
@@ -335,8 +343,7 @@ const processEntity = (
           }
         }
 
-        const geometry = new THREE.BufferGeometry().setFromPoints(allPoints);
-        return new THREE.Line(geometry, lineMaterial);
+        return createLine(allPoints, lineMaterial, ltInfo?.pattern);
       }
       break;
     }
@@ -371,10 +378,9 @@ const processEntity = (
               controlPoints.length * NURBS_SEGMENTS_MULTIPLIER,
               MIN_NURBS_SEGMENTS,
             );
-            const interpolatedPoints = curve.getPoints(segments);
+            const interpolatedPoints = curve.getPoints(segments) as THREE.Vector3[];
 
-            const geometry = new THREE.BufferGeometry().setFromPoints(interpolatedPoints);
-            return new THREE.Line(geometry, lineMaterial);
+            return createLine(interpolatedPoints, lineMaterial, ltInfo?.pattern);
           } catch (error) {
             console.warn("NURBS creation error, using fallback:", error);
           }
@@ -394,8 +400,7 @@ const processEntity = (
           );
           const interpolatedPoints = curve.getPoints(segments);
 
-          const geometry = new THREE.BufferGeometry().setFromPoints(interpolatedPoints);
-          return new THREE.Line(geometry, lineMaterial);
+          return createLine(interpolatedPoints, lineMaterial, ltInfo?.pattern);
         }
       }
       break;
@@ -673,8 +678,7 @@ const processEntity = (
           for (const bp of entity.boundaryPaths) {
             const pts = boundaryPathToLinePoints(bp);
             if (pts.length > 1) {
-              const geometry = new THREE.BufferGeometry().setFromPoints(pts);
-              objects.push(new THREE.Line(geometry, lineMaterial));
+              objects.push(createLine(pts, lineMaterial, ltInfo?.pattern));
             }
           }
 
@@ -684,8 +688,7 @@ const processEntity = (
               const polygon: Point2D[] = boundaryPts.map((v) => ({ x: v.x, y: v.y }));
               const segments = generateHatchPattern(entity.patternLines, polygon);
               for (const seg of segments) {
-                const geometry = new THREE.BufferGeometry().setFromPoints(seg);
-                objects.push(new THREE.Line(geometry, lineMaterial));
+                objects.push(createLine(seg, lineMaterial, ltInfo?.pattern));
               }
             }
           }
@@ -701,8 +704,7 @@ const processEntity = (
         const points = entity.vertices.map(
           (v) => new THREE.Vector3(v.x, v.y, v.z || 0),
         );
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const leaderLine = new THREE.Line(geometry, lineMaterial);
+        const leaderLine = createLine(points, lineMaterial, ltInfo?.pattern);
 
         if (entity.arrowHeadFlag === 1 && points.length >= 2) {
           const group = new THREE.Group();
@@ -740,8 +742,7 @@ const processEntity = (
               ));
             }
 
-            const geo = new THREE.BufferGeometry().setFromPoints(points);
-            group.add(new THREE.Line(geo, lineMaterial));
+            group.add(createLine(points, lineMaterial, ltInfo?.pattern));
 
             if (entity.hasArrowHead !== false && points.length >= 2) {
               const arrow = createArrow(points[1], points[0], arrowSize, arrowMat);
@@ -809,11 +810,16 @@ export function createThreeObjectsFromDXF(dxf: DxfData): {
     Object.assign(layers, dxf.tables.layer.layers);
   }
 
+  const lineTypes = dxf.tables?.lineType?.lineTypes ?? {};
+  const globalLtScale = (dxf.header?.["$LTSCALE"] as number) ?? 1;
+
   const colorCtx: EntityColorContext = {
     layers,
     materialCache: new Map(),
     meshMaterialCache: new Map(),
     pointsMaterialCache: new Map(),
+    lineTypes,
+    globalLtScale,
   };
 
   const errors: string[] = [];

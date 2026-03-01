@@ -75,6 +75,27 @@ describe("parseTables", () => {
       expect(layers.FrozenLayer.frozen).toBe(true);
     });
 
+    it("parses layer lineType (code 6)", () => {
+      const scanner = createScanner(
+        "0", "TABLE",
+        "2", "LAYER",
+        "70", "1",
+        "0", "LAYER",
+        "2", "DashedLayer",
+        "6", "DASHED",
+        "62", "5",
+        "70", "0",
+        "0", "ENDTAB",
+        "0", "ENDSEC",
+        "0", "EOF",
+      );
+
+      const tables = parseTables(scanner);
+
+      const layers = tables.layer.layers as Record<string, ILayer>;
+      expect(layers.DashedLayer.lineType).toBe("DASHED");
+    });
+
     it("parses multiple layers in sequence", () => {
       const scanner = createScanner(
         "0", "TABLE",

@@ -13,6 +13,7 @@ export interface DxfEntityBase {
   color?: number; // RGB truecolor (DXF code 420)
   lineweight?: number; // -3=Standard, -2=ByLayer, -1=ByBlock, or value in 0.01mm
   lineType?: string;
+  lineTypeScale?: number;
   visible?: boolean;
 }
 
@@ -335,6 +336,14 @@ export interface DxfLayer {
   colorIndex: number;
   color: number; // RGB as number
   frozen: boolean;
+  lineType?: string;
+}
+
+export interface DxfLineType {
+  name: string;
+  description: string;
+  pattern: number[];
+  patternLength: number;
 }
 
 export interface DxfTables {
@@ -342,6 +351,11 @@ export interface DxfTables {
     handle?: string;
     ownerHandle?: string;
     layers: Record<string, DxfLayer>;
+  };
+  lineType?: {
+    handle?: string;
+    ownerHandle?: string;
+    lineTypes: Record<string, DxfLineType>;
   };
   [key: string]: unknown;
 }

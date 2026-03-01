@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import type { DxfLayer } from "@/types/dxf";
+import type { DxfLayer, DxfLineType } from "@/types/dxf";
+import { applyLinetypePattern, type PatternGeometry } from "@/utils/linetypeResolver";
 import {
   EPSILON,
   CIRCLE_SEGMENTS,
@@ -7,6 +8,7 @@ import {
   ARROW_BASE_WIDTH_DIVISOR,
   DEGREES_TO_RADIANS_DIVISOR,
   POINT_MARKER_SIZE,
+  LINETYPE_DOT_SIZE,
 } from "@/constants";
 
 export interface EntityColorContext {
@@ -15,6 +17,9 @@ export interface EntityColorContext {
   materialCache: Map<string, THREE.LineBasicMaterial>;
   meshMaterialCache: Map<string, THREE.MeshBasicMaterial>;
   pointsMaterialCache: Map<string, THREE.PointsMaterial>;
+  lineTypes: Record<string, DxfLineType>;
+  globalLtScale: number;
+  blockLineType?: string;
 }
 
 export const degreesToRadians = (degrees: number): number =>
@@ -58,6 +63,56 @@ export const getPointsMaterial = (
     cache.set(color, mat);
   }
   return mat;
+};
+
+/**
+ * Create a line from points. When a linetype pattern is provided,
+ * the polyline is split into dash/gap segments (LineSegments) and
+ * dot positions (Points). Without a pattern, a regular continuous Line is returned.
+ */
+export const createLine = (
+  points: THREE.Vector3[],
+  material: THREE.LineBasicMaterial,
+  pattern?: number[],
+): THREE.Object3D => {
+  if (pattern && pattern.length > 0) {
+    const pg: PatternGeometry = applyLinetypePattern(points, pattern);
+    const hasSegments = pg.segments.length >= 6;
+    const hasDots = pg.dots.length >= 3;
+
+    if (hasSegments || hasDots) {
+      // If only segments (no dots), return LineSegments directly
+      if (hasSegments && !hasDots) {
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.Float32BufferAttribute(pg.segments, 3));
+        return new THREE.LineSegments(geometry, material);
+      }
+
+      // If dots present, group segments + points together
+      const group = new THREE.Group();
+
+      if (hasSegments) {
+        const segGeo = new THREE.BufferGeometry();
+        segGeo.setAttribute("position", new THREE.Float32BufferAttribute(pg.segments, 3));
+        group.add(new THREE.LineSegments(segGeo, material));
+      }
+
+      if (hasDots) {
+        const dotGeo = new THREE.BufferGeometry();
+        dotGeo.setAttribute("position", new THREE.Float32BufferAttribute(pg.dots, 3));
+        const dotMat = new THREE.PointsMaterial({
+          color: material.color,
+          size: LINETYPE_DOT_SIZE,
+          sizeAttenuation: false,
+        });
+        group.add(new THREE.Points(dotGeo, dotMat));
+      }
+
+      return group;
+    }
+  }
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  return new THREE.Line(geometry, material);
 };
 
 /**

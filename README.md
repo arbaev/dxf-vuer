@@ -15,6 +15,7 @@ Vue 3 component for viewing DXF files in the browser. Built-in DXF parser, Three
 ## Features
 
 - **16 DXF entity types** rendered: LINE, CIRCLE, ARC, ELLIPSE, SPLINE, POLYLINE, LWPOLYLINE, TEXT, MTEXT, DIMENSION, HATCH, INSERT, SOLID, 3DFACE, LEADER, MULTILEADER
+- **Linetype rendering** — DASHED, HIDDEN, CENTER, PHANTOM, DOT, DASHDOT and other DXF line patterns with entity/layer/block resolution and LTSCALE support
 - **Built-in DXF parser** — no external parser dependencies, custom scanner with full type casting
 - **Parser-only entry point** — use `dxf-vuer/parser` in Node.js, React, or any JS/TS project (zero dependencies)
 - **TypeScript** — strict types, full `.d.ts` declarations

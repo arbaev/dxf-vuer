@@ -8,12 +8,13 @@ export interface ILayer {
   colorIndex: number;
   color: number;
   frozen: boolean;
+  lineType?: string;
 }
 
 export interface ILineType {
   name: string;
   description: string;
-  pattern: string[];
+  pattern: number[];
   patternLength: number;
 }
 
@@ -134,6 +135,10 @@ function parseLayers(scanner: DxfScanner): Record<string, ILayer> {
         layerName = curr.value as string;
         curr = scanner.next();
         break;
+      case 6:
+        layer.lineType = curr.value as string;
+        curr = scanner.next();
+        break;
       case 62:
         // Negative colorIndex means layer is off (invisible) in AutoCAD
         layer.visible = (curr.value as number) >= 0;
@@ -193,7 +198,7 @@ function parseLineTypes(scanner: DxfScanner): Record<string, ILineType> {
         curr = scanner.next();
         break;
       case 49:
-        ltype.pattern.push(curr.value as string);
+        ltype.pattern.push(curr.value as number);
         curr = scanner.next();
         break;
       case 0:
