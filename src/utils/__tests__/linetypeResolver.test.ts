@@ -3,6 +3,7 @@ import {
   scalePattern,
   applyLinetypePattern,
   resolveEntityLinetype,
+  computeAutoLtScale,
 } from "../linetypeResolver";
 import type { DxfEntity, DxfLayer, DxfLineType } from "@/types/dxf";
 
@@ -332,5 +333,61 @@ describe("resolveEntityLinetype", () => {
       type: "LINE", layer: "0", lineType: "NONEXISTENT", vertices: [],
     } as unknown as DxfEntity;
     expect(resolveEntityLinetype(entity, layers, lineTypes)).toBeNull();
+  });
+});
+
+// ── computeAutoLtScale ──────────────────────────────────────────────
+
+describe("computeAutoLtScale", () => {
+  it("returns 1 for undefined header", () => {
+    expect(computeAutoLtScale(undefined)).toBe(1);
+  });
+
+  it("returns 1 when $EXTMIN/$EXTMAX are missing", () => {
+    expect(computeAutoLtScale({ "$LTSCALE": 1 })).toBe(1);
+  });
+
+  it("returns 1 for small drawing (< 100 units)", () => {
+    const header = {
+      "$EXTMIN": { x: 0, y: 0, z: 0 },
+      "$EXTMAX": { x: 50, y: 80, z: 0 },
+    };
+    expect(computeAutoLtScale(header)).toBe(1);
+  });
+
+  it("computes scale for large drawing", () => {
+    const header = {
+      "$EXTMIN": { x: 0, y: 0, z: 0 },
+      "$EXTMAX": { x: 30000, y: 20000, z: 0 },
+    };
+    // 30000 / 500 = 60
+    expect(computeAutoLtScale(header)).toBe(60);
+  });
+
+  it("uses the larger axis", () => {
+    const header = {
+      "$EXTMIN": { x: 0, y: 0, z: 0 },
+      "$EXTMAX": { x: 5000, y: 15000, z: 0 },
+    };
+    // 15000 / 500 = 30
+    expect(computeAutoLtScale(header)).toBe(30);
+  });
+
+  it("handles negative coordinates", () => {
+    const header = {
+      "$EXTMIN": { x: -10000, y: -5000, z: 0 },
+      "$EXTMAX": { x: 10000, y: 5000, z: 0 },
+    };
+    // width=20000, height=10000 → 20000 / 500 = 40
+    expect(computeAutoLtScale(header)).toBe(40);
+  });
+
+  it("never returns less than 1", () => {
+    const header = {
+      "$EXTMIN": { x: 0, y: 0, z: 0 },
+      "$EXTMAX": { x: 200, y: 100, z: 0 },
+    };
+    // 200 / 500 = 0.4, but clamped to 1
+    expect(computeAutoLtScale(header)).toBe(1);
   });
 });

@@ -31,7 +31,7 @@ import {
   ARROW_SIZE,
 } from "@/constants";
 import { resolveEntityColor } from "@/utils/colorResolver";
-import { resolveEntityLinetype } from "@/utils/linetypeResolver";
+import { resolveEntityLinetype, computeAutoLtScale } from "@/utils/linetypeResolver";
 
 import {
   type EntityColorContext,
@@ -811,7 +811,10 @@ export function createThreeObjectsFromDXF(dxf: DxfData): {
   }
 
   const lineTypes = dxf.tables?.lineType?.lineTypes ?? {};
-  const globalLtScale = (dxf.header?.["$LTSCALE"] as number) ?? 1;
+  const headerLtScale = (dxf.header?.["$LTSCALE"] as number) ?? 1;
+  const globalLtScale = headerLtScale === 1
+    ? computeAutoLtScale(dxf.header)
+    : headerLtScale;
 
   const colorCtx: EntityColorContext = {
     layers,

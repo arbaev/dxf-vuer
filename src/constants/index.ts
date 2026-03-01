@@ -39,3 +39,9 @@ export const MAX_HATCH_SEGMENTS = 50000;
 export const MAX_HATCH_LINES_PER_PATTERN = 1000;
 
 export const DEGREES_TO_RADIANS_DIVISOR = 180;
+
+// Reference divisor for auto-computing LTSCALE from drawing extents.
+// Target: ~25 repetitions of DASHED pattern (cycle 19.05) across longest dimension.
+export const AUTO_LTSCALE_DIVISOR = 500;
+// Drawing extents below this threshold don't need auto-scaling
+export const AUTO_LTSCALE_MIN_EXTENT = 100;

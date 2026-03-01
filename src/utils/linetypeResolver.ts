@@ -1,4 +1,5 @@
 import type { DxfEntity, DxfLayer, DxfLineType } from "@/types/dxf";
+import { AUTO_LTSCALE_DIVISOR, AUTO_LTSCALE_MIN_EXTENT } from "@/constants";
 
 export interface LinetypeInfo {
   /** Scaled DXF pattern: positive = dash, negative = gap, 0 = dot */
@@ -206,4 +207,33 @@ export function resolveEntityLinetype(
   const entityScale = entity.lineTypeScale ?? 1;
   const scaled = scalePattern(ltDef.pattern, entityScale, globalLtScale);
   return { pattern: scaled };
+}
+
+/**
+ * Compute an automatic LTSCALE from drawing extents ($EXTMIN / $EXTMAX).
+ * When $LTSCALE is at its default value of 1, patterns defined in small
+ * world units (e.g. 12.7 mm) are invisible on large drawings.
+ * This function derives a scale that keeps ~25 pattern repetitions
+ * across the longest drawing dimension.
+ *
+ * Returns 1 if header is missing, extents are absent, or the drawing
+ * is small enough that no scaling is needed.
+ */
+export function computeAutoLtScale(
+  header: Record<string, unknown> | undefined,
+): number {
+  if (!header) return 1;
+
+  const extMin = header["$EXTMIN"] as { x: number; y: number } | undefined;
+  const extMax = header["$EXTMAX"] as { x: number; y: number } | undefined;
+
+  if (!extMin || !extMax) return 1;
+
+  const width = Math.abs(extMax.x - extMin.x);
+  const height = Math.abs(extMax.y - extMin.y);
+  const maxExtent = Math.max(width, height);
+
+  if (maxExtent < AUTO_LTSCALE_MIN_EXTENT) return 1;
+
+  return Math.max(1, maxExtent / AUTO_LTSCALE_DIVISOR);
 }
