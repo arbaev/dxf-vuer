@@ -81,8 +81,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
-import { useDXFRenderer } from "@/composables/dxf/useDXFRenderer";
-import { useLayers } from "@/composables/dxf/useLayers";
+import { useDXFRenderer } from "@/composables/useDXFRenderer";
+import { useLayers } from "@/composables/useLayers";
 import type { DxfData, DxfLayer } from "@/types/dxf";
 import LayerPanel from "./LayerPanel.vue";
 

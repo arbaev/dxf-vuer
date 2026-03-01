@@ -61,6 +61,7 @@ export default class DxfScanner {
 
   public rewind(numberOfGroups = 1): void {
     this._pointer = this._pointer - numberOfGroups * 2;
+    this._eof = false;
   }
 
   public hasNext(): boolean {

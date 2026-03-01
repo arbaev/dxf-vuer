@@ -6,12 +6,12 @@ export { default as FileUploader } from "./components/FileUploader.vue";
 export { default as UnsupportedEntities } from "./components/UnsupportedEntities.vue";
 export { default as DXFStatistics } from "./components/DXFStatistics.vue";
 
-export { useDXFRenderer } from "./composables/dxf/useDXFRenderer";
-export { useThreeScene } from "./composables/dxf/useThreeScene";
-export { useCamera } from "./composables/dxf/useCamera";
-export { useOrbitControls } from "./composables/dxf/useOrbitControls";
-export { useLayers } from "./composables/dxf/useLayers";
-export { createThreeObjectsFromDXF } from "./composables/dxf/useDXFGeometry";
+export { useDXFRenderer } from "./composables/useDXFRenderer";
+export { useThreeScene } from "./composables/useThreeScene";
+export { useCamera } from "./composables/useCamera";
+export { useOrbitControls } from "./composables/useOrbitControls";
+export { useLayers } from "./composables/useLayers";
+export { createThreeObjectsFromDXF } from "./composables/useDXFGeometry";
 
 export { resolveEntityColor, rgbNumberToHex } from "./utils/colorResolver";
 

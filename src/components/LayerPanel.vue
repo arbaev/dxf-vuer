@@ -59,7 +59,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import type { LayerState } from "@/composables/dxf/useLayers";
+import type { LayerState } from "@/composables/useLayers";
 
 interface Props {
   layers: LayerState[];

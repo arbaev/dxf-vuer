@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { useLayers } from "@/composables/dxf/useLayers";
+import { useLayers } from "@/composables/useLayers";
 import type { DxfLayer } from "@/types/dxf";
 
 // Helper to create a minimal DxfLayer object with sensible defaults.

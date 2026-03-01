@@ -102,6 +102,19 @@ describe("DxfScanner", () => {
       const group = scanner.next();
       expect(group).toEqual({ code: 0, value: "LINE" });
     });
+
+    it("resets _eof flag so next() works after rewinding past EOF", () => {
+      const scanner = createScanner("0", "LINE", "0", "EOF");
+      scanner.next(); // LINE
+      scanner.next(); // EOF
+      expect(scanner.isEOF()).toBe(true);
+      expect(scanner.hasNext()).toBe(false);
+
+      scanner.rewind(1);
+      expect(scanner.hasNext()).toBe(true);
+      const group = scanner.next();
+      expect(group).toEqual({ code: 0, value: "EOF" });
+    });
   });
 
   // ── hasNext() ───────────────────────────────────────────────────────
