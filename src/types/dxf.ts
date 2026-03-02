@@ -220,6 +220,8 @@ export interface DxfHatchEntity extends DxfEntityBase {
   solid: boolean; // code 70 = 1 -> solid fill
   boundaryPaths: HatchBoundaryPath[];
   patternLines?: HatchPatternLine[];
+  patternScale?: number;  // code 41 -- pattern fill scale
+  patternAngle?: number;  // code 52 -- pattern fill angle (degrees)
   extrusionDirection?: DxfVertex;
 }
 

@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { pointInPolygon2D, clipSegmentToPolygon } from "../hatch";
+import {
+  pointInPolygon2D,
+  clipSegmentToPolygon,
+  isPointInsideHatch,
+  clipSegmentToPolygons,
+  generateHatchPattern,
+} from "../hatch";
 import type { Point2D } from "../hatch";
+import type { HatchPatternLine } from "@/types/dxf";
 
 // ── pointInPolygon2D ──────────────────────────────────────────────────
 
@@ -146,5 +153,239 @@ describe("clipSegmentToPolygon", () => {
     expect(seg[1]).toBeCloseTo(2.5);
     expect(seg[2]).toBeCloseTo(10);
     expect(seg[3]).toBeCloseTo(7.5);
+  });
+
+  it("clips a line passing through polygon vertices (corner-to-corner diagonal)", () => {
+    // Line from (-5,-5) to (15,15) passes through vertices (0,0) and (10,10).
+    // Each vertex is shared by two polygon edges — must not double-toggle inside/outside.
+    const result = clipSegmentToPolygon(-5, -5, 15, 15, square);
+    expect(result).toHaveLength(1);
+    expect(result[0][0]).toBeCloseTo(0);
+    expect(result[0][1]).toBeCloseTo(0);
+    expect(result[0][2]).toBeCloseTo(10);
+    expect(result[0][3]).toBeCloseTo(10);
+  });
+
+  it("produces no segments for tangential vertex touch on adjacent polygon", () => {
+    // ANSI32 polygon (10-20, 0-10) shares vertex (10,10) with ANSI31 polygon.
+    // A 45° line through (0,0) passes through (10,10) tangentially —
+    // it touches the vertex but doesn't enter the polygon interior.
+    const poly2: Point2D[] = [
+      { x: 20, y: 10 },
+      { x: 10, y: 10 },
+      { x: 10, y: 0 },
+      { x: 20, y: 0 },
+    ];
+    const result = clipSegmentToPolygon(-20, -20, 25, 25, poly2);
+    // Line only touches vertex (10,10) — should produce NO segments
+    expect(result).toHaveLength(0);
+  });
+});
+
+// ── isPointInsideHatch (multi-boundary even-odd) ────────────────────
+
+describe("isPointInsideHatch", () => {
+  const outer: Point2D[] = [
+    { x: 0, y: 0 },
+    { x: 20, y: 0 },
+    { x: 20, y: 20 },
+    { x: 0, y: 20 },
+  ];
+  const inner: Point2D[] = [
+    { x: 5, y: 5 },
+    { x: 15, y: 5 },
+    { x: 15, y: 15 },
+    { x: 5, y: 15 },
+  ];
+
+  it("returns true for a point inside the outer polygon only", () => {
+    expect(isPointInsideHatch(2, 2, [outer, inner])).toBe(true);
+  });
+
+  it("returns false for a point inside both polygons (even-odd hole)", () => {
+    expect(isPointInsideHatch(10, 10, [outer, inner])).toBe(false);
+  });
+
+  it("returns false for a point outside all polygons", () => {
+    expect(isPointInsideHatch(25, 25, [outer, inner])).toBe(false);
+  });
+
+  it("returns true for single polygon case", () => {
+    expect(isPointInsideHatch(10, 10, [outer])).toBe(true);
+  });
+});
+
+// ── clipSegmentToPolygons ───────────────────────────────────────────
+
+describe("clipSegmentToPolygons", () => {
+  const outer: Point2D[] = [
+    { x: 0, y: 0 },
+    { x: 20, y: 0 },
+    { x: 20, y: 20 },
+    { x: 0, y: 20 },
+  ];
+  const inner: Point2D[] = [
+    { x: 5, y: 5 },
+    { x: 15, y: 5 },
+    { x: 15, y: 15 },
+    { x: 5, y: 15 },
+  ];
+
+  it("clips horizontal line through donut — excludes inner region", () => {
+    // Line y=10 from x=-5 to x=25 through donut
+    const result = clipSegmentToPolygons(-5, 10, 25, 10, [outer, inner]);
+    // Should produce 2 segments: x=0..5 and x=15..20
+    expect(result).toHaveLength(2);
+    expect(result[0][0]).toBeCloseTo(0);
+    expect(result[0][2]).toBeCloseTo(5);
+    expect(result[1][0]).toBeCloseTo(15);
+    expect(result[1][2]).toBeCloseTo(20);
+  });
+
+  it("falls back to single-polygon clipping for one boundary", () => {
+    const result = clipSegmentToPolygons(-5, 10, 25, 10, [outer]);
+    expect(result).toHaveLength(1);
+    expect(result[0][0]).toBeCloseTo(0);
+    expect(result[0][2]).toBeCloseTo(20);
+  });
+});
+
+// ── generateHatchPattern ────────────────────────────────────────────
+
+describe("generateHatchPattern", () => {
+  const square: Point2D[] = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 10, y: 10 },
+    { x: 0, y: 10 },
+  ];
+
+  it("returns segments for a solid pattern line", () => {
+    const lines: HatchPatternLine[] = [
+      { angle: 0, basePoint: { x: 0, y: 0 }, offset: { x: 0, y: 2 }, dashes: [] },
+    ];
+    const result = generateHatchPattern(lines, [square]);
+    expect(result.segments.length).toBeGreaterThan(0);
+    expect(result.dots).toHaveLength(0);
+  });
+
+  it("returns dots for dash=0 elements", () => {
+    // Pattern: short dash, gap, dot
+    const lines: HatchPatternLine[] = [
+      { angle: 0, basePoint: { x: 0, y: 0 }, offset: { x: 0, y: 2 }, dashes: [1, -1, 0] },
+    ];
+    const result = generateHatchPattern(lines, [square]);
+    expect(result.segments.length).toBeGreaterThan(0);
+    expect(result.dots.length).toBeGreaterThan(0);
+  });
+
+  it("applies pattern scale to spacing and dashes", () => {
+    const lines: HatchPatternLine[] = [
+      { angle: 0, basePoint: { x: 0, y: 0 }, offset: { x: 0, y: 1 }, dashes: [] },
+    ];
+    const result1 = generateHatchPattern(lines, [square], 1);
+    const result2 = generateHatchPattern(lines, [square], 2);
+    // With scale=2, spacing doubles, so half as many lines
+    expect(result2.segments.length).toBeLessThan(result1.segments.length);
+  });
+
+  it("applies pattern angle rotation", () => {
+    const lines: HatchPatternLine[] = [
+      { angle: 0, basePoint: { x: 0, y: 0 }, offset: { x: 0, y: 2 }, dashes: [] },
+    ];
+    const result0 = generateHatchPattern(lines, [square], 1, 0);
+    const result45 = generateHatchPattern(lines, [square], 1, 45);
+    // Both should produce segments but with different angles
+    expect(result0.segments.length).toBeGreaterThan(0);
+    expect(result45.segments.length).toBeGreaterThan(0);
+  });
+
+  it("keeps all segments within polygon bounds (ANSI31 scenario)", () => {
+    // Exact ANSI31 parameters from ansi_pattern.dxf
+    const poly1: Point2D[] = [
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+    ];
+    const lines: HatchPatternLine[] = [
+      {
+        angle: 45,
+        basePoint: { x: 0, y: 0 },
+        offset: { x: -0.0883883476483184, y: 0.0883883476483185 },
+        dashes: [],
+      },
+    ];
+    const result = generateHatchPattern(lines, [poly1]);
+    expect(result.segments.length).toBeGreaterThan(0);
+    // Verify all segments are within polygon bbox [0,10] × [0,10]
+    for (const seg of result.segments) {
+      for (const pt of seg) {
+        expect(pt.x).toBeGreaterThanOrEqual(-0.001);
+        expect(pt.x).toBeLessThanOrEqual(10.001);
+        expect(pt.y).toBeGreaterThanOrEqual(-0.001);
+        expect(pt.y).toBeLessThanOrEqual(10.001);
+      }
+    }
+  });
+
+  it("keeps all segments within polygon bounds (ANSI32 scenario)", () => {
+    // Exact ANSI32 parameters from ansi_pattern.dxf
+    const poly2: Point2D[] = [
+      { x: 20, y: 10 },
+      { x: 10, y: 10 },
+      { x: 10, y: 0 },
+      { x: 20, y: 0 },
+    ];
+    const lines: HatchPatternLine[] = [
+      {
+        angle: 45,
+        basePoint: { x: 0, y: 0 },
+        offset: { x: -0.2651650429449553, y: 0.2651650429449553 },
+        dashes: [],
+      },
+      {
+        angle: 45,
+        basePoint: { x: 0.176776695, y: 0 },
+        offset: { x: -0.2651650429449553, y: 0.2651650429449553 },
+        dashes: [],
+      },
+    ];
+    const result = generateHatchPattern(lines, [poly2]);
+    expect(result.segments.length).toBeGreaterThan(0);
+    // Verify all segments are within polygon bbox [10,20] × [0,10]
+    for (const seg of result.segments) {
+      for (const pt of seg) {
+        expect(pt.x).toBeGreaterThanOrEqual(10 - 0.001);
+        expect(pt.x).toBeLessThanOrEqual(20.001);
+        expect(pt.y).toBeGreaterThanOrEqual(-0.001);
+        expect(pt.y).toBeLessThanOrEqual(10.001);
+      }
+    }
+  });
+
+  it("clips pattern to donut shape (multi-boundary)", () => {
+    const outer: Point2D[] = [
+      { x: 0, y: 0 },
+      { x: 20, y: 0 },
+      { x: 20, y: 20 },
+      { x: 0, y: 20 },
+    ];
+    const inner: Point2D[] = [
+      { x: 5, y: 5 },
+      { x: 15, y: 5 },
+      { x: 15, y: 15 },
+      { x: 5, y: 15 },
+    ];
+
+    const lines: HatchPatternLine[] = [
+      { angle: 0, basePoint: { x: 0, y: 0 }, offset: { x: 0, y: 2 }, dashes: [] },
+    ];
+
+    const resultSingle = generateHatchPattern(lines, [outer]);
+    const resultDonut = generateHatchPattern(lines, [outer, inner]);
+
+    // Donut should have more segments (each line split into 2) but shorter total
+    expect(resultDonut.segments.length).toBeGreaterThan(resultSingle.segments.length);
   });
 });

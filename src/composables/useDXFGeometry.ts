@@ -30,6 +30,7 @@ import {
   MIN_CATMULL_ROM_SEGMENTS,
   ARROW_SIZE,
 } from "@/constants";
+import { HATCH_PATTERNS } from "@/constants/hatchPatterns";
 import { resolveEntityColor } from "@/utils/colorResolver";
 import { resolveEntityLinetype, computeAutoLtScale } from "@/utils/linetypeResolver";
 import { buildOcsMatrix, transformOcsPoints, transformOcsPoint } from "@/utils/ocsTransform";
@@ -765,20 +766,49 @@ const processEntity = (
         } else {
           const objects: THREE.Object3D[] = [];
 
-          for (const bp of entity.boundaryPaths) {
-            const pts = boundaryPathToLinePoints(bp);
-            if (pts.length > 1) {
-              objects.push(createLine(transformOcsPoints(pts, hatchMatrix), lineMaterial, ltInfo?.pattern));
-            }
-          }
+          // Build clipping polygons from all boundary paths
+          const polygons: Point2D[][] = entity.boundaryPaths
+            .map((bp) => boundaryPathToLinePoints(bp).map((v) => ({ x: v.x, y: v.y })))
+            .filter((p) => p.length > 2);
 
-          if (entity.patternLines && entity.patternLines.length > 0) {
-            const boundaryPts = boundaryPathToLinePoints(entity.boundaryPaths[0]);
-            if (boundaryPts.length > 2) {
-              const polygon: Point2D[] = boundaryPts.map((v) => ({ x: v.x, y: v.y }));
-              const segments = generateHatchPattern(entity.patternLines, polygon);
-              for (const seg of segments) {
-                objects.push(createLine(transformOcsPoints(seg, hatchMatrix), lineMaterial, ltInfo?.pattern));
+          // Embedded pattern lines are pre-scaled by AutoCAD — don't apply patternScale again.
+          // Fallback dictionary patterns need patternScale applied.
+          const hasEmbedded = entity.patternLines && entity.patternLines.length > 0;
+          const patternLines = hasEmbedded
+            ? entity.patternLines
+            : HATCH_PATTERNS[entity.patternName.toUpperCase()];
+          const effectiveScale = hasEmbedded ? 1 : entity.patternScale;
+          const effectiveAngle = hasEmbedded ? 0 : entity.patternAngle;
+
+          if (patternLines && polygons.length > 0) {
+            const { segments, dots } = generateHatchPattern(
+              patternLines,
+              polygons,
+              effectiveScale,
+              effectiveAngle,
+            );
+            for (const seg of segments) {
+              objects.push(createLine(transformOcsPoints(seg, hatchMatrix), lineMaterial));
+            }
+            if (dots.length > 0) {
+              const dotPositions = new Float32Array(dots.length * 3);
+              for (let i = 0; i < dots.length; i++) {
+                const d = hatchMatrix ? dots[i].clone().applyMatrix4(hatchMatrix) : dots[i];
+                dotPositions[i * 3] = d.x;
+                dotPositions[i * 3 + 1] = d.y;
+                dotPositions[i * 3 + 2] = d.z;
+              }
+              const dotGeometry = new THREE.BufferGeometry();
+              dotGeometry.setAttribute("position", new THREE.BufferAttribute(dotPositions, 3));
+              const pointMat = getPointsMaterial(entityColor, colorCtx.pointsMaterialCache);
+              objects.push(new THREE.Points(dotGeometry, pointMat));
+            }
+          } else {
+            // No pattern lines — draw boundary outlines only
+            for (const bp of entity.boundaryPaths) {
+              const pts = boundaryPathToLinePoints(bp);
+              if (pts.length > 1) {
+                objects.push(createLine(transformOcsPoints(pts, hatchMatrix), lineMaterial, ltInfo?.pattern));
               }
             }
           }

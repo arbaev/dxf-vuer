@@ -282,6 +282,18 @@ export const pointInPolygon2D = (px: number, py: number, polygon: Point2D[]): bo
 };
 
 /**
+ * Even-odd point-in-polygon test across multiple boundaries.
+ * Point is inside the hatch if it falls inside an odd number of boundary polygons.
+ */
+export const isPointInsideHatch = (px: number, py: number, polygons: Point2D[][]): boolean => {
+  let count = 0;
+  for (const polygon of polygons) {
+    if (pointInPolygon2D(px, py, polygon)) count++;
+  }
+  return count % 2 === 1;
+};
+
+/**
  * Clip a segment to polygon: returns array of [x1,y1,x2,y2] for parts inside the polygon.
  * Collects parameter t values for segment intersections with polygon edges,
  * then alternates inside/outside based on starting state.
@@ -316,17 +328,86 @@ export const clipSegmentToPolygon = (
 
   params.sort((a, b) => a - b);
 
-  const startInside = pointInPolygon2D(x1, y1, polygon);
+  // Deduplicate close t-values (vertex crossings produce duplicates)
+  const uniqueParams: number[] = [];
+  for (let i = 0; i < params.length; i++) {
+    if (i > 0 && params[i] - params[i - 1] < 1e-7) continue;
+    uniqueParams.push(params[i]);
+  }
 
+  // Build intervals and check each midpoint with pointInPolygon2D.
+  // This correctly handles both vertex pass-through and tangential touch
+  // without relying on toggle logic.
+  const boundaries = [0, ...uniqueParams, 1];
   const result: [number, number, number, number][] = [];
-  let inside = startInside;
+
+  for (let i = 0; i < boundaries.length - 1; i++) {
+    const tStart = boundaries[i];
+    const tEnd = boundaries[i + 1];
+    if (tEnd - tStart < 1e-9) continue;
+    const midT = (tStart + tEnd) / 2;
+    if (pointInPolygon2D(x1 + midT * dx, y1 + midT * dy, polygon)) {
+      result.push([
+        x1 + tStart * dx, y1 + tStart * dy,
+        x1 + tEnd * dx, y1 + tEnd * dy,
+      ]);
+    }
+  }
+
+  return result;
+};
+
+/**
+ * Clip a segment against multiple boundary polygons using even-odd rule.
+ * Collects intersection t-values from all polygons, sorts them,
+ * and builds inside/outside runs based on parity of polygon containment.
+ */
+export const clipSegmentToPolygons = (
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  polygons: Point2D[][],
+): [number, number, number, number][] => {
+  if (polygons.length === 1) {
+    return clipSegmentToPolygon(x1, y1, x2, y2, polygons[0]);
+  }
+
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+
+  // Collect all t-values where the segment crosses any polygon edge
+  const allParams = new Set<number>();
+  for (const polygon of polygons) {
+    const n = polygon.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const ex = polygon[j].x - polygon[i].x;
+      const ey = polygon[j].y - polygon[i].y;
+      const denom = dx * ey - dy * ex;
+      if (Math.abs(denom) < 1e-10) continue;
+      const t = ((polygon[i].x - x1) * ey - (polygon[i].y - y1) * ex) / denom;
+      const u = ((polygon[i].x - x1) * dy - (polygon[i].y - y1) * dx) / denom;
+      if (t > 1e-9 && t < 1 - 1e-9 && u > -1e-9 && u < 1 + 1e-9) {
+        allParams.add(t);
+      }
+    }
+  }
+
+  const params = Array.from(allParams).sort((a, b) => a - b);
+  const result: [number, number, number, number][] = [];
   let prevT = 0;
+
+  // Check initial state
+  let inside = isPointInsideHatch(x1, y1, polygons);
 
   for (const t of params) {
     if (inside) {
       result.push([x1 + prevT * dx, y1 + prevT * dy, x1 + t * dx, y1 + t * dy]);
     }
-    inside = !inside;
+    // Re-evaluate state at midpoint after crossing
+    const midT = (t + (params[params.indexOf(t) + 1] ?? 1)) / 2;
+    inside = isPointInsideHatch(x1 + midT * dx, y1 + midT * dy, polygons);
     prevT = t;
   }
 
@@ -337,47 +418,62 @@ export const clipSegmentToPolygon = (
   return result;
 };
 
+export interface HatchPatternGeometry {
+  segments: THREE.Vector3[][];
+  dots: THREE.Vector3[];
+}
+
 /**
- * Generate HATCH pattern segments clipped to the boundary polygon.
- * For each pattern line, generates parallel lines at the specified spacing/angle,
- * applies dash patterns, and clips to the boundary using ray casting.
+ * Generate HATCH pattern geometry clipped to boundary polygons.
+ * Supports multiple boundaries with even-odd fill rule (donut shapes),
+ * pattern scale/angle, and dot rendering.
  */
 export const generateHatchPattern = (
   patternLines: HatchPatternLine[],
-  polygon: Point2D[],
-): THREE.Vector3[][] => {
+  polygons: Point2D[][],
+  patternScale = 1,
+  patternAngle = 0,
+): HatchPatternGeometry => {
+  // Compute bounding box across all polygons
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
     maxY = -Infinity;
-  for (const p of polygon) {
-    if (p.x < minX) minX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y > maxY) maxY = p.y;
+  for (const polygon of polygons) {
+    for (const p of polygon) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
   }
 
-  const diagX = maxX - minX;
-  const diagY = maxY - minY;
-  const diag = Math.sqrt(diagX * diagX + diagY * diagY);
+  const bboxDiag = Math.sqrt((maxX - minX) ** 2 + (maxY - minY) ** 2);
 
   const allSegments: THREE.Vector3[][] = [];
+  const allDots: THREE.Vector3[] = [];
+  const scale = patternScale || 1;
+  const extraAngle = patternAngle || 0;
 
   for (const pl of patternLines) {
-    const angleRad = (pl.angle * Math.PI) / 180;
+    const angleRad = ((pl.angle + extraAngle) * Math.PI) / 180;
     const dirX = Math.cos(angleRad);
     const dirY = Math.sin(angleRad);
     const perpX = -dirY;
     const perpY = dirX;
 
-    // Perpendicular distance between lines = |offset . perp|
-    const spacing = Math.abs(pl.offset.x * perpX + pl.offset.y * perpY);
+    // Perpendicular distance between lines = |offset . perp| * scale
+    const spacing = Math.abs(pl.offset.x * perpX + pl.offset.y * perpY) * scale;
     if (spacing < EPSILON) continue;
 
     // Shift along line direction between adjacent lines (for staggered patterns)
-    const stagger = pl.offset.x * dirX + pl.offset.y * dirY;
+    const stagger = (pl.offset.x * dirX + pl.offset.y * dirY) * scale;
 
-    // Project bbox corners onto perpendicular direction relative to basePoint
+    // Scale base point
+    const bpX = pl.basePoint.x * scale;
+    const bpY = pl.basePoint.y * scale;
+
+    // Project bbox corners onto both perp and line directions relative to basePoint
     const corners = [
       { x: minX, y: minY },
       { x: maxX, y: minY },
@@ -385,35 +481,49 @@ export const generateHatchPattern = (
       { x: minX, y: maxY },
     ];
 
-    let minProj = Infinity,
-      maxProj = -Infinity;
+    let minPerpProj = Infinity,
+      maxPerpProj = -Infinity;
+    let minDirProj = Infinity,
+      maxDirProj = -Infinity;
     for (const c of corners) {
-      const proj = (c.x - pl.basePoint.x) * perpX + (c.y - pl.basePoint.y) * perpY;
-      if (proj < minProj) minProj = proj;
-      if (proj > maxProj) maxProj = proj;
+      const dx = c.x - bpX;
+      const dy = c.y - bpY;
+      const perpProj = dx * perpX + dy * perpY;
+      const dirProj = dx * dirX + dy * dirY;
+      if (perpProj < minPerpProj) minPerpProj = perpProj;
+      if (perpProj > maxPerpProj) maxPerpProj = perpProj;
+      if (dirProj < minDirProj) minDirProj = dirProj;
+      if (dirProj > maxDirProj) maxDirProj = dirProj;
     }
 
-    const startIdx = Math.floor(minProj / spacing);
-    const endIdx = Math.ceil(maxProj / spacing);
+    const startIdx = Math.floor(minPerpProj / spacing);
+    const endIdx = Math.ceil(maxPerpProj / spacing);
 
     if (endIdx - startIdx > MAX_HATCH_LINES_PER_PATTERN) continue;
 
-    const dashTotal = pl.dashes.reduce((s, d) => s + Math.abs(d), 0);
-    const isSolid = pl.dashes.length === 0 || dashTotal < EPSILON;
+    // Line extent along direction: must cover polygon from any line origin.
+    // Use projection of polygon onto line direction relative to basePoint,
+    // plus stagger compensation and bbox diagonal as margin.
+    const diag = Math.max(Math.abs(minDirProj), Math.abs(maxDirProj)) + bboxDiag;
+
+    // Scale dashes
+    const scaledDashes = pl.dashes.map((d) => d * scale);
+    const dashTotal = scaledDashes.reduce((s, d) => s + Math.abs(d), 0);
+    const isSolid = scaledDashes.length === 0 || dashTotal < EPSILON;
 
     for (let i = startIdx; i <= endIdx; i++) {
       if (allSegments.length >= MAX_HATCH_SEGMENTS) break;
 
       // Line origin: basePoint + i * spacing * perp + i * stagger * dir
-      const ox = pl.basePoint.x + i * spacing * perpX + i * stagger * dirX;
-      const oy = pl.basePoint.y + i * spacing * perpY + i * stagger * dirY;
+      const ox = bpX + i * spacing * perpX + i * stagger * dirX;
+      const oy = bpY + i * spacing * perpY + i * stagger * dirY;
 
       if (isSolid) {
         const x1 = ox - diag * dirX,
           y1 = oy - diag * dirY;
         const x2 = ox + diag * dirX,
           y2 = oy + diag * dirY;
-        const clipped = clipSegmentToPolygon(x1, y1, x2, y2, polygon);
+        const clipped = clipSegmentToPolygons(x1, y1, x2, y2, polygons);
         for (const seg of clipped) {
           allSegments.push([
             new THREE.Vector3(seg[0], seg[1], 0),
@@ -421,29 +531,40 @@ export const generateHatchPattern = (
           ]);
         }
       } else {
-        // Dash pattern: generate segments along the line
-        let t = -diag;
+        // Dash pattern: start near polygon, not at -diag (avoids millions of iterations
+        // when base point is far from polygon)
+        const lineStart = minDirProj - i * stagger - bboxDiag;
+        const lineEnd = maxDirProj - i * stagger + bboxDiag;
+        let t = lineStart;
         // Align start to pattern period
         const phase = ((t % dashTotal) + dashTotal) % dashTotal;
         t -= phase;
 
-        while (t < diag) {
-          for (const d of pl.dashes) {
+        while (t < lineEnd) {
+          for (const d of scaledDashes) {
             const segLen = Math.abs(d);
             if (d > 0) {
+              // Dash — line segment
               const sx = ox + t * dirX,
                 sy = oy + t * dirY;
               const ex = ox + (t + segLen) * dirX,
                 ey = oy + (t + segLen) * dirY;
-              const clipped = clipSegmentToPolygon(sx, sy, ex, ey, polygon);
+              const clipped = clipSegmentToPolygons(sx, sy, ex, ey, polygons);
               for (const seg of clipped) {
                 allSegments.push([
                   new THREE.Vector3(seg[0], seg[1], 0),
                   new THREE.Vector3(seg[2], seg[3], 0),
                 ]);
               }
+            } else if (d === 0) {
+              // Dot — zero-length element at current position
+              const dotX = ox + t * dirX;
+              const dotY = oy + t * dirY;
+              if (isPointInsideHatch(dotX, dotY, polygons)) {
+                allDots.push(new THREE.Vector3(dotX, dotY, 0));
+              }
             }
-            // d < 0 -> gap, d === 0 -> dot (skip)
+            // d < 0 -> gap (advance without drawing)
             t += segLen;
           }
         }
@@ -453,5 +574,5 @@ export const generateHatchPattern = (
     if (allSegments.length >= MAX_HATCH_SEGMENTS) break;
   }
 
-  return allSegments;
+  return { segments: allSegments, dots: allDots };
 };

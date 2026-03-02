@@ -57,6 +57,8 @@ export interface IHatchEntity extends IEntityBase {
   solid: boolean;
   boundaryPaths: IHatchBoundaryPath[];
   patternLines?: IHatchPatternLine[];
+  patternScale?: number;
+  patternAngle?: number;
   extrusionDirection?: IPoint;
 }
 
@@ -353,6 +355,12 @@ export function parseHatch(scanner: DxfScanner, curr: IGroup): IHatchEntity {
         boundaryPathsParsed++;
         continue;
       }
+      case 41:
+        entity.patternScale = curr.value as number;
+        break;
+      case 52:
+        entity.patternAngle = curr.value as number;
+        break;
       case 78: {
         const numPatternLines = curr.value as number;
         if (numPatternLines > 0) {

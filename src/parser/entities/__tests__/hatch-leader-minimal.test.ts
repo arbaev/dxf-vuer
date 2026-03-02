@@ -294,6 +294,24 @@ describe("parseHatch", () => {
     }
   });
 
+  it("parses patternScale (code 41) and patternAngle (code 52)", () => {
+    const { scanner, group } = createScannerAt(
+      "0", "HATCH",
+      "2", "ANSI31",
+      "70", "0",
+      "91", "0",
+      "41", "2.5",
+      "52", "30.0",
+      "0", "EOF",
+    );
+
+    const entity = parseHatch(scanner, group);
+
+    expect(entity.type).toBe("HATCH");
+    expect(entity.patternScale).toBe(2.5);
+    expect(entity.patternAngle).toBe(30);
+  });
+
   it("parses hatch with extrusion direction", () => {
     const { scanner, group } = createScannerAt(
       "0", "HATCH",
