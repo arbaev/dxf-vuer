@@ -15,6 +15,7 @@ export interface DxfEntityBase {
   lineType?: string;
   lineTypeScale?: number;
   visible?: boolean;
+  inPaperSpace?: boolean; // code 67: true = paper space entity (not rendered)
 }
 
 export interface DxfLineEntity extends DxfEntityBase {

@@ -831,6 +831,9 @@ export function createThreeObjectsFromDXF(dxf: DxfData): {
 
   dxf.entities.forEach((entity: DxfEntity, index: number) => {
     try {
+      // Skip paper space entities — they belong to layouts, not model space
+      if (entity.inPaperSpace) return;
+
       const obj = processEntity(entity, dxf, colorCtx, 0);
       if (obj) {
         setLayerName(obj, entity.layer || "0");
