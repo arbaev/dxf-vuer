@@ -54,6 +54,7 @@
           :dxf-data="dxfData"
           :file-name="currentFileName"
           :show-reset-button="!!dxfData"
+          :show-coordinates="true"
           @dxf-data="handleDXFData"
           @unsupported-entities="handleUnsupportedEntities"
           @error="handleError"
@@ -218,10 +219,8 @@ const resetView = () => {
 
 .viewer-container {
   display: flex;
-  height: 500px;
-  max-width: var(--content-max-width);
+  height: 70vh;
   width: 100%;
-  margin: 0 auto;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   overflow: hidden;
@@ -347,7 +346,7 @@ const resetView = () => {
   }
 
   .viewer-container {
-    height: 350px;
+    height: 50vh;
   }
 
   .features {

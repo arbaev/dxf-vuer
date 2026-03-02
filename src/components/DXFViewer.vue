@@ -1,5 +1,10 @@
 <template>
-  <div ref="dxfContainer" class="dxf-viewer">
+  <div
+    ref="dxfContainer"
+    class="dxf-viewer"
+    @mousemove="handleMouseMove"
+    @mouseleave="handleMouseLeave"
+  >
     <div v-if="!webGLSupported" class="message-overlay">
       <div class="message-content error">
         <svg
@@ -53,6 +58,10 @@
       @hide-all="handleHideAllLayers"
     />
 
+    <div v-if="showCoordinates && isCursorVisible && hasDXFData" class="coordinates-overlay">
+      X: {{ cursorX.toFixed(2) }} &nbsp; Y: {{ cursorY.toFixed(2) }}
+    </div>
+
     <div v-if="isLoading" class="message-overlay loading-overlay">
       <div class="message-content">
         <div class="spinner"></div>
@@ -81,6 +90,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
+import * as THREE from "three";
 import { useDXFRenderer } from "@/composables/useDXFRenderer";
 import { useLayers } from "@/composables/useLayers";
 import type { DxfData, DxfLayer } from "@/types/dxf";
@@ -91,6 +101,7 @@ interface Props {
   fileName?: string;
   showResetButton?: boolean;
   autoFit?: boolean;
+  showCoordinates?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -98,6 +109,7 @@ const props = withDefaults(defineProps<Props>(), {
   fileName: "",
   showResetButton: false,
   autoFit: true,
+  showCoordinates: false,
 });
 
 interface Emits {
@@ -123,7 +135,33 @@ const {
   resetView,
   applyLayerVisibility,
   cleanup,
+  getCamera,
 } = useDXFRenderer();
+
+// Cursor world coordinates
+const cursorX = ref(0);
+const cursorY = ref(0);
+const isCursorVisible = ref(false);
+
+const handleMouseMove = (e: MouseEvent) => {
+  if (!props.showCoordinates) return;
+  const container = dxfContainer.value;
+  const camera = getCamera();
+  if (!container || !camera) return;
+
+  const rect = container.getBoundingClientRect();
+  const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  const worldPos = new THREE.Vector3(ndcX, ndcY, 0).unproject(camera);
+
+  cursorX.value = worldPos.x;
+  cursorY.value = worldPos.y;
+  isCursorVisible.value = true;
+};
+
+const handleMouseLeave = () => {
+  isCursorVisible.value = false;
+};
 
 const {
   layerList,
@@ -339,6 +377,21 @@ defineExpose({
 
 .dxf-viewer :deep(canvas) {
   display: block;
+}
+
+.coordinates-overlay {
+  position: absolute;
+  bottom: var(--dxf-vuer-spacing-sm, 8px);
+  right: var(--dxf-vuer-spacing-sm, 8px);
+  z-index: 10;
+  padding: 4px var(--dxf-vuer-spacing-sm, 8px);
+  background-color: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  border-radius: var(--dxf-vuer-border-radius, 4px);
+  font-size: 12px;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .message-overlay {

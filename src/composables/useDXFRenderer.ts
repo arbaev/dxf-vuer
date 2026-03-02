@@ -139,5 +139,6 @@ export function useDXFRenderer() {
     resetView,
     applyLayerVisibility,
     cleanup,
+    getCamera,
   };
 }
