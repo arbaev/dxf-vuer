@@ -293,6 +293,26 @@ describe("parseHatch", () => {
       expect(lineEdge.end).toEqual({ x: 30, y: 30 });
     }
   });
+
+  it("parses hatch with extrusion direction", () => {
+    const { scanner, group } = createScannerAt(
+      "0", "HATCH",
+      "2", "SOLID",
+      "70", "1",
+      "91", "0",
+      "210", "0.0",
+      "220", "0.0",
+      "230", "-1.0",
+      "0", "ENDSEC",
+      "0", "EOF",
+    );
+
+    const entity = parseHatch(scanner, group);
+
+    expect(entity.type).toBe("HATCH");
+    expect(entity.patternName).toBe("SOLID");
+    expect(entity.extrusionDirection).toEqual({ x: 0, y: 0, z: -1 });
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -57,6 +57,7 @@ export interface IHatchEntity extends IEntityBase {
   solid: boolean;
   boundaryPaths: IHatchBoundaryPath[];
   patternLines?: IHatchPatternLine[];
+  extrusionDirection?: IPoint;
 }
 
 /**
@@ -363,6 +364,9 @@ export function parseHatch(scanner: DxfScanner, curr: IGroup): IHatchEntity {
         }
         break;
       }
+      case 210:
+        entity.extrusionDirection = helpers.parsePoint(scanner);
+        break;
       default:
         helpers.checkCommonEntityProperties(entity, curr, scanner);
         break;

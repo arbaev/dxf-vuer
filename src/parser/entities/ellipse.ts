@@ -10,6 +10,7 @@ export interface IEllipseEntity extends IEntityBase {
   axisRatio: number;
   startAngle: number;
   endAngle: number;
+  extrusionDirection?: IPoint;
 }
 
 export function parseEllipse(scanner: DxfScanner, curr: IGroup): IEllipseEntity {
@@ -32,6 +33,9 @@ export function parseEllipse(scanner: DxfScanner, curr: IGroup): IEllipseEntity 
         break;
       case 42:
         entity.endAngle = curr.value as number;
+        break;
+      case 210:
+        entity.extrusionDirection = helpers.parsePoint(scanner);
         break;
       default:
         helpers.checkCommonEntityProperties(entity, curr, scanner);

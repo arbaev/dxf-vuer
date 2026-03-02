@@ -27,6 +27,7 @@ export interface DxfCircleEntity extends DxfEntityBase {
   type: "CIRCLE";
   center: DxfVertex;
   radius: number;
+  extrusionDirection?: DxfVertex;
 }
 
 export interface DxfArcEntity extends DxfEntityBase {
@@ -35,12 +36,14 @@ export interface DxfArcEntity extends DxfEntityBase {
   radius: number;
   startAngle: number;
   endAngle: number;
+  extrusionDirection?: DxfVertex;
 }
 
 export interface DxfPolylineEntity extends DxfEntityBase {
   type: "POLYLINE" | "LWPOLYLINE";
   vertices: DxfVertex[];
   shape?: boolean;
+  extrusionDirection?: DxfVertex;
 }
 
 export interface DxfSplineEntity extends DxfEntityBase {
@@ -71,6 +74,7 @@ export interface DxfTextEntity extends DxfEntityBase {
   halign?: number;
   valign?: number;
   attachmentPoint?: number; // MTEXT: 1-9 (TopLeft..BottomRight)
+  extrusionDirection?: DxfVertex;
 }
 
 export interface DxfDimensionEntity extends DxfEntityBase {
@@ -129,11 +133,13 @@ export interface DxfInsertEntity extends DxfEntityBase {
   columnSpacing?: number;
   rowSpacing?: number;
   attribs?: DxfAttribEntity[];
+  extrusionDirection?: DxfVertex;
 }
 
 export interface DxfSolidEntity extends DxfEntityBase {
   type: "SOLID";
   points: [DxfVertex, DxfVertex, DxfVertex, DxfVertex];
+  extrusionDirection?: DxfVertex;
 }
 
 export interface DxfEllipseEntity extends DxfEntityBase {
@@ -143,6 +149,7 @@ export interface DxfEllipseEntity extends DxfEntityBase {
   axisRatio: number; // Minor-to-major axis ratio (0 < ratio <= 1)
   startAngle: number; // In radians
   endAngle: number; // In radians
+  extrusionDirection?: DxfVertex;
 }
 
 export interface DxfPointEntity extends DxfEntityBase {
@@ -213,6 +220,7 @@ export interface DxfHatchEntity extends DxfEntityBase {
   solid: boolean; // code 70 = 1 -> solid fill
   boundaryPaths: HatchBoundaryPath[];
   patternLines?: HatchPatternLine[];
+  extrusionDirection?: DxfVertex;
 }
 
 export interface DxfLeaderEntity extends DxfEntityBase {

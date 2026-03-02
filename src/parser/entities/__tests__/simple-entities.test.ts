@@ -119,6 +119,27 @@ describe("parseCircle", () => {
     expect(entity.type).toBe("CIRCLE");
     expect(entity.colorIndex).toBe(3);
   });
+
+  it("parses a circle with extrusion direction", () => {
+    const { scanner, group } = createScannerAt(
+      "0", "CIRCLE",
+      "10", "5.0",
+      "20", "5.0",
+      "40", "3.0",
+      "210", "0.0",
+      "220", "0.0",
+      "230", "-1.0",
+      "0", "ENDSEC",
+      "0", "EOF",
+    );
+
+    const entity = parseCircle(scanner, group);
+
+    expect(entity.type).toBe("CIRCLE");
+    expect(entity.center).toEqual({ x: 5, y: 5 });
+    expect(entity.radius).toBe(3);
+    expect(entity.extrusionDirection).toEqual({ x: 0, y: 0, z: -1 });
+  });
 });
 
 // =============================================================================
@@ -289,6 +310,29 @@ describe("parseEllipse", () => {
     expect(entity.axisRatio).toBe(0.3);
     expect(entity.startAngle).toBeCloseTo(0.785398, 5);
     expect(entity.endAngle).toBeCloseTo(Math.PI, 5);
+  });
+
+  it("parses an ellipse with extrusion direction", () => {
+    const { scanner, group } = createScannerAt(
+      "0", "ELLIPSE",
+      "10", "0.0",
+      "20", "0.0",
+      "11", "5.0",
+      "21", "0.0",
+      "40", "0.5",
+      "41", "0.0",
+      "42", "6.283185307",
+      "210", "0.0",
+      "220", "1.0",
+      "230", "0.0",
+      "0", "ENDSEC",
+      "0", "EOF",
+    );
+
+    const entity = parseEllipse(scanner, group);
+
+    expect(entity.type).toBe("ELLIPSE");
+    expect(entity.extrusionDirection).toEqual({ x: 0, y: 1, z: 0 });
   });
 });
 

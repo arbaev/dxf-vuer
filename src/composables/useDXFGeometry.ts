@@ -32,6 +32,7 @@ import {
 } from "@/constants";
 import { resolveEntityColor } from "@/utils/colorResolver";
 import { resolveEntityLinetype, computeAutoLtScale } from "@/utils/linetypeResolver";
+import { buildOcsMatrix, transformOcsPoints, transformOcsPoint } from "@/utils/ocsTransform";
 
 import {
   type EntityColorContext,
@@ -208,6 +209,7 @@ const processEntity = (
 
     case "CIRCLE": {
       if (isCircleEntity(entity)) {
+        const matrix = buildOcsMatrix(entity.extrusionDirection);
         const points: THREE.Vector3[] = [];
         for (let i = 0; i <= CIRCLE_SEGMENTS; i++) {
           const angle = (i / CIRCLE_SEGMENTS) * Math.PI * 2;
@@ -215,17 +217,18 @@ const processEntity = (
             new THREE.Vector3(
               entity.center.x + entity.radius * Math.cos(angle),
               entity.center.y + entity.radius * Math.sin(angle),
-              0,
+              entity.center.z || 0,
             ),
           );
         }
-        return createLine(points, lineMaterial, ltInfo?.pattern);
+        return createLine(transformOcsPoints(points, matrix), lineMaterial, ltInfo?.pattern);
       }
       break;
     }
 
     case "ARC": {
       if (isArcEntity(entity)) {
+        const matrix = buildOcsMatrix(entity.extrusionDirection);
         const startAngle = entity.startAngle;
         let endAngle = entity.endAngle;
         // Normalize: if endAngle <= startAngle, add a full revolution
@@ -245,17 +248,18 @@ const processEntity = (
             new THREE.Vector3(
               entity.center.x + entity.radius * Math.cos(angle),
               entity.center.y + entity.radius * Math.sin(angle),
-              0,
+              entity.center.z || 0,
             ),
           );
         }
-        return createLine(points, lineMaterial, ltInfo?.pattern);
+        return createLine(transformOcsPoints(points, matrix), lineMaterial, ltInfo?.pattern);
       }
       break;
     }
 
     case "ELLIPSE": {
       if (isEllipseEntity(entity)) {
+        const matrix = buildOcsMatrix(entity.extrusionDirection);
         const majorX = entity.majorAxisEndPoint.x;
         const majorY = entity.majorAxisEndPoint.y;
 
@@ -294,10 +298,10 @@ const processEntity = (
             entity.center.x + localX * Math.cos(rotation) - localY * Math.sin(rotation);
           const worldY =
             entity.center.y + localX * Math.sin(rotation) + localY * Math.cos(rotation);
-          points.push(new THREE.Vector3(worldX, worldY, 0));
+          points.push(new THREE.Vector3(worldX, worldY, entity.center.z || 0));
         }
 
-        return createLine(points, lineMaterial, ltInfo?.pattern);
+        return createLine(transformOcsPoints(points, matrix), lineMaterial, ltInfo?.pattern);
       }
       break;
     }
@@ -305,6 +309,7 @@ const processEntity = (
     case "LWPOLYLINE":
     case "POLYLINE": {
       if (isPolylineEntity(entity) && entity.vertices.length > 1) {
+        const matrix = buildOcsMatrix(entity.extrusionDirection);
         const allPoints: THREE.Vector3[] = [];
 
         for (let i = 0; i < entity.vertices.length - 1; i++) {
@@ -343,7 +348,7 @@ const processEntity = (
           }
         }
 
-        return createLine(allPoints, lineMaterial, ltInfo?.pattern);
+        return createLine(transformOcsPoints(allPoints, matrix), lineMaterial, ltInfo?.pattern);
       }
       break;
     }
@@ -408,6 +413,7 @@ const processEntity = (
 
     case "TEXT": {
       if (isTextEntity(entity)) {
+        const matrix = buildOcsMatrix(entity.extrusionDirection);
         const textPosition = entity.position || entity.startPoint;
         const textContent = entity.text;
         if (!textContent) return new THREE.Group();
@@ -426,7 +432,11 @@ const processEntity = (
             "Arial",
             vAlign,
           );
-          textMesh.position.set(textPosition.x, textPosition.y, 0);
+          const pos = transformOcsPoint(
+            new THREE.Vector3(textPosition.x, textPosition.y, 0),
+            matrix,
+          );
+          textMesh.position.set(pos.x, pos.y, pos.z);
 
           if (entity.rotation) {
             textMesh.rotation.z = degreesToRadians(entity.rotation);
@@ -440,6 +450,7 @@ const processEntity = (
 
     case "MTEXT": {
       if (isTextEntity(entity)) {
+        const matrix = buildOcsMatrix(entity.extrusionDirection);
         const textPosition = entity.position || entity.startPoint;
         const textContent = entity.text;
         if (!textContent) return new THREE.Group();
@@ -477,7 +488,11 @@ const processEntity = (
                   line.fontFamily,
                   vAlign,
                 );
-            textMesh.position.set(textPosition.x, textPosition.y, 0);
+            const pos = transformOcsPoint(
+              new THREE.Vector3(textPosition.x, textPosition.y, 0),
+              matrix,
+            );
+            textMesh.position.set(pos.x, pos.y, pos.z);
 
             if (entity.rotation) {
               textMesh.rotation.z = degreesToRadians(entity.rotation);
@@ -537,7 +552,11 @@ const processEntity = (
             groupYOffset = totalHeight;
           }
 
-          textGroup.position.set(textPosition.x, textPosition.y + groupYOffset, 0);
+          const groupPos = transformOcsPoint(
+            new THREE.Vector3(textPosition.x, textPosition.y + groupYOffset, 0),
+            matrix,
+          );
+          textGroup.position.set(groupPos.x, groupPos.y, groupPos.z);
 
           if (entity.rotation) {
             textGroup.rotation.z = degreesToRadians(entity.rotation);
@@ -624,7 +643,15 @@ const processEntity = (
 
     case "SOLID": {
       if (isSolidEntity(entity)) {
+        const matrix = buildOcsMatrix(entity.extrusionDirection);
         const meshMat = getMeshMaterial(entityColor, colorCtx.meshMaterialCache);
+        if (matrix) {
+          const transformed = entity.points.map((p) => {
+            const v = new THREE.Vector3(p.x, p.y, p.z || 0).applyMatrix4(matrix);
+            return { x: v.x, y: v.y, z: v.z } as DxfVertex;
+          });
+          return createFaceMesh(transformed as [DxfVertex, DxfVertex, DxfVertex, DxfVertex], meshMat);
+        }
         return createFaceMesh(entity.points, meshMat);
       }
       break;
@@ -640,11 +667,13 @@ const processEntity = (
 
     case "POINT": {
       if (isPointEntity(entity)) {
-        const pos = entity.position;
+        const matrix = buildOcsMatrix(entity.extrusionDirection);
+        const pos = transformOcsPoint(
+          new THREE.Vector3(entity.position.x, entity.position.y, entity.position.z || 0),
+          matrix,
+        );
 
-        const geometry = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(pos.x, pos.y, 0),
-        ]);
+        const geometry = new THREE.BufferGeometry().setFromPoints([pos]);
         const pointMat = getPointsMaterial(entityColor, colorCtx.pointsMaterialCache);
         return new THREE.Points(geometry, pointMat);
       }
@@ -653,7 +682,11 @@ const processEntity = (
 
     case "INSERT": {
       if (isInsertEntity(entity)) {
+        const insertMatrix = buildOcsMatrix(entity.extrusionDirection);
         const blockGroup = createBlockGroup(entity, dxf, colorCtx, depth);
+        if (insertMatrix && blockGroup) {
+          blockGroup.applyMatrix4(insertMatrix);
+        }
         // Render ATTRIB entities outside block transform (world coordinates)
         if (entity.attribs && entity.attribs.length > 0) {
           const objects: THREE.Object3D[] = [];
@@ -673,11 +706,12 @@ const processEntity = (
             const hasJustification =
               (attrib.horizontalJustification && attrib.horizontalJustification > 0) ||
               (attrib.verticalJustification && attrib.verticalJustification > 0);
-            const pos = hasJustification && attrib.endPoint
+            const posCoord = hasJustification && attrib.endPoint
               ? attrib.endPoint
               : attrib.startPoint;
-            if (!pos) continue;
+            if (!posCoord) continue;
 
+            const attribMatrix = buildOcsMatrix(attrib.extrusionDirection);
             const textMesh = createTextMesh(
               replaceSpecialChars(text),
               textHeight,
@@ -688,7 +722,11 @@ const processEntity = (
               "Arial",
               vAlign,
             );
-            textMesh.position.set(pos.x, pos.y, 0);
+            const pos = transformOcsPoint(
+              new THREE.Vector3(posCoord.x, posCoord.y, 0),
+              attribMatrix,
+            );
+            textMesh.position.set(pos.x, pos.y, pos.z);
 
             if (attrib.rotation) {
               textMesh.rotation.z = degreesToRadians(attrib.rotation);
@@ -706,6 +744,7 @@ const processEntity = (
 
     case "HATCH": {
       if (isHatchEntity(entity) && entity.boundaryPaths.length > 0) {
+        const hatchMatrix = buildOcsMatrix(entity.extrusionDirection);
         if (entity.solid) {
           const shapes: THREE.Shape[] = [];
 
@@ -720,14 +759,16 @@ const processEntity = (
 
           const geometry = new THREE.ShapeGeometry(shapes);
           const meshMat = getMeshMaterial(entityColor, colorCtx.meshMaterialCache);
-          return new THREE.Mesh(geometry, meshMat);
+          const mesh = new THREE.Mesh(geometry, meshMat);
+          if (hatchMatrix) mesh.applyMatrix4(hatchMatrix);
+          return mesh;
         } else {
           const objects: THREE.Object3D[] = [];
 
           for (const bp of entity.boundaryPaths) {
             const pts = boundaryPathToLinePoints(bp);
             if (pts.length > 1) {
-              objects.push(createLine(pts, lineMaterial, ltInfo?.pattern));
+              objects.push(createLine(transformOcsPoints(pts, hatchMatrix), lineMaterial, ltInfo?.pattern));
             }
           }
 
@@ -737,7 +778,7 @@ const processEntity = (
               const polygon: Point2D[] = boundaryPts.map((v) => ({ x: v.x, y: v.y }));
               const segments = generateHatchPattern(entity.patternLines, polygon);
               for (const seg of segments) {
-                objects.push(createLine(seg, lineMaterial, ltInfo?.pattern));
+                objects.push(createLine(transformOcsPoints(seg, hatchMatrix), lineMaterial, ltInfo?.pattern));
               }
             }
           }

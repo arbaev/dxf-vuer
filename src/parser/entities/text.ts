@@ -13,6 +13,7 @@ export interface ITextEntity extends IEntityBase {
   text: string;
   halign?: number;
   valign?: number;
+  extrusionDirection?: IPoint;
 }
 
 export function parseText(scanner: DxfScanner, curr: IGroup): ITextEntity {
@@ -44,6 +45,9 @@ export function parseText(scanner: DxfScanner, curr: IGroup): ITextEntity {
         break;
       case 73:
         entity.valign = curr.value as number;
+        break;
+      case 210:
+        entity.extrusionDirection = helpers.parsePoint(scanner);
         break;
       default:
         helpers.checkCommonEntityProperties(entity, curr, scanner);

@@ -70,6 +70,25 @@ describe("parseText", () => {
     expect(entity.rotation).toBe(45.0);
     expect(entity.text).toBe("Rotated");
   });
+
+  it("parses text with extrusion direction", () => {
+    const { scanner, group } = createScannerAt(
+      "0", "TEXT",
+      "10", "5.0",
+      "20", "10.0",
+      "1", "Mirrored",
+      "210", "0.0",
+      "220", "0.0",
+      "230", "-1.0",
+      "0", "EOF",
+    );
+
+    const entity = parseText(scanner, group);
+
+    expect(entity.type).toBe("TEXT");
+    expect(entity.text).toBe("Mirrored");
+    expect(entity.extrusionDirection).toEqual({ x: 0, y: 0, z: -1 });
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

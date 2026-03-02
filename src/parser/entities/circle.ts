@@ -7,6 +7,7 @@ export interface ICircleEntity extends IEntityBase {
   type: "CIRCLE";
   center: IPoint;
   radius: number;
+  extrusionDirection?: IPoint;
 }
 
 export function parseCircle(scanner: DxfScanner, curr: IGroup): ICircleEntity {
@@ -20,6 +21,9 @@ export function parseCircle(scanner: DxfScanner, curr: IGroup): ICircleEntity {
         break;
       case 40:
         entity.radius = curr.value as number;
+        break;
+      case 210:
+        entity.extrusionDirection = helpers.parsePoint(scanner);
         break;
       default:
         helpers.checkCommonEntityProperties(entity, curr, scanner);
