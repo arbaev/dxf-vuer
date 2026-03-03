@@ -118,7 +118,7 @@ const isExpanded = ref(true);
 .layer-panel {
   position: absolute;
   bottom: var(--dxf-vuer-spacing-sm, 8px);
-  left: var(--dxf-vuer-spacing-sm, 8px);
+  right: var(--dxf-vuer-spacing-sm, 8px);
   z-index: 10;
   background-color: rgba(255, 255, 255, 0.95);
   border: 1px solid var(--dxf-vuer-border-color, #e0e0e0);

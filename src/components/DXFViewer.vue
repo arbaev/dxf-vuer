@@ -105,7 +105,8 @@
     />
 
     <div v-if="showCoordinates && isCursorVisible && hasDXFData" class="coordinates-overlay">
-      X: {{ cursorX.toFixed(2) }} &nbsp; Y: {{ cursorY.toFixed(2) }}
+      <div class="coord-row"><span class="coord-label">X:</span><span class="coord-value">{{ cursorX.toFixed(2) }}</span></div>
+      <div class="coord-row"><span class="coord-label">Y:</span><span class="coord-value">{{ cursorY.toFixed(2) }}</span></div>
     </div>
 
     <div v-if="isLoading" class="message-overlay loading-overlay">
@@ -513,16 +514,36 @@ defineExpose({
 .coordinates-overlay {
   position: absolute;
   bottom: var(--dxf-vuer-spacing-sm, 8px);
-  right: var(--dxf-vuer-spacing-sm, 8px);
+  left: var(--dxf-vuer-spacing-sm, 8px);
   z-index: 10;
+  display: flex;
+  flex-direction: column;
   padding: 4px var(--dxf-vuer-spacing-sm, 8px);
-  background-color: rgba(0, 0, 0, 0.7);
-  color: #fff;
+  background-color: rgba(255, 255, 255, 0.95);
+  color: var(--dxf-vuer-text-color, #212121);
+  border: 1px solid var(--dxf-vuer-border-color, #e0e0e0);
   border-radius: var(--dxf-vuer-border-radius, 4px);
   font-size: 12px;
   font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
   pointer-events: none;
   white-space: nowrap;
+}
+
+.coord-row {
+  display: flex;
+  gap: 2px;
+}
+
+.coord-label {
+  width: 1.2em;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.coord-value {
+  width: 7em;
+  text-align: right;
+  flex-shrink: 0;
 }
 
 .message-overlay {
@@ -705,6 +726,12 @@ defineExpose({
 
 .dark-theme :deep(.color-swatch) {
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+.dark-theme .coordinates-overlay {
+  background-color: rgba(30, 30, 30, 0.95);
+  border-color: #444;
+  color: #e0e0e0;
 }
 
 @media (max-width: 768px) {
