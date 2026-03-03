@@ -111,7 +111,7 @@
       <div class="message-content">
         <div class="spinner"></div>
         <div class="message-text">
-          {{ loadingPhase === 'parsing' ? 'Parsing DXF...' : 'Rendering...' }}
+          {{ loadingPhase === 'fetching' ? 'Loading DXF...' : loadingPhase === 'parsing' ? 'Parsing DXF...' : 'Rendering...' }}
         </div>
         <div v-if="loadingPhase === 'rendering'" class="progress-container">
           <div class="progress-bar" :style="{ width: (displayProgress * 100) + '%' }"></div>
@@ -152,6 +152,7 @@ import LayerPanel from "./LayerPanel.vue";
 interface Props {
   dxfData?: DxfData | null;
   fileName?: string;
+  url?: string;
   showResetButton?: boolean;
   showFullscreenButton?: boolean;
   autoFit?: boolean;
@@ -161,6 +162,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   dxfData: null,
   fileName: "",
+  url: "",
   showResetButton: false,
   showFullscreenButton: true,
   autoFit: true,
@@ -196,7 +198,7 @@ const {
   getRenderer,
 } = useDXFRenderer();
 
-const loadingPhase = ref<"" | "parsing" | "rendering">("");
+const loadingPhase = ref<"" | "fetching" | "parsing" | "rendering">("");
 
 // Cursor world coordinates
 const cursorX = ref(0);
@@ -344,6 +346,26 @@ const loadDXFFromData = async (dxfData: DxfData) => {
   }
 };
 
+const loadDXFFromUrl = async (url: string) => {
+  isLoading.value = true;
+  loadingPhase.value = "fetching";
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const text = await response.text();
+    await loadDXFFromText(text);
+  } catch (error) {
+    // loadDXFFromText has its own error handling;
+    // this catch handles fetch errors only
+    const msg = error instanceof Error ? error.message : "Failed to fetch DXF";
+    emit("error", msg);
+    emit("dxf-loaded", false);
+  } finally {
+    loadingPhase.value = "";
+    isLoading.value = false;
+  }
+};
+
 const resize = () => {
   if (dxfContainer.value) {
     handleResize(dxfContainer.value);
@@ -360,6 +382,10 @@ watch(
   },
 );
 
+watch(() => props.url, (newUrl) => {
+  if (newUrl) loadDXFFromUrl(newUrl);
+});
+
 watch(rendererError, (newError) => {
   if (newError) {
     emit("error", newError);
@@ -374,7 +400,9 @@ onMounted(() => {
     if (dxfContainer.value) {
       initThreeJS(dxfContainer.value, { enableControls: true });
 
-      if (props.dxfData && hasDXFData.value) {
+      if (props.url) {
+        loadDXFFromUrl(props.url);
+      } else if (props.dxfData && hasDXFData.value) {
         loadDXFFromData(props.dxfData);
       }
 
@@ -399,6 +427,7 @@ onBeforeUnmount(() => {
 defineExpose({
   loadDXFFromText,
   loadDXFFromData,
+  loadDXFFromUrl,
   resize,
   resetView,
   getRenderer,
