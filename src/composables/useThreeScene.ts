@@ -139,6 +139,7 @@ export function useThreeScene() {
       renderer = new THREE.WebGLRenderer({
         antialias: true,
         alpha: true,
+        preserveDrawingBuffer: true,
       });
       renderer.setSize(containerWidth, containerHeight);
     } catch (err) {

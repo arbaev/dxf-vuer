@@ -58,6 +58,7 @@
           :file-name="currentFileName"
           :show-reset-button="!!dxfData"
           :show-coordinates="true"
+          :show-export-button="true"
           :allow-drop="true"
           :dark-theme="isDark"
           @dxf-data="handleDXFData"

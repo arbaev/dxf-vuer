@@ -36,6 +36,27 @@
 
     <div v-if="hasDXFData" class="toolbar-overlay">
       <button
+        v-if="showExportButton"
+        class="toolbar-button"
+        @click="exportToPNG"
+        title="Export PNG"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+      </button>
+      <button
         v-if="showResetButton"
         class="toolbar-button"
         @click="handleResetView"
@@ -108,18 +129,28 @@
     />
 
     <div v-if="showCoordinates && isCursorVisible && hasDXFData" class="coordinates-overlay">
-      <div class="coord-row"><span class="coord-label">X:</span><span class="coord-value">{{ cursorX.toFixed(2) }}</span></div>
-      <div class="coord-row"><span class="coord-label">Y:</span><span class="coord-value">{{ cursorY.toFixed(2) }}</span></div>
+      <div class="coord-row">
+        <span class="coord-label">X:</span><span class="coord-value">{{ cursorX.toFixed(2) }}</span>
+      </div>
+      <div class="coord-row">
+        <span class="coord-label">Y:</span><span class="coord-value">{{ cursorY.toFixed(2) }}</span>
+      </div>
     </div>
 
     <div v-if="isLoading" class="message-overlay loading-overlay">
       <div class="message-content">
         <div class="spinner"></div>
         <div class="message-text">
-          {{ loadingPhase === 'fetching' ? 'Loading DXF...' : loadingPhase === 'parsing' ? 'Parsing DXF...' : 'Rendering...' }}
+          {{
+            loadingPhase === "fetching"
+              ? "Loading DXF..."
+              : loadingPhase === "parsing"
+                ? "Parsing DXF..."
+                : "Rendering..."
+          }}
         </div>
         <div v-if="loadingPhase === 'rendering'" class="progress-container">
-          <div class="progress-bar" :style="{ width: (displayProgress * 100) + '%' }"></div>
+          <div class="progress-bar" :style="{ width: displayProgress * 100 + '%' }"></div>
         </div>
         <div v-if="loadingPhase === 'rendering'" class="progress-text">
           {{ Math.round(displayProgress * 100) }}%
@@ -146,7 +177,14 @@
 
     <div v-if="isDragOver" class="message-overlay drop-overlay">
       <div class="message-content">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <svg
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
           <polyline points="7 10 12 15 17 10" />
           <line x1="12" y1="15" x2="12" y2="3" />
@@ -174,6 +212,7 @@ interface Props {
   autoFit?: boolean;
   showCoordinates?: boolean;
   showFileName?: boolean;
+  showExportButton?: boolean;
   allowDrop?: boolean;
   darkTheme?: boolean;
 }
@@ -187,6 +226,7 @@ const props = withDefaults(defineProps<Props>(), {
   autoFit: true,
   showCoordinates: false,
   showFileName: true,
+  showExportButton: false,
   allowDrop: false,
   darkTheme: false,
 });
@@ -254,7 +294,10 @@ let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 const handleDragOver = (e: DragEvent) => {
   if (!props.allowDrop) return;
-  if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null; }
+  if (dragLeaveTimer) {
+    clearTimeout(dragLeaveTimer);
+    dragLeaveTimer = null;
+  }
   isDragOver.value = true;
   if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
 };
@@ -262,7 +305,9 @@ const handleDragOver = (e: DragEvent) => {
 const handleDragLeave = () => {
   if (!props.allowDrop) return;
   // Debounce to avoid flicker when dragging over child elements
-  dragLeaveTimer = setTimeout(() => { isDragOver.value = false; }, 50);
+  dragLeaveTimer = setTimeout(() => {
+    isDragOver.value = false;
+  }, 50);
 };
 
 const handleDrop = async (e: DragEvent) => {
@@ -308,6 +353,15 @@ let lastLoadedDxf: DxfData | null = null;
 const handleResetView = () => {
   resetView();
   emit("reset-view");
+};
+
+const exportToPNG = () => {
+  const renderer = getRenderer();
+  if (!renderer) return;
+  const link = document.createElement("a");
+  link.download = (props.fileName || "dxf-export").replace(/\.dxf$/i, "") + ".png";
+  link.href = renderer.domElement.toDataURL("image/png");
+  link.click();
 };
 
 const initLayersFromDXF = (dxf: DxfData, darkTheme?: boolean) => {
@@ -385,8 +439,7 @@ const loadDXFFromData = async (dxfData: DxfData) => {
     }
   } catch (error) {
     clearLayers();
-    const errorMsg =
-      error instanceof Error ? error.message : "Unknown error displaying DXF";
+    const errorMsg = error instanceof Error ? error.message : "Unknown error displaying DXF";
     emit("error", errorMsg);
     emit("dxf-loaded", false);
     emit("dxf-data", null);
@@ -432,18 +485,24 @@ watch(
   },
 );
 
-watch(() => props.url, (newUrl) => {
-  if (newUrl) loadDXFFromUrl(newUrl);
-});
+watch(
+  () => props.url,
+  (newUrl) => {
+    if (newUrl) loadDXFFromUrl(newUrl);
+  },
+);
 
-watch(() => props.darkTheme, () => {
-  // Re-render with new theme colors (baked into materials)
-  if (lastLoadedDxf) {
-    loadDXFFromData(lastLoadedDxf);
-  } else if (props.dxfData && hasDXFData.value) {
-    loadDXFFromData(props.dxfData);
-  }
-});
+watch(
+  () => props.darkTheme,
+  () => {
+    // Re-render with new theme colors (baked into materials)
+    if (lastLoadedDxf) {
+      loadDXFFromData(lastLoadedDxf);
+    } else if (props.dxfData && hasDXFData.value) {
+      loadDXFFromData(props.dxfData);
+    }
+  },
+);
 
 watch(rendererError, (newError) => {
   if (newError) {
@@ -489,6 +548,7 @@ defineExpose({
   loadDXFFromUrl,
   resize,
   resetView,
+  exportToPNG,
   getRenderer,
 });
 </script>
