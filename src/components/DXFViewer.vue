@@ -55,6 +55,7 @@
         </svg>
       </button>
       <button
+        v-if="showFullscreenButton"
         class="toolbar-button"
         @click="toggleFullscreen"
         :title="isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
@@ -152,6 +153,7 @@ interface Props {
   dxfData?: DxfData | null;
   fileName?: string;
   showResetButton?: boolean;
+  showFullscreenButton?: boolean;
   autoFit?: boolean;
   showCoordinates?: boolean;
 }
@@ -160,6 +162,7 @@ const props = withDefaults(defineProps<Props>(), {
   dxfData: null,
   fileName: "",
   showResetButton: false,
+  showFullscreenButton: true,
   autoFit: true,
   showCoordinates: false,
 });
