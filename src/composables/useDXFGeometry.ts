@@ -72,6 +72,12 @@ import {
   type Point2D,
 } from "./geometry/hatch";
 import { GeometryCollector } from "./geometry/mergeCollectors";
+import {
+  type BlockTemplate,
+  INSTANCING_THRESHOLD,
+  buildBlockTemplate,
+  instantiateBlockTemplate,
+} from "./geometry/blockTemplateCache";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -243,8 +249,9 @@ const collectEntity = (
   collector: GeometryCollector,
   layer: string,
   worldMatrix?: THREE.Matrix4,
+  overrideColor?: string,
 ): boolean => {
-  const entityColor = resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor);
+  const entityColor = overrideColor ?? resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor);
   const ltInfo = resolveEntityLinetype(
     entity,
     colorCtx.layers,
@@ -558,6 +565,7 @@ const collectInsertEntity = async (
   fallbackGroup: THREE.Group,
   depth: number,
   yieldState: YieldState,
+  blockTemplates?: Map<string, BlockTemplate>,
 ): Promise<void> => {
   if (depth > MAX_RECURSION_DEPTH || !isInsertEntity(insertEntity)) return;
   if (!dxf.blocks || typeof dxf.blocks !== "object") return;
@@ -597,14 +605,128 @@ const collectInsertEntity = async (
     blockLineType: insertEntity.lineType || colorCtx.blockLineType,
   };
 
+  // Fast path: use cached template if available
+  const template = blockTemplates?.get(insertEntity.name);
+  if (template) {
+    // Transform cached geometry by worldMatrix
+    instantiateBlockTemplate(template, collector, insertLayer, insertColor, worldMatrix);
+
+    // Process fallback entities individually (TEXT, nested INSERT, etc.)
+    for (const idx of template.fallbackEntityIndices) {
+      const entity = block.entities[idx];
+      try {
+        const entityLayer = (!entity.layer || entity.layer === "0") ? insertLayer : entity.layer;
+
+        // Nested INSERT: recurse (with blockTemplates for nested fast path)
+        if (entity.type === "INSERT" && isInsertEntity(entity)) {
+          await collectInsertEntity(entity, dxf, blockColorCtx, collector, entityLayer, worldMatrix, fallbackGroup, depth + 1, yieldState, blockTemplates);
+          continue;
+        }
+
+        // Try simple collection
+        if (COLLECTABLE_TYPES.has(entity.type)) {
+          if (collectEntity(entity, blockColorCtx, collector, entityLayer, worldMatrix)) {
+            continue;
+          }
+        }
+
+        // Complex entities (DIMENSION, LEADER, TEXT, etc.)
+        const decomposable = entity.type === "DIMENSION" || entity.type === "LEADER"
+          || entity.type === "MULTILEADER" || entity.type === "MLEADER";
+
+        const obj = processEntity(entity, dxf, blockColorCtx, depth + 1);
+        if (obj) {
+          const key = entity.type || "unknown";
+          fallbackGroup.userData._debugFallback ??= {};
+
+          if (decomposable) {
+            const beforeCount = fallbackGroup.children.length;
+            decomposeToCollector(obj, collector, entityLayer, worldMatrix, fallbackGroup);
+            const textCount = fallbackGroup.children.length - beforeCount;
+            fallbackGroup.userData._debugFallback[key + "(text)"] =
+              (fallbackGroup.userData._debugFallback[key + "(text)"] || 0) + textCount;
+          } else {
+            const count = Array.isArray(obj) ? obj.length : 1;
+            fallbackGroup.userData._debugFallback[key] =
+              (fallbackGroup.userData._debugFallback[key] || 0) + count;
+            if (Array.isArray(obj)) {
+              for (const o of obj) {
+                o.applyMatrix4(worldMatrix);
+                o.userData.layerName = entityLayer;
+                fallbackGroup.add(o);
+              }
+            } else {
+              obj.applyMatrix4(worldMatrix);
+              obj.userData.layerName = entityLayer;
+              fallbackGroup.add(obj);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`Error processing fallback entity in block "${insertEntity.name}":`, error);
+      }
+    }
+
+    // Handle ATTRIBs for template path (same as slow path below)
+    if (insertEntity.attribs && insertEntity.attribs.length > 0) {
+      for (const attrib of insertEntity.attribs) {
+        if (attrib.invisible) continue;
+        const text = attrib.text;
+        if (!text) continue;
+
+        const attribColor = resolveEntityColor(attrib, colorCtx.layers, colorCtx.blockColor);
+        const textHeight = attrib.textHeight || TEXT_HEIGHT;
+        const hAlign = getTextHAlign(attrib.horizontalJustification);
+        const vAlign = getTextVAlign(attrib.verticalJustification);
+
+        const hasJustification =
+          (attrib.horizontalJustification && attrib.horizontalJustification > 0) ||
+          (attrib.verticalJustification && attrib.verticalJustification > 0);
+        const posCoord = hasJustification && attrib.endPoint
+          ? attrib.endPoint
+          : attrib.startPoint;
+        if (!posCoord) continue;
+
+        const attribMatrix = buildOcsMatrix(attrib.extrusionDirection);
+        const textMesh = createTextMesh(
+          replaceSpecialChars(text),
+          textHeight,
+          attribColor,
+          false,
+          false,
+          hAlign,
+          "Arial",
+          vAlign,
+        );
+        const attribPos = transformOcsPoint(
+          new THREE.Vector3(posCoord.x, posCoord.y, 0),
+          attribMatrix,
+        );
+        textMesh.position.set(attribPos.x, attribPos.y, attribPos.z);
+
+        if (attrib.rotation) {
+          textMesh.rotation.z = degreesToRadians(attrib.rotation);
+        }
+
+        textMesh.userData.layerName = insertLayer;
+        fallbackGroup.add(textMesh);
+        fallbackGroup.userData._debugFallback ??= {};
+        fallbackGroup.userData._debugFallback["ATTRIB"] = (fallbackGroup.userData._debugFallback["ATTRIB"] || 0) + 1;
+      }
+    }
+
+    return;
+  }
+
+  // Slow path: process every entity individually
   for (const entity of block.entities) {
     try {
       // Layer "0" inside block inherits INSERT's layer
       const entityLayer = (!entity.layer || entity.layer === "0") ? insertLayer : entity.layer;
 
-      // Nested INSERT: recurse
+      // Nested INSERT: recurse (with blockTemplates for nested fast path)
       if (entity.type === "INSERT" && isInsertEntity(entity)) {
-        await collectInsertEntity(entity, dxf, blockColorCtx, collector, entityLayer, worldMatrix, fallbackGroup, depth + 1, yieldState);
+        await collectInsertEntity(entity, dxf, blockColorCtx, collector, entityLayer, worldMatrix, fallbackGroup, depth + 1, yieldState, blockTemplates);
         continue;
       }
 
@@ -1630,6 +1752,32 @@ export async function createThreeObjectsFromDXF(
 
   const yieldState: YieldState = { lastYield: performance.now(), signal };
 
+  // Debug timing
+  let _tInsert = 0, _tText = 0, _tGeom = 0, _tDecompose = 0;
+
+  // Pre-pass: count INSERT usage and build templates for frequently-used blocks
+  const blockRefCounts = new Map<string, number>();
+  for (const entity of dxf.entities) {
+    if (entity.type === "INSERT" && !entity.inPaperSpace && isInsertEntity(entity)) {
+      blockRefCounts.set(entity.name, (blockRefCounts.get(entity.name) ?? 0) + 1);
+    }
+  }
+
+  const blockTemplates = new Map<string, BlockTemplate>();
+  if (dxf.blocks) {
+    for (const [name, count] of blockRefCounts) {
+      if (count >= INSTANCING_THRESHOLD) {
+        const block = dxf.blocks[name];
+        if (block?.entities?.length) {
+          blockTemplates.set(name, buildBlockTemplate(name, block.entities as DxfEntity[], colorCtx, collectEntity));
+        }
+      }
+    }
+  }
+  if (blockTemplates.size > 0) {
+    console.log(`[dxf-vuer] Block template cache: ${blockTemplates.size} templates built for ${[...blockRefCounts.entries()].filter(([, c]) => c >= INSTANCING_THRESHOLD).reduce((s, [, c]) => s + c, 0)} INSERTs`);
+  }
+
   for (let index = 0; index < dxf.entities.length; index++) {
     if (signal?.cancelled) {
       return { group };
@@ -1645,28 +1793,39 @@ export async function createThreeObjectsFromDXF(
 
       // INSERT blocks: flatten into collector (merged geometry)
       if (entity.type === "INSERT") {
-        await collectInsertEntity(entity, dxf, colorCtx, collector, layer, null, group, 0, yieldState);
+        const _t0 = performance.now();
+        await collectInsertEntity(entity, dxf, colorCtx, collector, layer, null, group, 0, yieldState, blockTemplates);
+        _tInsert += performance.now() - _t0;
         continue;
       }
 
       // Try to collect simple entities into merged buffers
       if (COLLECTABLE_TYPES.has(entity.type)) {
+        const _t0 = performance.now();
         if (collectEntity(entity, colorCtx, collector, layer)) {
+          _tGeom += performance.now() - _t0;
           continue;
         }
+        _tGeom += performance.now() - _t0;
       }
 
       // Complex entities: create individual Three.js objects
+      const _t0e = performance.now();
       const obj = processEntity(entity, dxf, colorCtx, 0);
+      if (entity.type === "TEXT" || entity.type === "MTEXT") {
+        _tText += performance.now() - _t0e;
+      }
       if (obj) {
         // DIMENSION/LEADER/MLEADER: decompose lines+arrows into collector, keep only text
         const topDecomposable = entity.type === "DIMENSION" || entity.type === "LEADER"
           || entity.type === "MULTILEADER" || entity.type === "MLEADER";
 
         if (topDecomposable) {
+          const _t0d = performance.now();
           const identity = new THREE.Matrix4();
           const beforeCount = group.children.length;
           decomposeToCollector(obj, collector, layer, identity, group);
+          _tDecompose += performance.now() - _t0d;
           const textCount = group.children.length - beforeCount;
           _debugFallback[entity.type + "(text)"] = (_debugFallback[entity.type + "(text)"] || 0) + textCount;
         } else {
@@ -1698,6 +1857,9 @@ export async function createThreeObjectsFromDXF(
   if (signal?.cancelled) {
     return { group };
   }
+
+  // Debug: timing breakdown
+  console.log(`[dxf-vuer] Time breakdown — INSERT: ${_tInsert.toFixed(0)}ms | Text: ${_tText.toFixed(0)}ms | Geom: ${_tGeom.toFixed(0)}ms | Decompose: ${_tDecompose.toFixed(0)}ms`);
 
   // Debug: log fallback entity counts
   const blockFallback = group.userData._debugFallback || {};
