@@ -246,7 +246,9 @@ export function addTextToCollector(
           const tx = transform[0] * wx + transform[4] * wy + transform[8] * wz + transform[12];
           const ty = transform[1] * wx + transform[5] * wy + transform[9] * wz + transform[13];
           const tz = transform[2] * wx + transform[6] * wy + transform[10] * wz + transform[14];
-          wx = tx; wy = ty; wz = tz;
+          wx = tx;
+          wy = ty;
+          wz = tz;
         }
         allPositions.push(wx, wy, wz);
       }
@@ -261,7 +263,8 @@ export function addTextToCollector(
         for (let j = 0; j < gd.positions.length; j += 3) {
           const glyphX = gd.positions[j] + xCursor - originX;
           const glyphY = gd.positions[j + 1] - originY;
-          const localX = ((italic ? glyphX + glyphY * ITALIC_SLANT : glyphX) + BOLD_OFFSET) * scaleX;
+          const localX =
+            ((italic ? glyphX + glyphY * ITALIC_SLANT : glyphX) + BOLD_OFFSET) * scaleX;
           const localY = glyphY * scaleY;
           let wx = posX + localX * cos - localY * sin;
           let wy = posY + localX * sin + localY * cos;
@@ -270,7 +273,9 @@ export function addTextToCollector(
             const tx = transform[0] * wx + transform[4] * wy + transform[8] * wz + transform[12];
             const ty = transform[1] * wx + transform[5] * wy + transform[9] * wz + transform[13];
             const tz = transform[2] * wx + transform[6] * wy + transform[10] * wz + transform[14];
-            wx = tx; wy = ty; wz = tz;
+            wx = tx;
+            wy = ty;
+            wz = tz;
           }
           allPositions.push(wx, wy, wz);
         }
@@ -295,7 +300,7 @@ export function addTextToCollector(
 // ── Faux bold/italic constants ─────────────────────────────────────────
 
 /** Italic slant: tan(12°) ≈ 0.2126 */
-const ITALIC_SLANT = Math.tan(12 * Math.PI / 180);
+const ITALIC_SLANT = Math.tan((12 * Math.PI) / 180);
 /** Bold offset as fraction of height (normalized units) */
 const BOLD_OFFSET = 0.02;
 
@@ -319,9 +324,7 @@ function mtextHAlignToEnum(hAlign: "left" | "center" | "right"): number {
  * Word wrap text to fit within a maximum width (in world units).
  * Splits by spaces; single words wider than maxWidth stay on their own line.
  */
-function wrapTextToWidth(
-  font: Font, text: string, height: number, maxWidth: number,
-): string[] {
+function wrapTextToWidth(font: Font, text: string, height: number, maxWidth: number): string[] {
   if (!text) return [text];
   const words = text.split(" ");
   if (words.length <= 1) return [text];
@@ -348,15 +351,20 @@ function wrapTextToWidth(
  * Emit stacked text (main text + fraction) into collector.
  * Handles horizontal alignment for the combined width.
  *
- * @param posX/posY Position for this line (VAlign.TOP semantics — top of text at posY)
+ * @param posX/posY Position for this line (ascender line at posY)
  */
 function emitStackedText(
   collector: GeometryCollector,
-  layer: string, color: string,
+  layer: string,
+  color: string,
   font: Font,
-  mainText: string, stackedTop: string, stackedBottom: string,
+  mainText: string,
+  stackedTop: string,
+  stackedBottom: string,
   height: number,
-  posX: number, posY: number, posZ: number,
+  posX: number,
+  posY: number,
+  posZ: number,
   rotation: number,
   hAlign: "left" | "center" | "right",
   transform?: readonly number[],
@@ -369,10 +377,10 @@ function emitStackedText(
 
   // Measure advance widths in world units
   const mainAdvance = mainText ? measureText(font, mainText).totalAdvance * height : 0;
-  const topAdvance = stackedTop
-    ? measureText(font, stackedTop).totalAdvance * stackedHeight : 0;
+  const topAdvance = stackedTop ? measureText(font, stackedTop).totalAdvance * stackedHeight : 0;
   const bottomAdvance = stackedBottom
-    ? measureText(font, stackedBottom).totalAdvance * stackedHeight : 0;
+    ? measureText(font, stackedBottom).totalAdvance * stackedHeight
+    : 0;
   const stackedWidth = Math.max(topAdvance, bottomAdvance);
   const gap = mainText ? height * STACKED_H_GAP : 0;
   const totalWidth = mainAdvance + gap + stackedWidth;
@@ -397,9 +405,24 @@ function emitStackedText(
   // Emit main text (LEFT-aligned, vertically centered on the stacked block center)
   if (mainText) {
     addTextToCollector(
-      collector, layer, color, font, mainText, height,
-      curX, curY, posZ, rotation, HAlign.LEFT, VAlign.MIDDLE,
-      1, undefined, undefined, transform, bold, italic,
+      collector,
+      layer,
+      color,
+      font,
+      mainText,
+      height,
+      curX,
+      curY,
+      posZ,
+      rotation,
+      HAlign.LEFT,
+      VAlign.MIDDLE,
+      1,
+      undefined,
+      undefined,
+      transform,
+      bold,
+      italic,
     );
     curX += (mainAdvance + gap) * cos;
     curY += (mainAdvance + gap) * sin;
@@ -414,9 +437,24 @@ function emitStackedText(
     const topX = curX - topOffsetY * sin;
     const topY = curY + topOffsetY * cos;
     addTextToCollector(
-      collector, layer, color, font, stackedTop, stackedHeight,
-      topX, topY, posZ, rotation, HAlign.LEFT, VAlign.BASELINE,
-      1, undefined, undefined, transform, bold, italic,
+      collector,
+      layer,
+      color,
+      font,
+      stackedTop,
+      stackedHeight,
+      topX,
+      topY,
+      posZ,
+      rotation,
+      HAlign.LEFT,
+      VAlign.BASELINE,
+      1,
+      undefined,
+      undefined,
+      transform,
+      bold,
+      italic,
     );
   }
 
@@ -427,9 +465,24 @@ function emitStackedText(
     const bottomX = curX - bottomOffsetY * sin;
     const bottomY = curY + bottomOffsetY * cos;
     addTextToCollector(
-      collector, layer, color, font, stackedBottom, stackedHeight,
-      bottomX, bottomY, posZ, rotation, HAlign.LEFT, VAlign.BASELINE,
-      1, undefined, undefined, transform, bold, italic,
+      collector,
+      layer,
+      color,
+      font,
+      stackedBottom,
+      stackedHeight,
+      bottomX,
+      bottomY,
+      posZ,
+      rotation,
+      HAlign.LEFT,
+      VAlign.BASELINE,
+      1,
+      undefined,
+      undefined,
+      transform,
+      bold,
+      italic,
     );
   }
 }
@@ -502,12 +555,12 @@ export function addMTextToCollector(
   // 3. Determine alignment from attachment point (1-9)
   const col = (attachmentPoint - 1) % 3; // 0=left, 1=center, 2=right
   const row = Math.ceil(attachmentPoint / 3); // 1=top, 2=middle, 3=bottom
-  const hAlign: "left" | "center" | "right" =
-    col === 1 ? "center" : col === 2 ? "right" : "left";
+  const hAlign: "left" | "center" | "right" = col === 1 ? "center" : col === 2 ? "right" : "left";
 
   // Vertical offset: how much to shift the text block up from the insertion point
   let groupYOffset = 0;
-  if (row === 2) groupYOffset = totalHeight / 2; // middle
+  if (row === 2)
+    groupYOffset = totalHeight / 2; // middle
   else if (row === 3) groupYOffset = totalHeight; // bottom
 
   // 4. Emit each line
@@ -534,19 +587,52 @@ export function addMTextToCollector(
     const worldX = posX - localY * sin;
     const worldY = posY + localY * cos;
 
+    // MTEXT: ascender line at worldY (DXF attachment point semantics).
+    // Compute baseline position from font ascender for consistent placement.
+    const normAsc = lineFont.ascender / lineFont.unitsPerEm;
+    const ascBaseOffset = -normAsc * lineHeight;
+    const baseX = worldX - ascBaseOffset * sin;
+    const baseY = worldY + ascBaseOffset * cos;
+
     if (line.stackedTop || line.stackedBottom) {
       emitStackedText(
-        collector, layer, lineColor, lineFont,
-        line.text, line.stackedTop || "", line.stackedBottom || "",
-        lineHeight, worldX, worldY, posZ, rotation, hAlign,
-        undefined, line.bold, line.italic,
+        collector,
+        layer,
+        lineColor,
+        lineFont,
+        line.text,
+        line.stackedTop || "",
+        line.stackedBottom || "",
+        lineHeight,
+        worldX,
+        worldY,
+        posZ,
+        rotation,
+        hAlign,
+        undefined,
+        line.bold,
+        line.italic,
       );
     } else {
       addTextToCollector(
-        collector, layer, lineColor, lineFont,
-        line.text, lineHeight,
-        worldX, worldY, posZ, rotation, hAlignEnum, VAlign.TOP,
-        1, undefined, undefined, undefined, line.bold, line.italic,
+        collector,
+        layer,
+        lineColor,
+        lineFont,
+        line.text,
+        lineHeight,
+        baseX,
+        baseY,
+        posZ,
+        rotation,
+        hAlignEnum,
+        VAlign.MIDDLE,
+        1,
+        undefined,
+        undefined,
+        undefined,
+        line.bold,
+        line.italic,
       );
     }
 
@@ -563,11 +649,7 @@ const STACKED_REGEX = /^(.*?)\\S([^^/;]*)\^([^;]*);(.*)$/;
  * Measure dimension text width in world units.
  * Cleans MTEXT formatting, handles stacked fractions (\S).
  */
-export function measureDimensionTextWidth(
-  font: Font,
-  rawText: string,
-  height: number,
-): number {
+export function measureDimensionTextWidth(font: Font, rawText: string, height: number): number {
   const cleaned = cleanDimensionMText(rawText);
   const stackedMatch = cleaned.match(STACKED_REGEX);
 
@@ -577,12 +659,8 @@ export function measureDimensionTextWidth(
     const bottomText = stackedMatch[3].trim();
 
     const stackedHeight = height * STACKED_RATIO;
-    const mainAdvance = mainText
-      ? measureText(font, mainText).totalAdvance * height
-      : 0;
-    const topAdvance = topText
-      ? measureText(font, topText).totalAdvance * stackedHeight
-      : 0;
+    const mainAdvance = mainText ? measureText(font, mainText).totalAdvance * height : 0;
+    const topAdvance = topText ? measureText(font, topText).totalAdvance * stackedHeight : 0;
     const bottomAdvance = bottomText
       ? measureText(font, bottomText).totalAdvance * stackedHeight
       : 0;
@@ -645,7 +723,9 @@ export function addDimensionTextToCollector(
     // Measure widths to compute horizontal alignment
     const mainAdvance = mainText ? measureText(font, mainText).totalAdvance * height : 0;
     const topAdvance = topText ? measureText(font, topText).totalAdvance * stackedHeight : 0;
-    const bottomAdvance = bottomText ? measureText(font, bottomText).totalAdvance * stackedHeight : 0;
+    const bottomAdvance = bottomText
+      ? measureText(font, bottomText).totalAdvance * stackedHeight
+      : 0;
     const stackedWidth = Math.max(topAdvance, bottomAdvance);
     const gap = mainText ? height * STACKED_H_GAP : 0;
     const totalWidth = mainAdvance + gap + stackedWidth;
@@ -662,9 +742,22 @@ export function addDimensionTextToCollector(
     // Emit main text centered on posY
     if (mainText) {
       addTextToCollector(
-        collector, layer, color, font, mainText, height,
-        curX, curY, posZ, rotation, HAlign.LEFT, VAlign.MIDDLE,
-        1, undefined, undefined, transform,
+        collector,
+        layer,
+        color,
+        font,
+        mainText,
+        height,
+        curX,
+        curY,
+        posZ,
+        rotation,
+        HAlign.LEFT,
+        VAlign.MIDDLE,
+        1,
+        undefined,
+        undefined,
+        transform,
       );
       curX += (mainAdvance + gap) * cos;
       curY += (mainAdvance + gap) * sin;
@@ -675,8 +768,12 @@ export function addDimensionTextToCollector(
     const vGap = height * 0.04;
     const topMetrics = topText ? measureText(font, topText) : null;
     const bottomMetrics = bottomText ? measureText(font, bottomText) : null;
-    const topVisualH = topMetrics ? (topMetrics.bounds.yMax - topMetrics.bounds.yMin) * stackedHeight : 0;
-    const bottomVisualH = bottomMetrics ? (bottomMetrics.bounds.yMax - bottomMetrics.bounds.yMin) * stackedHeight : 0;
+    const topVisualH = topMetrics
+      ? (topMetrics.bounds.yMax - topMetrics.bounds.yMin) * stackedHeight
+      : 0;
+    const bottomVisualH = bottomMetrics
+      ? (bottomMetrics.bounds.yMax - bottomMetrics.bounds.yMin) * stackedHeight
+      : 0;
     const totalStackH = topVisualH + vGap + bottomVisualH;
     // halfStack = distance from center to the top edge of the top fraction
     const halfStack = totalStackH / 2;
@@ -688,9 +785,22 @@ export function addDimensionTextToCollector(
       const topX = curX - topBaseY * sin;
       const topY = curY + topBaseY * cos;
       addTextToCollector(
-        collector, layer, color, font, topText, stackedHeight,
-        topX, topY, posZ, rotation, HAlign.LEFT, VAlign.BASELINE,
-        1, undefined, undefined, transform,
+        collector,
+        layer,
+        color,
+        font,
+        topText,
+        stackedHeight,
+        topX,
+        topY,
+        posZ,
+        rotation,
+        HAlign.LEFT,
+        VAlign.BASELINE,
+        1,
+        undefined,
+        undefined,
+        transform,
       );
     }
 
@@ -701,9 +811,22 @@ export function addDimensionTextToCollector(
       const bottomX = curX - bottomBaseY * sin;
       const bottomY = curY + bottomBaseY * cos;
       addTextToCollector(
-        collector, layer, color, font, bottomText, stackedHeight,
-        bottomX, bottomY, posZ, rotation, HAlign.LEFT, VAlign.BASELINE,
-        1, undefined, undefined, transform,
+        collector,
+        layer,
+        color,
+        font,
+        bottomText,
+        stackedHeight,
+        bottomX,
+        bottomY,
+        posZ,
+        rotation,
+        HAlign.LEFT,
+        VAlign.BASELINE,
+        1,
+        undefined,
+        undefined,
+        transform,
       );
     }
   } else {
@@ -712,9 +835,22 @@ export function addDimensionTextToCollector(
 
     const hAlignEnum = mtextHAlignToEnum(hAlign);
     addTextToCollector(
-      collector, layer, color, font, plain, height,
-      posX, posY, posZ, rotation, hAlignEnum, VAlign.MIDDLE,
-      1, undefined, undefined, transform,
+      collector,
+      layer,
+      color,
+      font,
+      plain,
+      height,
+      posX,
+      posY,
+      posZ,
+      rotation,
+      hAlignEnum,
+      VAlign.MIDDLE,
+      1,
+      undefined,
+      undefined,
+      transform,
     );
   }
 }
