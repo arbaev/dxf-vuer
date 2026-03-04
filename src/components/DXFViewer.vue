@@ -406,7 +406,7 @@ const loadDXFFromText = async (dxfText: string) => {
 
     loadingPhase.value = "rendering";
     console.time("[dxf-vuer] displayDXF");
-    const unsupportedEntities = await displayDXF(dxf, props.darkTheme);
+    const unsupportedEntities = await displayDXF(dxf, props.darkTheme, props.fontUrl);
     console.timeEnd("[dxf-vuer] displayDXF");
 
     initLayersFromDXF(dxf, props.darkTheme);
@@ -433,7 +433,7 @@ const loadDXFFromData = async (dxfData: DxfData) => {
   isLoading.value = true;
   loadingPhase.value = "rendering";
   try {
-    const unsupportedEntities = await displayDXF(dxfData, props.darkTheme);
+    const unsupportedEntities = await displayDXF(dxfData, props.darkTheme, props.fontUrl);
     initLayersFromDXF(dxfData, props.darkTheme);
     applyLayerVisibility(visibleLayerNames.value);
     emit("dxf-loaded", true);
