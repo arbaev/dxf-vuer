@@ -659,6 +659,7 @@ const collectTextOrMText = (
       pos.x, pos.y, pos.z, rotation,
       entity.attachmentPoint, entity.width,
       colorCtx.serifFont,
+      entity.lineSpacingFactor,
     );
   }
 };

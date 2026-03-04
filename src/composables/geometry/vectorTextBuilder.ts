@@ -306,7 +306,8 @@ const BOLD_OFFSET = 0.02;
 
 // ── MTEXT support ──────────────────────────────────────────────────────
 
-const LINE_SPACING = 1.4;
+/** DXF standard MTEXT line spacing: factor * 5/3 of text height */
+const DXF_LINE_SPACING_BASE = 5 / 3;
 const STACKED_RATIO = 0.6;
 /** Small gap between main text and stacked fraction, as ratio of height */
 const STACKED_H_GAP = 0.1;
@@ -519,8 +520,10 @@ export function addMTextToCollector(
   attachmentPoint: number = 1,
   width?: number,
   serifFont?: Font,
+  lineSpacingFactor?: number,
 ): void {
   if (lines.length === 0 || defaultHeight <= 0) return;
+  const lineSpacing = (lineSpacingFactor || 1) * DXF_LINE_SPACING_BASE;
 
   // 1. Word wrapping: expand lines if width constraint is set
   const expandedLines: MTextLine[] = [];
@@ -532,9 +535,16 @@ export function addMTextToCollector(
         continue;
       }
       const lineHeight = line.height || defaultHeight;
-      const wrapped = wrapTextToWidth(font, line.text, lineHeight, width);
-      for (const wText of wrapped) {
-        expandedLines.push({ ...line, text: wText });
+      const margin = line.leftMargin || 0;
+      const effectiveWidth = width - margin;
+      const wrapped = wrapTextToWidth(font, line.text, lineHeight, effectiveWidth > 0 ? effectiveWidth : width);
+      for (let wi = 0; wi < wrapped.length; wi++) {
+        expandedLines.push({
+          ...line,
+          text: wrapped[wi],
+          // Only first wrapped line gets firstIndent
+          firstIndent: wi === 0 ? line.firstIndent : undefined,
+        });
       }
     }
   } else {
@@ -546,11 +556,11 @@ export function addMTextToCollector(
   // 2. Compute total block height
   let totalHeight = 0;
   for (const line of expandedLines) {
-    totalHeight += (line.height || defaultHeight) * LINE_SPACING;
+    totalHeight += (line.height || defaultHeight) * lineSpacing;
   }
   // Remove trailing spacing from last line
   const lastLineHeight = expandedLines[expandedLines.length - 1].height || defaultHeight;
-  totalHeight = totalHeight - lastLineHeight * LINE_SPACING + lastLineHeight;
+  totalHeight = totalHeight - lastLineHeight * lineSpacing + lastLineHeight;
 
   // 3. Determine alignment from attachment point (1-9)
   const col = (attachmentPoint - 1) % 3; // 0=left, 1=center, 2=right
@@ -579,13 +589,16 @@ export function addMTextToCollector(
       lineFont = classifyFont(line.fontFamily) === "serif" ? serifFont : font;
     }
 
+    // Paragraph indentation: leftMargin + firstIndent (in drawing units)
+    const indentX = (line.leftMargin || 0) + (line.firstIndent || 0);
+
     // Local offset from insertion point (in text-local coordinates)
     // Lines stack downward from groupYOffset
     const localY = groupYOffset + lineYOffset;
 
-    // Apply rotation to get world position
-    const worldX = posX - localY * sin;
-    const worldY = posY + localY * cos;
+    // Apply rotation to get world position, including paragraph indent
+    const worldX = posX - localY * sin + indentX * cos;
+    const worldY = posY + localY * cos + indentX * sin;
 
     // MTEXT: ascender line at worldY (DXF attachment point semantics).
     // Compute baseline position from font ascender for consistent placement.
@@ -636,14 +649,14 @@ export function addMTextToCollector(
       );
     }
 
-    lineYOffset -= lineHeight * LINE_SPACING;
+    lineYOffset -= lineHeight * lineSpacing;
   }
 }
 
 // ── DIMENSION text support ──────────────────────────────────────────────
 
-/** Stacked fraction regex: prefix \S top^bottom; suffix */
-const STACKED_REGEX = /^(.*?)\\S([^^/;]*)\^([^;]*);(.*)$/;
+/** Stacked fraction regex: prefix \S top^bottom; or top/bottom; or top#bottom; suffix */
+const STACKED_REGEX = /^(.*?)\\S([^^/#;]*)[\^/#]([^;]*);(.*)$/;
 
 /**
  * Measure dimension text width in world units.

@@ -14,6 +14,7 @@ export interface IMTextEntity extends IEntityBase {
   rotation?: number;
   attachmentPoint?: number;
   drawingDirection?: number;
+  lineSpacingFactor?: number;
   extrusionDirection?: IPoint;
 }
 
@@ -52,6 +53,9 @@ export function parseMText(scanner: DxfScanner, curr: IGroup): IMTextEntity {
         break;
       case 72:
         entity.drawingDirection = curr.value as number;
+        break;
+      case 44:
+        entity.lineSpacingFactor = curr.value as number;
         break;
       case 210:
         entity.extrusionDirection = helpers.parsePoint(scanner);

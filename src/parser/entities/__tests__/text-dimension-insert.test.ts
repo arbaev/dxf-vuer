@@ -195,6 +195,23 @@ describe("parseMText", () => {
     expect(entity.text).toBe("Directed text");
   });
 
+  it("parses mtext line spacing factor (code 44)", () => {
+    const { scanner, group } = createScannerAt(
+      "0", "MTEXT",
+      "10", "0.0",
+      "20", "0.0",
+      "40", "9.0",
+      "44", "0.8",
+      "1", "Spaced MTEXT",
+      "0", "EOF",
+    );
+
+    const entity = parseMText(scanner, group);
+
+    expect(entity.type).toBe("MTEXT");
+    expect(entity.lineSpacingFactor).toBe(0.8);
+  });
+
   it("parses mtext style name (code 7)", () => {
     const { scanner, group } = createScannerAt(
       "0", "MTEXT",

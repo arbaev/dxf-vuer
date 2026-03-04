@@ -167,6 +167,26 @@ describe("parseMTextContent", () => {
     expect(result[0].stackedBottom).toBe("2");
   });
 
+  it("renders \\S3#8; as inline flat fraction text '3/8'", () => {
+    const result = parseMTextContent("\\S3#8;");
+    expect(result).toHaveLength(1);
+    expect(result[0].text).toBe("3/8");
+    expect(result[0].stackedTop).toBeUndefined();
+    expect(result[0].stackedBottom).toBeUndefined();
+  });
+
+  it("brace-scoped \\H does not affect subsequent lines", () => {
+    const result = parseMTextContent(
+      "\\H0.5x;Normal\\P{\\H0.7x;\\S3#8;}rest\\PStill normal",
+      18,
+    );
+    expect(result).toHaveLength(3);
+    expect(result[0].height).toBeCloseTo(9); // 18 * 0.5
+    expect(result[1].text).toBe("3/8rest"); // \S3#8; rendered as inline fraction
+    expect(result[1].height).toBeCloseTo(9); // \H0.7x inside braces stripped
+    expect(result[2].height).toBeCloseTo(9); // height unchanged
+  });
+
   it("replaces \\~ (non-breaking space) with a regular space", () => {
     const result = parseMTextContent("Hello\\~World");
     expect(result).toHaveLength(1);
@@ -197,18 +217,34 @@ describe("parseMTextContent", () => {
     expect(result[0].text).toBe("text");
   });
 
-  it("removes paragraph codes \\p...;", () => {
-    const result = parseMTextContent("\\pi2,l0,r0;indented text");
+  it("parses paragraph indent \\pi<value>,l<value>;", () => {
+    const result = parseMTextContent("\\pi-13.5,l18,t18;indented text");
     expect(result).toHaveLength(1);
     expect(result[0].text).toBe("indented text");
+    expect(result[0].firstIndent).toBe(-13.5);
+    expect(result[0].leftMargin).toBe(18);
   });
 
-  it("does not push empty lines (no text, no stacked content)", () => {
-    // \\P\\P creates an empty middle segment
+  it("parses paragraph indent \\pi<value>; without left margin", () => {
+    const result = parseMTextContent("\\pi2;indented text");
+    expect(result).toHaveLength(1);
+    expect(result[0].text).toBe("indented text");
+    expect(result[0].firstIndent).toBe(2);
+    expect(result[0].leftMargin).toBeUndefined();
+  });
+
+  it("strips \\pxqc; alignment code", () => {
+    const result = parseMTextContent("\\pxqc;centered text");
+    expect(result).toHaveLength(1);
+    expect(result[0].text).toBe("centered text");
+  });
+
+  it("preserves empty lines from \\P\\P as paragraph spacing", () => {
     const result = parseMTextContent("First\\P\\PLast");
-    expect(result).toHaveLength(2);
+    expect(result).toHaveLength(3);
     expect(result[0].text).toBe("First");
-    expect(result[1].text).toBe("Last");
+    expect(result[1].text).toBe("");
+    expect(result[2].text).toBe("Last");
   });
 
   it("applies DXF special chars (%%d, %%c, etc.) inside MTEXT", () => {

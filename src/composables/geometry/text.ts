@@ -11,6 +11,8 @@ export interface MTextLine {
   fontFamily?: string;
   stackedTop?: string; // \Stop^bottom; -> superscript
   stackedBottom?: string; // \Stop^bottom; -> subscript
+  leftMargin?: number; // \p...l<value>... left margin (drawing units)
+  firstIndent?: number; // \p...i<value>... first-line indent (drawing units)
 }
 
 /**
@@ -60,6 +62,16 @@ export const parseMTextContent = (rawText: string, defaultHeight?: number): MTex
     let lineItalic = currentItalic;
     let firstFontInLine = true;
 
+    // Brace scoping: strip formatting codes (\H, \f, \C) inside balanced
+    // brace groups {…} so they don't modify persistent state.
+    // Keeps text content and \S fractions intact.
+    clean = clean.replace(/\{([^{}]*)\}/g, (_, inner: string) =>
+      inner
+        .replace(/\\H[\d.]+x?;/gi, "")
+        .replace(/\\f[^|;]*\|?[^;]*;/g, "")
+        .replace(/\\[cC]\d+;/g, ""),
+    );
+
     // Font: \fFontName|b1|i0|c0|p0; — extract font name, bold, italic
     // First \f in line determines the visible text style for this line,
     // last \f updates carry-over state for subsequent lines
@@ -100,16 +112,28 @@ export const parseMTextContent = (rawText: string, defaultHeight?: number): MTex
       return "";
     });
 
-    // Paragraph indents: \pi<indent>,l<left>,r<right>,t<tabs>;
-    clean = clean.replace(/\\p[^;]*;/g, "");
+    // Paragraph formatting: \p[i<indent>][,l<left>][,r<right>][,t<tabs>]; or \pxq[lcr];
+    let lineLeftMargin: number | undefined;
+    let lineFirstIndent: number | undefined;
+    clean = clean.replace(/\\p([^;]*);/g, (_, params: string) => {
+      const iMatch = params.match(/i([+-]?[\d.]+)/);
+      if (iMatch) lineFirstIndent = parseFloat(iMatch[1]);
+      const lMatch = params.match(/l([\d.]+)/);
+      if (lMatch) lineLeftMargin = parseFloat(lMatch[1]);
+      return "";
+    });
     // Width, tracking, oblique, alignment: \W, \T, \Q, \A
     clean = clean.replace(/\\[WTQA][\d.+-]+;/gi, "");
     // Underline, overline, strikethrough: \L/\l, \O/\o, \K/\k
     clean = clean.replace(/\\[LOKlok]/g, "");
-    // Fractions: \Stop^bottom; or \Stop/bottom; -> extract into stacked fields
+    // Fractions: \Stop^bottom; or \Stop/bottom; -> stacked fields
+    // \Stop#bottom; -> inline flat text "top/bottom" (horizontal bar fraction)
     let lineStackedTop: string | undefined;
     let lineStackedBottom: string | undefined;
-    clean = clean.replace(/\\S([^^/;]*)[\^/]([^;]*);/g, (_, top, bottom) => {
+    clean = clean.replace(/\\S([^^/#;]*)([\^/#])([^;]*);/g, (_, top, sep, bottom) => {
+      if (sep === "#") {
+        return `${top.trim()}/${bottom.trim()}`; // inline fraction
+      }
       lineStackedTop = top.trim();
       lineStackedBottom = bottom.trim();
       return "";
@@ -126,18 +150,19 @@ export const parseMTextContent = (rawText: string, defaultHeight?: number): MTex
     // Restore literal characters from placeholders
     clean = clean.replace(/\x01/g, "\\").replace(/\x02/g, "{").replace(/\x03/g, "}");
 
-    if (clean.length > 0 || lineStackedTop || lineStackedBottom) {
-      lines.push({
-        text: clean,
-        color: currentColor,
-        height: currentHeight,
-        bold: lineBold,
-        italic: lineItalic,
-        fontFamily: lineFont,
-        stackedTop: lineStackedTop,
-        stackedBottom: lineStackedBottom,
-      });
-    }
+    // Always push lines — empty lines (\P\P) serve as paragraph spacing
+    lines.push({
+      text: clean,
+      color: currentColor,
+      height: currentHeight,
+      bold: lineBold,
+      italic: lineItalic,
+      fontFamily: lineFont,
+      stackedTop: lineStackedTop,
+      stackedBottom: lineStackedBottom,
+      leftMargin: lineLeftMargin,
+      firstIndent: lineFirstIndent,
+    });
   }
 
   return lines;
