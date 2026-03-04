@@ -34,16 +34,18 @@ let fallbackFontKey: string | null = null;
  * Returns null for empty glyphs (space, control chars).
  */
 function triangulateGlyph(glyph: Glyph, unitsPerEm: number): GlyphData {
-  const advance = glyph.advanceWidth ?? 0;
-  const bounds = {
-    xMin: glyph.xMin ?? 0,
-    xMax: glyph.xMax ?? 0,
-    yMin: glyph.yMin ?? 0,
-    yMax: glyph.yMax ?? 0,
-  };
+  const invEm = 1 / unitsPerEm;
+  const advance = (glyph.advanceWidth ?? 0) * invEm;
 
   const path = glyph.getPath(0, 0, unitsPerEm);
   if (path.commands.length === 0) {
+    // Empty glyph — use glyph metadata for bounds (y-flipped for getPath coords)
+    const bounds = {
+      xMin: (glyph.xMin ?? 0) * invEm,
+      xMax: (glyph.xMax ?? 0) * invEm,
+      yMin: -(glyph.yMax ?? 0) * invEm,
+      yMax: -(glyph.yMin ?? 0) * invEm,
+    };
     return { positions: [], indices: [], advance, bounds };
   }
 
@@ -94,14 +96,14 @@ function triangulateGlyph(glyph: Glyph, unitsPerEm: number): GlyphData {
     );
     const baseIdx = positions.length / 3;
 
-    // Outer contour vertices
+    // Outer contour vertices (normalized to unitsPerEm=1, y negated: screen→world coords)
     for (const pt of shapePoints.shape) {
-      positions.push(pt.x, pt.y, 0);
+      positions.push(pt.x * invEm, -pt.y * invEm, 0);
     }
-    // Hole vertices
+    // Hole vertices (normalized, y negated)
     for (const hole of shapePoints.holes) {
       for (const pt of hole) {
-        positions.push(pt.x, pt.y, 0);
+        positions.push(pt.x * invEm, -pt.y * invEm, 0);
       }
     }
 
@@ -110,6 +112,20 @@ function triangulateGlyph(glyph: Glyph, unitsPerEm: number): GlyphData {
       indices.push(a + baseIdx, b + baseIdx, c + baseIdx);
     }
   }
+
+  // Compute bounds from actual vertex positions (getPath uses y-down screen coords,
+  // which differ from glyph.yMin/yMax font coords)
+  let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i], y = positions[i + 1];
+    if (x < xMin) xMin = x;
+    if (x > xMax) xMax = x;
+    if (y < yMin) yMin = y;
+    if (y > yMax) yMax = y;
+  }
+  const bounds = positions.length > 0
+    ? { xMin, xMax, yMin, yMax }
+    : { xMin: 0, xMax: 0, yMin: 0, yMax: 0 };
 
   return { positions, indices, advance, bounds };
 }
