@@ -19,19 +19,33 @@ export function getSharedCanvas(): {
   return { canvas: _sharedCanvas, context: _sharedCtx! };
 }
 
+/** Flip image data rows in-place (top↔bottom) so DataTexture doesn't need flipY */
+function flipRowsInPlace(data: Uint8ClampedArray, width: number, height: number): void {
+  const rowBytes = width * 4;
+  const temp = new Uint8Array(rowBytes);
+  for (let top = 0, bottom = height - 1; top < bottom; top++, bottom--) {
+    const topOffset = top * rowBytes;
+    const bottomOffset = bottom * rowBytes;
+    temp.set(data.subarray(topOffset, topOffset + rowBytes));
+    data.copyWithin(topOffset, bottomOffset, bottomOffset + rowBytes);
+    data.set(temp, bottomOffset);
+  }
+}
+
 /** Extract pixel data from canvas into a DataTexture (independent of the canvas) */
 export function snapshotToTexture(
   canvas: HTMLCanvasElement,
   context: CanvasRenderingContext2D,
 ): THREE.DataTexture {
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  // Flip rows manually instead of using texture.flipY (deprecated for non-DOM uploads)
+  flipRowsInPlace(imageData.data, canvas.width, canvas.height);
   const texture = new THREE.DataTexture(
     imageData.data,
     canvas.width,
     canvas.height,
     THREE.RGBAFormat,
   );
-  texture.flipY = true;
   texture.needsUpdate = true;
   return texture;
 }
