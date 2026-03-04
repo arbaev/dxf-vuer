@@ -10,12 +10,11 @@ import {
   EXTENSION_LINE_GAP_SIZE,
   DEGREES_TO_RADIANS_DIVISOR,
   EPSILON,
-  TEXT_HEIGHT,
   CIRCLE_SEGMENTS,
   MIN_ARC_SEGMENTS,
 } from "@/constants";
 import { createArrow } from "./primitives";
-import { replaceSpecialChars, getSharedCanvas, snapshotToTexture } from "./text";
+import { replaceSpecialChars } from "./text";
 import type { GeometryCollector } from "./mergeCollectors";
 import { addDimensionTextToCollector, measureDimensionTextWidth } from "./vectorTextBuilder";
 
@@ -448,165 +447,6 @@ export const cleanDimensionMText = (rawText: string): string => {
 };
 
 /**
- * Create a text mesh for a dimension with stacked text (\S) support.
- * \S format: \Stop^bottom; -- renders "top" as superscript and "bottom" as subscript.
- * Text baseline aligns with mesh position (drawn at bottom edge of canvas).
- */
-export const createDimensionTextMesh = (
-  rawText: string,
-  height: number,
-  color: string,
-  hAlign: "left" | "center" | "right" = "center",
-): THREE.Mesh => {
-  const cleaned = cleanDimensionMText(rawText);
-
-  const stackedMatch = cleaned.match(/^(.*?)\\S([^^/;]*)\^([^;]*);(.*)$/);
-
-  const CANVAS_SCALE = 10;
-  const PADDING = 4;
-  const STACKED_RATIO = 0.6;
-  const STACKED_GAP = 2;
-  const STACKED_V_GAP = 4;
-
-  const { canvas, context } = getSharedCanvas();
-
-  const mainFontSize = Math.max(height * CANVAS_SCALE, TEXT_HEIGHT);
-  const DIM_FONT = `"Cascadia Code", "Consolas", "Liberation Mono", monospace`;
-  const mainFont = `100 ${mainFontSize}px ${DIM_FONT}`;
-
-  // Reference height for font size normalization (keeps dimensions consistent with createTextMesh)
-  const refCanvasHeight = Math.ceil(mainFontSize * 1.2) + PADDING * 2;
-
-  if (!stackedMatch) {
-    const plain = cleaned.replace(/\\S[^;]*;/g, "").trim();
-
-    context.font = mainFont;
-    const metrics = context.measureText(plain);
-    const ascent = metrics.actualBoundingBoxAscent ?? mainFontSize * 0.8;
-    const descent = metrics.actualBoundingBoxDescent ?? mainFontSize * 0.05;
-
-    const canvasWidth = Math.ceil(metrics.width) + PADDING * 2;
-    const canvasHeight = Math.ceil(ascent + descent) + PADDING * 2;
-
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
-
-    context.font = mainFont;
-    context.fillStyle = color;
-    context.textBaseline = "alphabetic";
-    context.fillText(plain, PADDING, PADDING + Math.ceil(ascent));
-
-    const texture = snapshotToTexture(canvas, context);
-    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
-
-    // Normalize mesh height by reference canvas so font matches createTextMesh sizing
-    const meshHeight = (height * canvasHeight) / refCanvasHeight;
-    const aspectRatio = canvasWidth / canvasHeight;
-    const meshWidth = meshHeight * aspectRatio;
-    const geometry = new THREE.PlaneGeometry(meshWidth, meshHeight);
-
-    // Offset baseline slightly above textPos.y to leave room for descenders
-    const baselineGap = height * 0.15;
-    const bottomPaddingFrac = (PADDING - Math.ceil(descent)) / canvasHeight;
-    const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
-    geometry.translate(
-      tx,
-      meshHeight / 2 - meshHeight * Math.max(0, bottomPaddingFrac) + baselineGap,
-      0,
-    );
-
-    return new THREE.Mesh(geometry, material);
-  }
-
-  // Stacked text: prefix + superscript/subscript pair
-  const mainText = stackedMatch[1].trim();
-  const topText = stackedMatch[2].trim();
-  const bottomText = stackedMatch[3].trim();
-
-  const stackedFontSize = mainFontSize * STACKED_RATIO;
-  const stackedFont = `100 ${stackedFontSize}px ${DIM_FONT}`;
-
-  context.font = mainFont;
-  const mainMetrics = mainText ? context.measureText(mainText) : null;
-  const mainWidth = mainMetrics ? mainMetrics.width : 0;
-  const mainAscent = mainMetrics?.actualBoundingBoxAscent ?? mainFontSize * 0.8;
-  const mainDescent = mainMetrics?.actualBoundingBoxDescent ?? mainFontSize * 0.05;
-
-  context.font = stackedFont;
-  const topWidth = topText ? context.measureText(topText).width : 0;
-  const bottomWidth = bottomText ? context.measureText(bottomText).width : 0;
-  const stackedMaxWidth = Math.max(topWidth, bottomWidth);
-  const topMetricsSt = topText ? context.measureText(topText) : null;
-  const topAscentSt = topMetricsSt?.actualBoundingBoxAscent ?? stackedFontSize * 0.8;
-  const topDescentSt = topMetricsSt?.actualBoundingBoxDescent ?? stackedFontSize * 0.05;
-  const subMetrics = bottomText ? context.measureText(bottomText) : null;
-  const subAscent = subMetrics?.actualBoundingBoxAscent ?? stackedFontSize * 0.8;
-  const subDescent = subMetrics?.actualBoundingBoxDescent ?? stackedFontSize * 0.05;
-
-  // Center stacked text on the visual center of main text glyphs
-  const mainCenterAboveBaseline = mainAscent / 2;
-
-  const halfVGap = STACKED_V_GAP / 2;
-  const topExtent = Math.max(
-    mainAscent,
-    mainCenterAboveBaseline + halfVGap + topAscentSt + topDescentSt,
-  );
-  const bottomExtent = Math.max(
-    mainDescent,
-    subAscent + subDescent + halfVGap - mainCenterAboveBaseline,
-  );
-
-  const gap = mainText ? STACKED_GAP : 0;
-  const totalWidth = mainWidth + gap + stackedMaxWidth;
-  const canvasWidth = Math.ceil(totalWidth) + PADDING * 2;
-  const canvasHeight = Math.ceil(topExtent + bottomExtent) + PADDING * 2;
-
-  canvas.width = canvasWidth;
-  canvas.height = canvasHeight;
-
-  context.fillStyle = color;
-
-  // Baseline position: leave room above for superscript
-  const baselineY = PADDING + Math.ceil(topExtent);
-  // Visual center of main text -- split point between super/subscript
-  const stackedCenterY = baselineY - mainCenterAboveBaseline;
-
-  if (mainText) {
-    context.font = mainFont;
-    context.textBaseline = "alphabetic";
-    context.fillText(mainText, PADDING, baselineY);
-  }
-
-  const stackedX = PADDING + mainWidth + gap;
-  context.font = stackedFont;
-
-  if (topText) {
-    context.textBaseline = "alphabetic";
-    context.fillText(topText, stackedX, stackedCenterY - halfVGap - topDescentSt);
-  }
-
-  if (bottomText) {
-    context.textBaseline = "alphabetic";
-    context.fillText(bottomText, stackedX, stackedCenterY + halfVGap + subAscent);
-  }
-
-  const texture = snapshotToTexture(canvas, context);
-  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
-
-  const meshHeight = (height * canvasHeight) / refCanvasHeight;
-  const aspectRatio = canvasWidth / canvasHeight;
-  const meshWidth = meshHeight * aspectRatio;
-  const geometry = new THREE.PlaneGeometry(meshWidth, meshHeight);
-
-  const baselineGap = height * 0.15;
-  const belowBaselineFrac = (Math.ceil(bottomExtent) + PADDING) / canvasHeight;
-  const tx = hAlign === "left" ? meshWidth / 2 : hAlign === "right" ? -meshWidth / 2 : 0;
-  geometry.translate(tx, meshHeight / 2 - meshHeight * belowBaselineFrac + baselineGap, 0);
-
-  return new THREE.Mesh(geometry, material);
-};
-
-/**
  * Create an ordinate dimension (type 6/7).
  * Displays the X or Y coordinate of a point with a dog-leg leader.
  * No arrows or dashed lines -- solid lines only (per AutoCAD convention).
@@ -642,22 +482,11 @@ export const createOrdinateDimension = (
   const material = new THREE.LineBasicMaterial({ color });
 
   // Create text mesh first to determine actual width for leader endpoint
-  let textMesh: THREE.Mesh | null = null;
   let actualTextWidth = 0;
   if (textPos) {
-    if (font && collector && layer) {
-      actualTextWidth = measureDimensionTextWidth(font, dimensionText, textHeight);
-      addDimensionTextToCollector(collector, layer, color, font, dimensionText, textHeight,
-        textPos.x, textPos.y - textHeight / 2, 0.2, 0, "center");
-    } else {
-      textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
-      textMesh.position.set(textPos.x, textPos.y - textHeight / 2, 0.2);
-      textMesh.geometry.computeBoundingBox();
-      const bbox = textMesh.geometry.boundingBox;
-      if (bbox) {
-        actualTextWidth = bbox.max.x - bbox.min.x;
-      }
-    }
+    actualTextWidth = measureDimensionTextWidth(font!, dimensionText, textHeight);
+    addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
+      textPos.x, textPos.y - textHeight / 2, 0.2, 0, "center");
   }
 
   // X-ordinate (bit 0 set in dimensionType) or Y-ordinate (bit 0 clear)
@@ -748,10 +577,6 @@ export const createOrdinateDimension = (
     }
   }
 
-  if (textMesh) {
-    objects.push(textMesh);
-  }
-
   return objects.length > 0 ? objects : null;
 };
 
@@ -803,7 +628,6 @@ export const createRadialDimension = (
   // tailEndPoint determines arrow direction (from tail toward arc point)
   let tailEndPoint: THREE.Vector3 | null = null;
 
-  let textMesh: THREE.Mesh | null = null;
   if (textPos) {
     // textPos is the middle of text per DXF spec ("middle point of dimension text")
     const underlineY = textPos.y - textHeight / 2;
@@ -815,20 +639,9 @@ export const createRadialDimension = (
       intersectX = arcPt.x + t * dirX;
     }
 
-    let textWidth = 0;
-    if (font && collector && layer) {
-      textWidth = measureDimensionTextWidth(font, dimensionText, textHeight);
-      addDimensionTextToCollector(collector, layer, color, font, dimensionText, textHeight,
-        textPos.x, underlineY, 0.2, 0, "center");
-    } else {
-      textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
-      textMesh.position.set(textPos.x, underlineY, 0.2);
-      textMesh.geometry.computeBoundingBox();
-      const bbox = textMesh.geometry.boundingBox;
-      if (bbox) {
-        textWidth = bbox.max.x - bbox.min.x;
-      }
-    }
+    const textWidth = measureDimensionTextWidth(font!, dimensionText, textHeight);
+    addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
+      textPos.x, underlineY, 0.2, 0, "center");
 
     const textLeft = textPos.x - textWidth / 2;
     const textRight = textPos.x + textWidth / 2;
@@ -859,10 +672,6 @@ export const createRadialDimension = (
     arrowMat,
   );
   objects.push(arrow);
-
-  if (textMesh) {
-    objects.push(textMesh);
-  }
 
   return objects.length > 0 ? objects : null;
 };
@@ -951,24 +760,14 @@ export const createDiametricDimension = (
   ]);
   objects.push(new THREE.Line(diamLineGeom, lineMat));
 
-  let textMesh: THREE.Mesh | null = null;
-  const useVector = !!(font && collector && layer);
-
   if (textPos && textOnLine) {
     // Text along diameter line -- rotated to match line angle
     let angle = Math.atan2(p10.y - p15.y, p10.x - p15.x);
     if (angle > Math.PI / 2) angle -= Math.PI;
     if (angle < -Math.PI / 2) angle += Math.PI;
-    if (useVector) {
-      addDimensionTextToCollector(collector, layer, color, font, dimensionText, textHeight,
-        textPos.x, textPos.y, 0.2, angle, "center");
-    } else {
-      textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
-      textMesh.position.set(textPos.x, textPos.y, 0.2);
-      textMesh.rotation.z = angle;
-    }
+    addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
+      textPos.x, textPos.y, 0.2, angle, "center");
   } else if (textPos) {
-
     // Text offset outside -- leader from nearest line end toward text
     const dist10 = (textPos.x - p10.x) ** 2 + (textPos.y - p10.y) ** 2;
     const dist15 = (textPos.x - p15.x) ** 2 + (textPos.y - p15.y) ** 2;
@@ -987,20 +786,9 @@ export const createDiametricDimension = (
       intersectX = nearPt.x + t * dirNx;
     }
 
-    let textWidth = 0;
-    if (useVector) {
-      textWidth = measureDimensionTextWidth(font, dimensionText, textHeight);
-      addDimensionTextToCollector(collector, layer, color, font, dimensionText, textHeight,
-        textPos.x, underlineY, 0.2, 0, "center");
-    } else {
-      textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
-      textMesh.position.set(textPos.x, underlineY, 0.2);
-      textMesh.geometry.computeBoundingBox();
-      const bbox = textMesh.geometry.boundingBox;
-      if (bbox) {
-        textWidth = bbox.max.x - bbox.min.x;
-      }
-    }
+    const textWidth = measureDimensionTextWidth(font!, dimensionText, textHeight);
+    addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
+      textPos.x, underlineY, 0.2, 0, "center");
 
     const textLeft = textPos.x - textWidth / 2;
     const textRight = textPos.x + textWidth / 2;
@@ -1023,17 +811,8 @@ export const createDiametricDimension = (
       new THREE.Vector3(p10.x, p10.y, 0),
     ]);
     objects.push(new THREE.Line(diamLineGeom2, lineMat));
-    if (useVector) {
-      addDimensionTextToCollector(collector, layer, color, font, dimensionText, textHeight,
-        cx, cy, 0.2, 0, "center");
-    } else {
-      textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
-      textMesh.position.set(cx, cy, 0.2);
-    }
-  }
-
-  if (textMesh) {
-    objects.push(textMesh);
+    addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
+      cx, cy, 0.2, 0, "center");
   }
 
   return objects.length > 0 ? objects : null;
@@ -1260,15 +1039,8 @@ export const createAngularDimension = (
       textRotation += Math.PI;
     }
 
-    if (font && collector && layer) {
-      addDimensionTextToCollector(collector, layer, color, font, dimensionText, textHeight,
-        textX, textY, 0.2, textRotation, "center");
-    } else {
-      const textMesh = createDimensionTextMesh(dimensionText, textHeight, color, "center");
-      textMesh.position.set(textX, textY, 0.2);
-      textMesh.rotation.z = textRotation;
-      objects.push(textMesh);
-    }
+    addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
+      textX, textY, 0.2, textRotation, "center");
   }
 
   return objects.length > 0 ? objects : null;

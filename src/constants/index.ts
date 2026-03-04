@@ -17,11 +17,6 @@ export const DIM_TEXT_GAP_MULTIPLIER = 1.5;
 export const DIM_TEXT_GAP = DIM_TEXT_HEIGHT * DIM_TEXT_GAP_MULTIPLIER;
 // Trailing zeros are removed after formatting
 export const DIM_TEXT_DECIMAL_PLACES = 4;
-// Limits memory consumption for text with large world coordinates
-export const MAX_TEXT_FONT_SIZE = 256;
-// Max canvas dimension for text textures (prevents GPU resizing warnings)
-export const MAX_TEXT_CANVAS_SIZE = 4096;
-
 export const ARROW_SIZE = 3;
 export const ARROW_BASE_WIDTH_DIVISOR = 4;
 export const CIRCLE_SEGMENTS = 128;

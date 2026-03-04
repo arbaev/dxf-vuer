@@ -49,7 +49,6 @@ import {
 import {
   extractDimensionData,
   createDimensionGroup,
-  createDimensionTextMesh,
   createOrdinateDimension,
   createRadialDimension,
   createDiametricDimension,
@@ -58,12 +57,6 @@ import {
 import {
   replaceSpecialChars,
   parseMTextContent,
-  getMTextHAlign,
-  getTextHAlign,
-  getMTextVAlign,
-  getTextVAlign,
-  createStackedTextMesh,
-  createTextMesh,
 } from "./geometry/text";
 import {
   boundaryPathToShapePath,
@@ -979,49 +972,37 @@ const collectInsertEntity = async (
         }
 
         // Vector text intercepts for block entities
-        if (colorCtx.font && (entity.type === "TEXT" || entity.type === "MTEXT") && isTextEntity(entity)) {
+        if ((entity.type === "TEXT" || entity.type === "MTEXT") && isTextEntity(entity)) {
           collectTextOrMText(entity, blockColorCtx, collector, entityLayer, worldMatrix);
           continue;
         }
-        if (colorCtx.font && entity.type === "DIMENSION" && isDimensionEntity(entity)) {
+        if (entity.type === "DIMENSION" && isDimensionEntity(entity)) {
           collectDimensionEntity(entity, dxf, blockColorCtx, collector, entityLayer, worldMatrix);
           continue;
         }
-        if (colorCtx.font && (entity.type === "LEADER" || entity.type === "MULTILEADER" || entity.type === "MLEADER")) {
+        if (entity.type === "LEADER" || entity.type === "MULTILEADER" || entity.type === "MLEADER") {
           collectLeaderEntity(entity, dxf, blockColorCtx, collector, entityLayer, worldMatrix);
           continue;
         }
 
-        // Complex entities (DIMENSION, LEADER, TEXT, etc.)
-        const decomposable = entity.type === "DIMENSION" || entity.type === "LEADER"
-          || entity.type === "MULTILEADER" || entity.type === "MLEADER";
-
+        // Complex entities — fallback to individual Three.js objects
         const obj = processEntity(entity, dxf, blockColorCtx, depth + 1);
         if (obj) {
           const key = entity.type || "unknown";
           fallbackGroup.userData._debugFallback ??= {};
-
-          if (decomposable) {
-            const beforeCount = fallbackGroup.children.length;
-            decomposeToCollector(obj, collector, entityLayer, worldMatrix, fallbackGroup);
-            const textCount = fallbackGroup.children.length - beforeCount;
-            fallbackGroup.userData._debugFallback[key + "(text)"] =
-              (fallbackGroup.userData._debugFallback[key + "(text)"] || 0) + textCount;
-          } else {
-            const count = Array.isArray(obj) ? obj.length : 1;
-            fallbackGroup.userData._debugFallback[key] =
-              (fallbackGroup.userData._debugFallback[key] || 0) + count;
-            if (Array.isArray(obj)) {
-              for (const o of obj) {
-                o.applyMatrix4(worldMatrix);
-                o.userData.layerName = entityLayer;
-                fallbackGroup.add(o);
-              }
-            } else {
-              obj.applyMatrix4(worldMatrix);
-              obj.userData.layerName = entityLayer;
-              fallbackGroup.add(obj);
+          const count = Array.isArray(obj) ? obj.length : 1;
+          fallbackGroup.userData._debugFallback[key] =
+            (fallbackGroup.userData._debugFallback[key] || 0) + count;
+          if (Array.isArray(obj)) {
+            for (const o of obj) {
+              o.applyMatrix4(worldMatrix);
+              o.userData.layerName = entityLayer;
+              fallbackGroup.add(o);
             }
+          } else {
+            obj.applyMatrix4(worldMatrix);
+            obj.userData.layerName = entityLayer;
+            fallbackGroup.add(obj);
           }
         }
       } catch (error) {
@@ -1053,37 +1034,12 @@ const collectInsertEntity = async (
           attribMatrix,
         );
 
-        if (colorCtx.font) {
-          const rotation = attrib.rotation ? degreesToRadians(attrib.rotation) : 0;
-          addTextToCollector(collector, insertLayer, attribColor, colorCtx.font,
-            replaceSpecialChars(text), textHeight,
-            attribPos.x, attribPos.y, attribPos.z, rotation,
-            attrib.horizontalJustification ?? HAlign.LEFT,
-            attrib.verticalJustification ?? VAlign.BASELINE);
-        } else {
-          const hAlign = getTextHAlign(attrib.horizontalJustification);
-          const vAlign = getTextVAlign(attrib.verticalJustification);
-          const textMesh = createTextMesh(
-            replaceSpecialChars(text),
-            textHeight,
-            attribColor,
-            false,
-            false,
-            hAlign,
-            "Arial",
-            vAlign,
-          );
-          textMesh.position.set(attribPos.x, attribPos.y, attribPos.z);
-
-          if (attrib.rotation) {
-            textMesh.rotation.z = degreesToRadians(attrib.rotation);
-          }
-
-          textMesh.userData.layerName = insertLayer;
-          fallbackGroup.add(textMesh);
-          fallbackGroup.userData._debugFallback ??= {};
-          fallbackGroup.userData._debugFallback["ATTRIB"] = (fallbackGroup.userData._debugFallback["ATTRIB"] || 0) + 1;
-        }
+        const rotation = attrib.rotation ? degreesToRadians(attrib.rotation) : 0;
+        addTextToCollector(collector, insertLayer, attribColor, colorCtx.font!,
+          replaceSpecialChars(text), textHeight,
+          attribPos.x, attribPos.y, attribPos.z, rotation,
+          attrib.horizontalJustification ?? HAlign.LEFT,
+          attrib.verticalJustification ?? VAlign.BASELINE);
       }
     }
 
@@ -1110,49 +1066,36 @@ const collectInsertEntity = async (
       }
 
       // Vector text intercepts for block entities
-      if (colorCtx.font && (entity.type === "TEXT" || entity.type === "MTEXT") && isTextEntity(entity)) {
+      if ((entity.type === "TEXT" || entity.type === "MTEXT") && isTextEntity(entity)) {
         collectTextOrMText(entity, blockColorCtx, collector, entityLayer, worldMatrix);
         continue;
       }
-      if (colorCtx.font && entity.type === "DIMENSION" && isDimensionEntity(entity)) {
+      if (entity.type === "DIMENSION" && isDimensionEntity(entity)) {
         collectDimensionEntity(entity, dxf, blockColorCtx, collector, entityLayer, worldMatrix);
         continue;
       }
-      if (colorCtx.font && (entity.type === "LEADER" || entity.type === "MULTILEADER" || entity.type === "MLEADER")) {
+      if (entity.type === "LEADER" || entity.type === "MULTILEADER" || entity.type === "MLEADER") {
         collectLeaderEntity(entity, dxf, blockColorCtx, collector, entityLayer, worldMatrix);
         continue;
       }
-
-      // DIMENSION/LEADER/MLEADER: decompose geometry into collector, keep only text
-      const decomposable = entity.type === "DIMENSION" || entity.type === "LEADER"
-        || entity.type === "MULTILEADER" || entity.type === "MLEADER";
 
       const obj = processEntity(entity, dxf, blockColorCtx, depth + 1);
       if (obj) {
         const key = entity.type || "unknown";
         fallbackGroup.userData._debugFallback ??= {};
-
-        if (decomposable) {
-          const beforeCount = fallbackGroup.children.length;
-          decomposeToCollector(obj, collector, entityLayer, worldMatrix, fallbackGroup);
-          const textCount = fallbackGroup.children.length - beforeCount;
-          fallbackGroup.userData._debugFallback[key + "(text)"] =
-            (fallbackGroup.userData._debugFallback[key + "(text)"] || 0) + textCount;
-        } else {
-          const count = Array.isArray(obj) ? obj.length : 1;
-          fallbackGroup.userData._debugFallback[key] =
-            (fallbackGroup.userData._debugFallback[key] || 0) + count;
-          if (Array.isArray(obj)) {
-            for (const o of obj) {
-              o.applyMatrix4(worldMatrix);
-              o.userData.layerName = entityLayer;
-              fallbackGroup.add(o);
-            }
-          } else {
-            obj.applyMatrix4(worldMatrix);
-            obj.userData.layerName = entityLayer;
-            fallbackGroup.add(obj);
+        const count = Array.isArray(obj) ? obj.length : 1;
+        fallbackGroup.userData._debugFallback[key] =
+          (fallbackGroup.userData._debugFallback[key] || 0) + count;
+        if (Array.isArray(obj)) {
+          for (const o of obj) {
+            o.applyMatrix4(worldMatrix);
+            o.userData.layerName = entityLayer;
+            fallbackGroup.add(o);
           }
+        } else {
+          obj.applyMatrix4(worldMatrix);
+          obj.userData.layerName = entityLayer;
+          fallbackGroup.add(obj);
         }
       }
     } catch (error) {
@@ -1191,139 +1134,13 @@ const collectInsertEntity = async (
         attribMatrix,
       );
 
-      if (colorCtx.font) {
-        const rotation = attrib.rotation ? degreesToRadians(attrib.rotation) : 0;
-        addTextToCollector(collector, insertLayer, attribColor, colorCtx.font,
-          replaceSpecialChars(text), textHeight,
-          attribPos.x, attribPos.y, attribPos.z, rotation,
-          attrib.horizontalJustification ?? HAlign.LEFT,
-          attrib.verticalJustification ?? VAlign.BASELINE);
-      } else {
-        const hAlign = getTextHAlign(attrib.horizontalJustification);
-        const vAlign = getTextVAlign(attrib.verticalJustification);
-        const textMesh = createTextMesh(
-          replaceSpecialChars(text),
-          textHeight,
-          attribColor,
-          false,
-          false,
-          hAlign,
-          "Arial",
-          vAlign,
-        );
-        textMesh.position.set(attribPos.x, attribPos.y, attribPos.z);
-
-        if (attrib.rotation) {
-          textMesh.rotation.z = degreesToRadians(attrib.rotation);
-        }
-
-        textMesh.userData.layerName = insertLayer;
-        fallbackGroup.add(textMesh);
-        fallbackGroup.userData._debugFallback ??= {};
-        fallbackGroup.userData._debugFallback["ATTRIB"] = (fallbackGroup.userData._debugFallback["ATTRIB"] || 0) + 1;
-      }
+      const rotation = attrib.rotation ? degreesToRadians(attrib.rotation) : 0;
+      addTextToCollector(collector, insertLayer, attribColor, colorCtx.font!,
+        replaceSpecialChars(text), textHeight,
+        attribPos.x, attribPos.y, attribPos.z, rotation,
+        attrib.horizontalJustification ?? HAlign.LEFT,
+        attrib.verticalJustification ?? VAlign.BASELINE);
     }
-  }
-};
-
-/**
- * Decompose pre-built Three.js objects into the GeometryCollector.
- * Lines, LineSegments, Points, and Meshes (without textures) are extracted
- * and merged. Text meshes (with CanvasTexture) are kept as individual objects.
- */
-const decomposeToCollector = (
-  obj: THREE.Object3D | THREE.Object3D[],
-  collector: GeometryCollector,
-  layer: string,
-  worldMatrix: THREE.Matrix4,
-  fallbackGroup: THREE.Group,
-): void => {
-  // Wrap in a temporary root with the world transform
-  const root = new THREE.Group();
-  root.matrixAutoUpdate = false;
-  root.matrix.copy(worldMatrix);
-
-  if (Array.isArray(obj)) {
-    for (const o of obj) root.add(o);
-  } else {
-    root.add(obj);
-  }
-  root.updateMatrixWorld(true);
-
-  // Collect leaf nodes (skip Groups)
-  const leaves: THREE.Object3D[] = [];
-  root.traverse((child) => {
-    if (child === root || child instanceof THREE.Group) return;
-    leaves.push(child);
-  });
-
-  const v = new THREE.Vector3();
-
-  for (const child of leaves) {
-    const geo = (child as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
-    if (!geo) continue;
-    const posAttr = geo.getAttribute("position") as THREE.BufferAttribute | undefined;
-    if (!posAttr) continue;
-
-    const mat = (child as THREE.Mesh).material as THREE.Material & { map?: THREE.Texture; color?: THREE.Color };
-    const hasTexture = mat && mat.map;
-
-    if (hasTexture) {
-      // Text mesh with canvas texture — keep as individual
-      child.removeFromParent();
-      child.matrixAutoUpdate = false;
-      child.matrix.copy(child.matrixWorld);
-      child.userData.layerName = layer;
-      fallbackGroup.add(child);
-      continue;
-    }
-
-    const objColor = mat?.color ? "#" + mat.color.getHexString() : "#000000";
-
-    if (child instanceof THREE.LineSegments) {
-      const data: number[] = [];
-      for (let i = 0; i < posAttr.count; i++) {
-        v.set(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
-        v.applyMatrix4(child.matrixWorld);
-        data.push(v.x, v.y, v.z);
-      }
-      collector.addLineSegments(layer, objColor, data);
-    } else if (child instanceof THREE.Line) {
-      const points: THREE.Vector3[] = [];
-      for (let i = 0; i < posAttr.count; i++) {
-        points.push(
-          new THREE.Vector3(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i))
-            .applyMatrix4(child.matrixWorld),
-        );
-      }
-      collector.addLineFromPoints(layer, objColor, points);
-    } else if (child instanceof THREE.Mesh) {
-      const vertices: number[] = [];
-      for (let i = 0; i < posAttr.count; i++) {
-        v.set(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
-        v.applyMatrix4(child.matrixWorld);
-        vertices.push(v.x, v.y, v.z);
-      }
-      const index = geo.getIndex();
-      if (index) {
-        const indices: number[] = [];
-        for (let i = 0; i < index.count; i++) {
-          indices.push(index.getX(i));
-        }
-        collector.addMesh(layer, objColor, vertices, indices);
-      }
-    } else if (child instanceof THREE.Points) {
-      const data: number[] = [];
-      for (let i = 0; i < posAttr.count; i++) {
-        v.set(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
-        v.applyMatrix4(child.matrixWorld);
-        data.push(v.x, v.y, v.z);
-      }
-      collector.addPoints(layer, objColor, data);
-    }
-
-    // Dispose extracted geometry (materials are shared from cache — don't dispose)
-    geo.dispose();
   }
 };
 
@@ -1354,95 +1171,15 @@ const createFaceMesh = (
   return new THREE.Mesh(geometry, material);
 };
 
-const createBlockGroup = (
-  insertEntity: DxfEntity,
-  dxf: DxfData,
-  colorCtx: EntityColorContext,
-  depth = 0,
-): THREE.Group | null => {
-  if (depth > MAX_RECURSION_DEPTH) {
-    console.warn(`Maximum recursion depth reached while processing INSERT: ${depth}`);
-    return null;
-  }
-
-  if (!isInsertEntity(insertEntity)) {
-    return null;
-  }
-
-  if (!dxf.blocks || typeof dxf.blocks !== "object") {
-    console.warn("DXF does not contain blocks!");
-    return null;
-  }
-
-  const blockName = insertEntity.name;
-  const block = dxf.blocks[blockName];
-
-  if (!block) {
-    return null;
-  }
-
-  if (!block.entities || block.entities.length === 0) {
-    const emptyGroup = new THREE.Group();
-    const position = insertEntity.position;
-    emptyGroup.position.set(position.x, position.y, position.z || 0);
-    return emptyGroup;
-  }
-
-  // Compute INSERT entity color for ByBlock inheritance
-  const insertColor = resolveEntityColor(insertEntity, colorCtx.layers, colorCtx.blockColor, colorCtx.darkTheme);
-  const blockColorCtx: EntityColorContext = {
-    layers: colorCtx.layers,
-    blockColor: insertColor,
-    materialCache: colorCtx.materialCache,
-    meshMaterialCache: colorCtx.meshMaterialCache,
-    pointsMaterialCache: colorCtx.pointsMaterialCache,
-    lineTypes: colorCtx.lineTypes,
-    globalLtScale: colorCtx.globalLtScale,
-    blockLineType: insertEntity.lineType || colorCtx.blockLineType,
-    darkTheme: colorCtx.darkTheme,
-  };
-
-  const blockGroup = new THREE.Group();
-
-  block.entities.forEach((entity: DxfEntity) => {
-    try {
-      const obj = processEntity(entity, dxf, blockColorCtx, depth + 1);
-      if (obj) {
-        if (Array.isArray(obj)) {
-          obj.forEach((o) => blockGroup.add(o));
-        } else {
-          blockGroup.add(obj);
-        }
-      }
-    } catch (error) {
-      console.warn(`Error processing entity in block "${blockName}":`, error);
-    }
-  });
-
-  const position = insertEntity.position;
-  blockGroup.position.set(position.x, position.y, position.z || 0);
-
-  const xScale = insertEntity.xScale || 1;
-  const yScale = insertEntity.yScale || 1;
-  const zScale = insertEntity.zScale || 1;
-  blockGroup.scale.set(xScale, yScale, zScale);
-
-  if (insertEntity.rotation) {
-    blockGroup.rotation.z = degreesToRadians(insertEntity.rotation);
-  }
-
-  return blockGroup;
-};
-
 /**
- * Process entity into Three.js objects. Used inside blocks (INSERT)
- * where entities cannot be merged due to group transforms.
+ * Process entity into Three.js objects. Used for entity types that cannot
+ * be collected/merged (HATCH, SOLID, 3DFACE, POINT).
  */
 const processEntity = (
   entity: DxfEntity,
-  dxf: DxfData,
+  _dxf: DxfData,
   colorCtx: EntityColorContext,
-  depth = 0,
+  _depth = 0,
 ): THREE.Object3D | THREE.Object3D[] | null => {
   const entityColor = resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor, colorCtx.darkTheme);
   const ltInfo = resolveEntityLinetype(
@@ -1581,235 +1318,14 @@ const processEntity = (
       break;
     }
 
-    case "TEXT": {
-      if (isTextEntity(entity)) {
-        const matrix = buildOcsMatrix(entity.extrusionDirection);
-        const textPosition = entity.position || entity.startPoint;
-        const textContent = entity.text;
-        if (!textContent) return new THREE.Group();
-        const textHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
-        const hAlign = getTextHAlign(entity.halign);
-        const vAlign = getTextVAlign(entity.valign);
-
-        if (textPosition) {
-          const textMesh = createTextMesh(
-            replaceSpecialChars(textContent),
-            textHeight,
-            entityColor,
-            false,
-            false,
-            hAlign,
-            "Arial",
-            vAlign,
-          );
-          const pos = transformOcsPoint(
-            new THREE.Vector3(textPosition.x, textPosition.y, 0),
-            matrix,
-          );
-          textMesh.position.set(pos.x, pos.y, pos.z);
-
-          if (entity.rotation) {
-            textMesh.rotation.z = degreesToRadians(entity.rotation);
-          }
-
-          return textMesh;
-        }
-      }
+    // TEXT and MTEXT are handled by the vector text path (collectTextOrMText)
+    case "TEXT":
+    case "MTEXT":
       break;
-    }
 
-    case "MTEXT": {
-      if (isTextEntity(entity)) {
-        const matrix = buildOcsMatrix(entity.extrusionDirection);
-        const textPosition = entity.position || entity.startPoint;
-        const textContent = entity.text;
-        if (!textContent) return new THREE.Group();
-        const defaultHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
-        const hAlign = getMTextHAlign(entity.attachmentPoint);
-        const vAlign = getMTextVAlign(entity.attachmentPoint);
-
-        if (textPosition) {
-          const lines = parseMTextContent(textContent);
-
-          if (lines.length === 1) {
-            const line = lines[0];
-            const h = line.height || defaultHeight;
-            const c = line.color || entityColor;
-            const textMesh = (line.stackedTop || line.stackedBottom)
-              ? createStackedTextMesh(
-                  line.text,
-                  line.stackedTop || "",
-                  line.stackedBottom || "",
-                  h,
-                  c,
-                  line.bold,
-                  line.italic,
-                  hAlign,
-                  line.fontFamily,
-                  vAlign,
-                )
-              : createTextMesh(
-                  line.text,
-                  h,
-                  c,
-                  line.bold,
-                  line.italic,
-                  hAlign,
-                  line.fontFamily,
-                  vAlign,
-                );
-            const pos = transformOcsPoint(
-              new THREE.Vector3(textPosition.x, textPosition.y, 0),
-              matrix,
-            );
-            textMesh.position.set(pos.x, pos.y, pos.z);
-
-            if (entity.rotation) {
-              textMesh.rotation.z = degreesToRadians(entity.rotation);
-            } else if (entity.directionVector) {
-              textMesh.rotation.z = Math.atan2(entity.directionVector.y, entity.directionVector.x);
-            }
-
-            return textMesh;
-          }
-
-          // Multiline: each line uses vAlign="top" so lines stack downward
-          const textGroup = new THREE.Group();
-          const LINE_SPACING = 1.4;
-          let yOffset = 0;
-          let totalHeight = 0;
-
-          for (const line of lines) {
-            const h = line.height || defaultHeight;
-            const c = line.color || entityColor;
-            const mesh = (line.stackedTop || line.stackedBottom)
-              ? createStackedTextMesh(
-                  line.text,
-                  line.stackedTop || "",
-                  line.stackedBottom || "",
-                  h,
-                  c,
-                  line.bold,
-                  line.italic,
-                  hAlign,
-                  line.fontFamily,
-                  "top",
-                )
-              : createTextMesh(
-                  line.text,
-                  h,
-                  c,
-                  line.bold,
-                  line.italic,
-                  hAlign,
-                  line.fontFamily,
-                  "top",
-                );
-            mesh.position.set(0, yOffset, 0);
-            textGroup.add(mesh);
-            yOffset -= h * LINE_SPACING;
-            totalHeight += h * LINE_SPACING;
-          }
-          // Adjust totalHeight: last line without trailing spacing
-          const lastLineHeight = lines[lines.length - 1].height || defaultHeight;
-          totalHeight = totalHeight - lastLineHeight * LINE_SPACING + lastLineHeight;
-
-          // Vertical offset of the group depending on vAlign
-          let groupYOffset = 0;
-          if (vAlign === "middle") {
-            groupYOffset = totalHeight / 2;
-          } else if (vAlign === "bottom") {
-            groupYOffset = totalHeight;
-          }
-
-          const groupPos = transformOcsPoint(
-            new THREE.Vector3(textPosition.x, textPosition.y + groupYOffset, 0),
-            matrix,
-          );
-          textGroup.position.set(groupPos.x, groupPos.y, groupPos.z);
-
-          if (entity.rotation) {
-            textGroup.rotation.z = degreesToRadians(entity.rotation);
-          } else if (entity.directionVector) {
-            textGroup.rotation.z = Math.atan2(entity.directionVector.y, entity.directionVector.x);
-          }
-
-          return textGroup;
-        }
-      }
+    // DIMENSION is handled by the vector text path (collectDimensionEntity)
+    case "DIMENSION":
       break;
-    }
-
-    case "DIMENSION": {
-      if (isDimensionEntity(entity)) {
-        const baseDimType = (entity.dimensionType ?? 0) & 0x0f;
-
-        // Ordinate dimension (type 6 = Y-ordinate, type 7 = X-ordinate)
-        if ((baseDimType & 0x0e) === 6) {
-          return createOrdinateDimension(entity, entityColor);
-        }
-
-        // Angular dimension (type 2)
-        if (baseDimType === 2) {
-          return createAngularDimension(entity, entityColor, colorCtx.globalLtScale);
-        }
-
-        // Diametric dimension (type 3)
-        if (baseDimType === 3) {
-          return createDiametricDimension(entity, entityColor);
-        }
-
-        // Radial dimension (type 4)
-        if (baseDimType === 4) {
-          return createRadialDimension(entity, entityColor);
-        }
-
-        const dimData = extractDimensionData(entity);
-        if (!dimData) {
-          break;
-        }
-
-        // Aligned dimension (type 1): compute angle from point coordinates
-        let dimAngle = dimData.angle;
-        if (baseDimType === 1 && dimAngle === 0) {
-          const dx = dimData.point2.x - dimData.point1.x;
-          const dy = dimData.point2.y - dimData.point1.y;
-          dimAngle = (Math.atan2(dy, dx) * DEGREES_TO_RADIANS_DIVISOR) / Math.PI;
-        }
-
-        const dimGroup = createDimensionGroup(
-          dimData.point1,
-          dimData.point2,
-          dimData.anchorPoint,
-          dimData.textPos,
-          dimData.textHeight,
-          dimData.isRadial,
-          entityColor,
-          dimAngle,
-          colorCtx.globalLtScale,
-        );
-
-        const objects: THREE.Object3D[] = [dimGroup];
-
-        if (dimData.textPos) {
-          const textMesh = createDimensionTextMesh(
-            dimData.dimensionText,
-            dimData.textHeight,
-            entityColor,
-          );
-          textMesh.position.set(dimData.textPos.x, dimData.textPos.y, 0.2);
-
-          if (dimAngle !== 0) {
-            textMesh.rotation.z = degreesToRadians(dimAngle);
-          }
-
-          objects.push(textMesh);
-        }
-
-        return objects;
-      }
-      break;
-    }
 
     case "SOLID": {
       if (isSolidEntity(entity)) {
@@ -1850,67 +1366,9 @@ const processEntity = (
       break;
     }
 
-    case "INSERT": {
-      if (isInsertEntity(entity)) {
-        const insertMatrix = buildOcsMatrix(entity.extrusionDirection);
-        const blockGroup = createBlockGroup(entity, dxf, colorCtx, depth);
-        if (insertMatrix && blockGroup) {
-          blockGroup.applyMatrix4(insertMatrix);
-        }
-        // Render ATTRIB entities outside block transform (world coordinates)
-        if (entity.attribs && entity.attribs.length > 0) {
-          const objects: THREE.Object3D[] = [];
-          if (blockGroup) objects.push(blockGroup);
-
-          for (const attrib of entity.attribs) {
-            if (attrib.invisible) continue;
-            const text = attrib.text;
-            if (!text) continue;
-
-            const attribColor = resolveEntityColor(attrib, colorCtx.layers, colorCtx.blockColor, colorCtx.darkTheme);
-            const textHeight = attrib.textHeight || TEXT_HEIGHT;
-            const hAlign = getTextHAlign(attrib.horizontalJustification);
-            const vAlign = getTextVAlign(attrib.verticalJustification);
-
-            // Use endPoint for justified text, startPoint otherwise
-            const hasJustification =
-              (attrib.horizontalJustification && attrib.horizontalJustification > 0) ||
-              (attrib.verticalJustification && attrib.verticalJustification > 0);
-            const posCoord = hasJustification && attrib.endPoint
-              ? attrib.endPoint
-              : attrib.startPoint;
-            if (!posCoord) continue;
-
-            const attribMatrix = buildOcsMatrix(attrib.extrusionDirection);
-            const textMesh = createTextMesh(
-              replaceSpecialChars(text),
-              textHeight,
-              attribColor,
-              false,
-              false,
-              hAlign,
-              "Arial",
-              vAlign,
-            );
-            const pos = transformOcsPoint(
-              new THREE.Vector3(posCoord.x, posCoord.y, 0),
-              attribMatrix,
-            );
-            textMesh.position.set(pos.x, pos.y, pos.z);
-
-            if (attrib.rotation) {
-              textMesh.rotation.z = degreesToRadians(attrib.rotation);
-            }
-
-            objects.push(textMesh);
-          }
-
-          return objects.length > 0 ? objects : null;
-        }
-        return blockGroup;
-      }
+    // INSERT is handled by collectInsertEntity (merged geometry path)
+    case "INSERT":
       break;
-    }
 
     case "HATCH": {
       if (isHatchEntity(entity) && entity.boundaryPaths.length > 0) {
@@ -1988,85 +1446,11 @@ const processEntity = (
       break;
     }
 
-    case "LEADER": {
-      if (isLeaderEntity(entity) && entity.vertices.length >= 2) {
-        const points = entity.vertices.map(
-          (v) => new THREE.Vector3(v.x, v.y, v.z || 0),
-        );
-        const leaderLine = createLine(points, lineMaterial, ltInfo?.pattern);
-
-        if (entity.arrowHeadFlag === 1 && points.length >= 2) {
-          const group = new THREE.Group();
-          group.add(leaderLine);
-          const arrowMat = getMeshMaterial(entityColor, colorCtx.meshMaterialCache);
-          const arrow = createArrow(points[1], points[0], ARROW_SIZE, arrowMat);
-          group.add(arrow);
-          return group;
-        }
-        return leaderLine;
-      }
-      break;
-    }
-
+    // LEADER/MULTILEADER are handled by collectLeaderEntity (merged geometry path)
+    case "LEADER":
     case "MULTILEADER":
-    case "MLEADER": {
-      if (isMLeaderEntity(entity) && entity.leaders.length > 0) {
-        const group = new THREE.Group();
-        const arrowSize = entity.arrowSize || ARROW_SIZE;
-        const arrowMat = getMeshMaterial(entityColor, colorCtx.meshMaterialCache);
-
-        for (const leader of entity.leaders) {
-          for (const line of leader.lines) {
-            if (line.vertices.length < 2) continue;
-            const points = line.vertices.map(
-              (v) => new THREE.Vector3(v.x, v.y, v.z || 0),
-            );
-
-            // Add lastLeaderPoint as final point (landing/shelf)
-            if (leader.lastLeaderPoint) {
-              points.push(new THREE.Vector3(
-                leader.lastLeaderPoint.x,
-                leader.lastLeaderPoint.y,
-                leader.lastLeaderPoint.z || 0,
-              ));
-            }
-
-            group.add(createLine(points, lineMaterial, ltInfo?.pattern));
-
-            if (entity.hasArrowHead !== false && points.length >= 2) {
-              const arrow = createArrow(points[1], points[0], arrowSize, arrowMat);
-              group.add(arrow);
-            }
-          }
-        }
-
-        if (entity.text && entity.textPosition) {
-          const textHeight = entity.textHeight || TEXT_HEIGHT;
-          const textContent = replaceSpecialChars(entity.text);
-          if (textContent) {
-            const textMesh = createTextMesh(
-              textContent,
-              textHeight,
-              entityColor,
-              false,
-              false,
-              "left",
-              "Arial",
-              "middle",
-            );
-            textMesh.position.set(
-              entity.textPosition.x,
-              entity.textPosition.y,
-              0,
-            );
-            group.add(textMesh);
-          }
-        }
-
-        return group.children.length > 0 ? group : null;
-      }
+    case "MLEADER":
       break;
-    }
 
     // Recognized but non-renderable entities — silent skip (not unsupported)
     case "VIEWPORT":
@@ -2204,19 +1588,19 @@ export async function createThreeObjectsFromDXF(
       }
 
       // Vector text: collect TEXT/MTEXT directly into GeometryCollector
-      if (colorCtx.font && (entity.type === "TEXT" || entity.type === "MTEXT") && isTextEntity(entity)) {
+      if ((entity.type === "TEXT" || entity.type === "MTEXT") && isTextEntity(entity)) {
         collectTextOrMText(entity, colorCtx, collector, layer);
         continue;
       }
 
       // Vector text: collect DIMENSION directly (lines decomposed, text via collector)
-      if (colorCtx.font && entity.type === "DIMENSION" && isDimensionEntity(entity)) {
+      if (entity.type === "DIMENSION" && isDimensionEntity(entity)) {
         collectDimensionEntity(entity, dxf, colorCtx, collector, layer);
         continue;
       }
 
       // Vector text: collect LEADER/MULTILEADER directly
-      if (colorCtx.font && (entity.type === "LEADER" || entity.type === "MULTILEADER" || entity.type === "MLEADER")) {
+      if (entity.type === "LEADER" || entity.type === "MULTILEADER" || entity.type === "MLEADER") {
         collectLeaderEntity(entity, dxf, colorCtx, collector, layer);
         continue;
       }
@@ -2224,26 +1608,14 @@ export async function createThreeObjectsFromDXF(
       // Complex entities: create individual Three.js objects
       const obj = processEntity(entity, dxf, colorCtx, 0);
       if (obj) {
-        // DIMENSION/LEADER/MLEADER: decompose lines+arrows into collector, keep only text
-        const topDecomposable = entity.type === "DIMENSION" || entity.type === "LEADER"
-          || entity.type === "MULTILEADER" || entity.type === "MLEADER";
+        setLayerName(obj, layer);
+        const count = Array.isArray(obj) ? obj.length : 1;
+        _debugFallback[entity.type] = (_debugFallback[entity.type] || 0) + count;
 
-        if (topDecomposable) {
-          const identity = new THREE.Matrix4();
-          const beforeCount = group.children.length;
-          decomposeToCollector(obj, collector, layer, identity, group);
-          const textCount = group.children.length - beforeCount;
-          _debugFallback[entity.type + "(text)"] = (_debugFallback[entity.type + "(text)"] || 0) + textCount;
+        if (Array.isArray(obj)) {
+          obj.forEach((o) => group.add(o));
         } else {
-          setLayerName(obj, layer);
-          const count = Array.isArray(obj) ? obj.length : 1;
-          _debugFallback[entity.type] = (_debugFallback[entity.type] || 0) + count;
-
-          if (Array.isArray(obj)) {
-            obj.forEach((o) => group.add(o));
-          } else {
-            group.add(obj);
-          }
+          group.add(obj);
         }
       } else {
         unsupportedTypes.push(`Entity ${index}: ${entity.type || "unknown type"}`);
