@@ -30,7 +30,7 @@ export const replaceSpecialChars = (text: string): string =>
  * Handles: \P (line break), \C<n>; (ACI color), \H<n>; (height),
  * \f...; (font), %%d/%%p/%%c (special chars), {}, \L/\O/\K, etc.
  */
-export const parseMTextContent = (rawText: string): MTextLine[] => {
+export const parseMTextContent = (rawText: string, defaultHeight?: number): MTextLine[] => {
   // Protect literal escape sequences with placeholders
   // so they are not consumed by the formatting parser (\\ -> \, \{ -> {, \} -> })
   let text = rawText.replace(/\\\\/g, "\x01").replace(/\\\{/g, "\x02").replace(/\\\}/g, "\x03");
@@ -89,9 +89,14 @@ export const parseMTextContent = (rawText: string): MTextLine[] => {
       return "";
     });
 
-    // Height: \H<value>;
-    clean = clean.replace(/\\H([\d.]+);/gi, (_, val) => {
-      currentHeight = parseFloat(val);
+    // Height: \H<value>; (absolute) or \H<value>x; (relative multiplier)
+    clean = clean.replace(/\\H([\d.]+)(x?);/gi, (_, val, suffix) => {
+      const v = parseFloat(val);
+      if (suffix === "x" || suffix === "X") {
+        currentHeight = (currentHeight ?? defaultHeight ?? 1) * v;
+      } else {
+        currentHeight = v;
+      }
       return "";
     });
 

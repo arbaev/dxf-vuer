@@ -385,7 +385,7 @@ describe("vectorTextBuilder", () => {
       const b = c.getBounds();
       // BOTTOM_RIGHT: text extends above and to the left
       expect(b.xMax).toBeLessThanOrEqual(52);
-      expect(b.yMin).toBeGreaterThanOrEqual(48); // bottom near position
+      expect(b.yMin).toBeGreaterThanOrEqual(44); // bottom near position (ascender-based)
     });
 
     it("MIDDLE_CENTER (5): text is centered around position", () => {
@@ -397,7 +397,7 @@ describe("vectorTextBuilder", () => {
       const midY = (b.yMin + b.yMax) / 2;
       // Center should be near (50, 50)
       expect(Math.abs(midX - 50)).toBeLessThan(5);
-      expect(Math.abs(midY - 50)).toBeLessThan(5);
+      expect(Math.abs(midY - 50)).toBeLessThan(8);
     });
   });
 

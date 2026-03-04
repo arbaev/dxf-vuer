@@ -116,11 +116,26 @@ describe("parseMTextContent", () => {
     expect(result[1].color).toBeUndefined();
   });
 
-  it("sets height with \\H<value>;", () => {
+  it("sets height with \\H<value>; (absolute)", () => {
     const result = parseMTextContent("\\H2.5;Big text");
     expect(result).toHaveLength(1);
     expect(result[0].text).toBe("Big text");
     expect(result[0].height).toBe(2.5);
+  });
+
+  it("sets height with \\H<value>x; (relative multiplier)", () => {
+    const result = parseMTextContent("\\H1.5x;Title\\P\\H0.666667x;Body", 240);
+    expect(result).toHaveLength(2);
+    expect(result[0].text).toBe("Title");
+    expect(result[0].height).toBeCloseTo(360, 1); // 240 * 1.5
+    expect(result[1].text).toBe("Body");
+    expect(result[1].height).toBeCloseTo(240, 0); // 360 * 0.666667
+  });
+
+  it("relative \\Hx; without defaultHeight uses 1 as base", () => {
+    const result = parseMTextContent("\\H2x;Double");
+    expect(result).toHaveLength(1);
+    expect(result[0].height).toBe(2); // 1 * 2
   });
 
   it("sets font, bold, and italic with \\f...;", () => {

@@ -653,7 +653,7 @@ const collectTextOrMText = (
       height *= Math.sqrt(m[4] * m[4] + m[5] * m[5]);
     }
 
-    const lines = parseMTextContent(textContent);
+    const lines = parseMTextContent(textContent, height);
     addMTextToCollector(
       collector, layer, entityColor, font, lines, height,
       pos.x, pos.y, pos.z, rotation,
