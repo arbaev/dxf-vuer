@@ -134,6 +134,8 @@ export function addTextToCollector(
   endPosX?: number,
   endPosY?: number,
   transform?: readonly number[],
+  bold?: boolean,
+  italic?: boolean,
 ): void {
   if (!text || height <= 0) return;
 
@@ -230,8 +232,11 @@ export function addTextToCollector(
 
       for (let j = 0; j < gd.positions.length; j += 3) {
         // All values normalized (unitsPerEm = 1)
-        const localX = (gd.positions[j] + xCursor - originX) * scaleX;
-        const localY = (gd.positions[j + 1] - originY) * scaleY;
+        const glyphX = gd.positions[j] + xCursor - originX;
+        const glyphY = gd.positions[j + 1] - originY;
+        // Faux italic: shear X by Y
+        const localX = (italic ? glyphX + glyphY * ITALIC_SLANT : glyphX) * scaleX;
+        const localY = glyphY * scaleY;
         // Rotation + translation to world coordinates
         let wx = posX + localX * cos - localY * sin;
         let wy = posY + localX * sin + localY * cos;
@@ -249,6 +254,30 @@ export function addTextToCollector(
       for (const idx of gd.indices) {
         allIndices.push(idx + vertexOffset);
       }
+
+      // Faux bold: duplicate triangles shifted along text direction
+      if (bold) {
+        const boldVertexOffset = allPositions.length / 3;
+        for (let j = 0; j < gd.positions.length; j += 3) {
+          const glyphX = gd.positions[j] + xCursor - originX;
+          const glyphY = gd.positions[j + 1] - originY;
+          const localX = ((italic ? glyphX + glyphY * ITALIC_SLANT : glyphX) + BOLD_OFFSET) * scaleX;
+          const localY = glyphY * scaleY;
+          let wx = posX + localX * cos - localY * sin;
+          let wy = posY + localX * sin + localY * cos;
+          let wz = posZ;
+          if (transform) {
+            const tx = transform[0] * wx + transform[4] * wy + transform[8] * wz + transform[12];
+            const ty = transform[1] * wx + transform[5] * wy + transform[9] * wz + transform[13];
+            const tz = transform[2] * wx + transform[6] * wy + transform[10] * wz + transform[14];
+            wx = tx; wy = ty; wz = tz;
+          }
+          allPositions.push(wx, wy, wz);
+        }
+        for (const idx of gd.indices) {
+          allIndices.push(idx + boldVertexOffset);
+        }
+      }
     }
 
     // Use GlyphData advance (correct for both font and custom glyphs)
@@ -262,6 +291,13 @@ export function addTextToCollector(
     collector.addMesh(layer, color, allPositions, allIndices);
   }
 }
+
+// ── Faux bold/italic constants ─────────────────────────────────────────
+
+/** Italic slant: tan(12°) ≈ 0.2126 */
+const ITALIC_SLANT = Math.tan(12 * Math.PI / 180);
+/** Bold offset as fraction of height (normalized units) */
+const BOLD_OFFSET = 0.02;
 
 // ── MTEXT support ──────────────────────────────────────────────────────
 
@@ -324,6 +360,8 @@ function emitStackedText(
   rotation: number,
   hAlign: "left" | "center" | "right",
   transform?: readonly number[],
+  bold?: boolean,
+  italic?: boolean,
 ): void {
   const cos = Math.cos(rotation);
   const sin = Math.sin(rotation);
@@ -361,7 +399,7 @@ function emitStackedText(
     addTextToCollector(
       collector, layer, color, font, mainText, height,
       curX, curY, posZ, rotation, HAlign.LEFT, VAlign.MIDDLE,
-      1, undefined, undefined, transform,
+      1, undefined, undefined, transform, bold, italic,
     );
     curX += (mainAdvance + gap) * cos;
     curY += (mainAdvance + gap) * sin;
@@ -378,7 +416,7 @@ function emitStackedText(
     addTextToCollector(
       collector, layer, color, font, stackedTop, stackedHeight,
       topX, topY, posZ, rotation, HAlign.LEFT, VAlign.BASELINE,
-      1, undefined, undefined, transform,
+      1, undefined, undefined, transform, bold, italic,
     );
   }
 
@@ -391,7 +429,7 @@ function emitStackedText(
     addTextToCollector(
       collector, layer, color, font, stackedBottom, stackedHeight,
       bottomX, bottomY, posZ, rotation, HAlign.LEFT, VAlign.BASELINE,
-      1, undefined, undefined, transform,
+      1, undefined, undefined, transform, bold, italic,
     );
   }
 }
@@ -501,12 +539,14 @@ export function addMTextToCollector(
         collector, layer, lineColor, lineFont,
         line.text, line.stackedTop || "", line.stackedBottom || "",
         lineHeight, worldX, worldY, posZ, rotation, hAlign,
+        undefined, line.bold, line.italic,
       );
     } else {
       addTextToCollector(
         collector, layer, lineColor, lineFont,
         line.text, lineHeight,
         worldX, worldY, posZ, rotation, hAlignEnum, VAlign.TOP,
+        1, undefined, undefined, undefined, line.bold, line.italic,
       );
     }
 
