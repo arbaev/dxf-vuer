@@ -3,6 +3,7 @@ import { getTriangulatedGlyph, type GlyphData } from "./glyphCache";
 import type { GeometryCollector } from "./mergeCollectors";
 import type { MTextLine } from "./text";
 import { cleanDimensionMText } from "./dimensions";
+import { classifyFont } from "./fontClassifier";
 
 /** DXF TEXT horizontal alignment (code 72) */
 export const enum HAlign {
@@ -426,6 +427,7 @@ export function addMTextToCollector(
   rotation: number = 0,
   attachmentPoint: number = 1,
   width?: number,
+  serifFont?: Font,
 ): void {
   if (lines.length === 0 || defaultHeight <= 0) return;
 
@@ -480,6 +482,12 @@ export function addMTextToCollector(
     const lineHeight = line.height || defaultHeight;
     const lineColor = line.color || color;
 
+    // Per-line font: use inline \f fontFamily to pick sans/serif
+    let lineFont = font;
+    if (serifFont && line.fontFamily) {
+      lineFont = classifyFont(line.fontFamily) === "serif" ? serifFont : font;
+    }
+
     // Local offset from insertion point (in text-local coordinates)
     // Lines stack downward from groupYOffset
     const localY = groupYOffset + lineYOffset;
@@ -490,13 +498,13 @@ export function addMTextToCollector(
 
     if (line.stackedTop || line.stackedBottom) {
       emitStackedText(
-        collector, layer, lineColor, font,
+        collector, layer, lineColor, lineFont,
         line.text, line.stackedTop || "", line.stackedBottom || "",
         lineHeight, worldX, worldY, posZ, rotation, hAlign,
       );
     } else {
       addTextToCollector(
-        collector, layer, lineColor, font,
+        collector, layer, lineColor, lineFont,
         line.text, lineHeight,
         worldX, worldY, posZ, rotation, hAlignEnum, VAlign.TOP,
       );

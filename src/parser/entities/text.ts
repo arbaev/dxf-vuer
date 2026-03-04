@@ -11,6 +11,7 @@ export interface ITextEntity extends IEntityBase {
   xScale?: number;
   rotation?: number;
   text: string;
+  textStyle?: string;
   halign?: number;
   valign?: number;
   extrusionDirection?: IPoint;
@@ -39,6 +40,9 @@ export function parseText(scanner: DxfScanner, curr: IGroup): ITextEntity {
         break;
       case 1:
         entity.text = curr.value as string;
+        break;
+      case 7:
+        entity.textStyle = curr.value as string;
         break;
       case 72:
         entity.halign = curr.value as number;

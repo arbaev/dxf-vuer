@@ -89,6 +89,23 @@ describe("parseText", () => {
     expect(entity.text).toBe("Mirrored");
     expect(entity.extrusionDirection).toEqual({ x: 0, y: 0, z: -1 });
   });
+
+  it("parses text style name (code 7)", () => {
+    const { scanner, group } = createScannerAt(
+      "0", "TEXT",
+      "10", "0.0",
+      "20", "0.0",
+      "7", "Heading",
+      "1", "Styled Text",
+      "0", "EOF",
+    );
+
+    const entity = parseText(scanner, group);
+
+    expect(entity.type).toBe("TEXT");
+    expect(entity.textStyle).toBe("Heading");
+    expect(entity.text).toBe("Styled Text");
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -176,6 +193,23 @@ describe("parseMText", () => {
     expect(entity.type).toBe("MTEXT");
     expect(entity.directionVector).toEqual({ x: 1.0, y: 0.0, z: 0.0 });
     expect(entity.text).toBe("Directed text");
+  });
+
+  it("parses mtext style name (code 7)", () => {
+    const { scanner, group } = createScannerAt(
+      "0", "MTEXT",
+      "10", "0.0",
+      "20", "0.0",
+      "7", "Notes",
+      "1", "Styled MTEXT",
+      "0", "EOF",
+    );
+
+    const entity = parseMText(scanner, group);
+
+    expect(entity.type).toBe("MTEXT");
+    expect(entity.textStyle).toBe("Notes");
+    expect(entity.text).toBe("Styled MTEXT");
   });
 });
 

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { Font } from "opentype.js";
-import type { DxfLayer, DxfLineType } from "@/types/dxf";
+import type { DxfLayer, DxfLineType, DxfStyle } from "@/types/dxf";
 import { applyLinetypePattern, type PatternGeometry } from "@/utils/linetypeResolver";
 import {
   EPSILON,
@@ -23,6 +23,8 @@ export interface EntityColorContext {
   blockLineType?: string;
   darkTheme?: boolean;
   font?: Font; // Vector text font (null = canvas fallback)
+  serifFont?: Font; // Lazy-loaded serif font for serif text styles
+  styles?: Record<string, DxfStyle>; // STYLE table for font classification
 }
 
 export const degreesToRadians = (degrees: number): number =>

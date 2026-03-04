@@ -19,6 +19,14 @@ export interface ILineType {
   patternLength: number;
 }
 
+export interface IStyle {
+  name: string;
+  fontFile?: string;
+  bigFont?: string;
+  fixedHeight?: number;
+  widthFactor?: number;
+}
+
 interface IBaseTable {
   handle?: string;
   ownerHandle?: string;
@@ -54,6 +62,12 @@ export function parseTables(scanner: DxfScanner): Record<string, IBaseTable> {
       tableName: "layer",
       dxfSymbolName: "LAYER",
       parseTableRecords: () => parseLayers(scanner),
+    },
+    STYLE: {
+      tableRecordsProperty: "styles",
+      tableName: "style",
+      dxfSymbolName: "STYLE",
+      parseTableRecords: () => parseStyles(scanner),
     },
   };
 
@@ -216,6 +230,52 @@ function parseLineTypes(scanner: DxfScanner): Record<string, ILineType> {
   }
   ltypes[ltypeName] = ltype;
   return ltypes;
+}
+
+function parseStyles(scanner: DxfScanner): Record<string, IStyle> {
+  const styles: Record<string, IStyle> = {};
+  let style = {} as IStyle;
+  let styleName = "";
+
+  let curr = scanner.next();
+  while (!(curr.code === 0 && curr.value === "ENDTAB")) {
+    switch (curr.code) {
+      case 2:
+        style.name = curr.value as string;
+        styleName = curr.value as string;
+        curr = scanner.next();
+        break;
+      case 3:
+        style.fontFile = curr.value as string;
+        curr = scanner.next();
+        break;
+      case 4:
+        style.bigFont = curr.value as string;
+        curr = scanner.next();
+        break;
+      case 40:
+        style.fixedHeight = curr.value as number;
+        curr = scanner.next();
+        break;
+      case 41:
+        style.widthFactor = curr.value as number;
+        curr = scanner.next();
+        break;
+      case 0:
+        if (curr.value === "STYLE") {
+          if (styleName) styles[styleName] = style;
+          style = {} as IStyle;
+          styleName = "";
+        }
+        curr = scanner.next();
+        break;
+      default:
+        curr = scanner.next();
+        break;
+    }
+  }
+  if (styleName) styles[styleName] = style;
+  return styles;
 }
 
 function parseViewPortRecords(scanner: DxfScanner): Record<string, unknown>[] {

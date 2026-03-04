@@ -6,6 +6,7 @@ import type { IPoint, IEntityBase } from "../parseHelpers";
 export interface IMTextEntity extends IEntityBase {
   type: "MTEXT";
   text: string;
+  textStyle?: string;
   position?: IPoint;
   directionVector?: IPoint;
   height?: number;
@@ -27,6 +28,9 @@ export function parseMText(scanner: DxfScanner, curr: IGroup): IMTextEntity {
         break;
       case 1:
         entity.text ? (entity.text += curr.value) : (entity.text = curr.value as string);
+        break;
+      case 7:
+        entity.textStyle = curr.value as string;
         break;
       case 10:
         entity.position = helpers.parsePoint(scanner);

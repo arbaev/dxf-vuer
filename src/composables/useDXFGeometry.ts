@@ -79,6 +79,8 @@ import {
   buildBlockTemplate,
   instantiateBlockTemplate,
 } from "./geometry/blockTemplateCache";
+import { resolveEntityFont, classifyFont } from "./geometry/fontClassifier";
+import { loadSerifFont } from "./geometry/fontManager";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -560,7 +562,7 @@ const collectTextOrMText = (
   layer: string,
   worldMatrix?: THREE.Matrix4,
 ): void => {
-  const font = colorCtx.font!;
+  const font = resolveEntityFont(entity.textStyle, colorCtx.styles, colorCtx.serifFont, colorCtx.font!);
   const entityColor = resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor, colorCtx.darkTheme);
   const textContent = entity.text;
   if (!textContent) return;
@@ -656,6 +658,7 @@ const collectTextOrMText = (
       collector, layer, entityColor, font, lines, height,
       pos.x, pos.y, pos.z, rotation,
       entity.attachmentPoint, entity.width,
+      colorCtx.serifFont,
     );
   }
 };
@@ -694,7 +697,7 @@ const collectDimensionEntity = (
   worldMatrix?: THREE.Matrix4,
 ): void => {
   if (!isDimensionEntity(entity)) return;
-  const font = colorCtx.font!;
+  const font = resolveEntityFont(entity.styleName, colorCtx.styles, colorCtx.serifFont, colorCtx.font!);
   const entityColor = resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor, colorCtx.darkTheme);
   const baseDimType = (entity.dimensionType ?? 0) & 0x0f;
   // Extract Matrix4 elements for text vertex transform inside block INSERTs
@@ -852,7 +855,8 @@ const collectLeaderEntity = (
   layer: string,
   worldMatrix?: THREE.Matrix4,
 ): void => {
-  const font = colorCtx.font!;
+  const styleName = isLeaderEntity(entity) ? entity.styleName : undefined;
+  const font = resolveEntityFont(styleName, colorCtx.styles, colorCtx.serifFont, colorCtx.font!);
   const entityColor = resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor, colorCtx.darkTheme);
   const matrix = worldMatrix ?? new THREE.Matrix4();
   const v = new THREE.Vector3();
@@ -1080,7 +1084,8 @@ const collectInsertEntity = async (
         );
 
         const rotation = attrib.rotation ? degreesToRadians(attrib.rotation) : 0;
-        addTextToCollector(collector, insertLayer, attribColor, colorCtx.font!,
+        const attribFont = resolveEntityFont(attrib.textStyle, colorCtx.styles, colorCtx.serifFont, colorCtx.font!);
+        addTextToCollector(collector, insertLayer, attribColor, attribFont,
           replaceSpecialChars(text), textHeight,
           attribPos.x, attribPos.y, attribPos.z, rotation,
           attrib.horizontalJustification ?? HAlign.LEFT,
@@ -1175,7 +1180,8 @@ const collectInsertEntity = async (
       );
 
       const rotation = attrib.rotation ? degreesToRadians(attrib.rotation) : 0;
-      addTextToCollector(collector, insertLayer, attribColor, colorCtx.font!,
+      const attribFont = resolveEntityFont(attrib.textStyle, colorCtx.styles, colorCtx.serifFont, colorCtx.font!);
+      addTextToCollector(collector, insertLayer, attribColor, attribFont,
         replaceSpecialChars(text), textHeight,
         attribPos.x, attribPos.y, attribPos.z, rotation,
         attrib.horizontalJustification ?? HAlign.LEFT,
@@ -1560,6 +1566,55 @@ export async function createThreeObjectsFromDXF(
     ? computeAutoLtScale(dxf.header)
     : headerLtScale;
 
+  // Load serif font if any STYLE entry or MTEXT inline \f references a serif font
+  const styles = dxf.tables?.style?.styles;
+  let loadedSerifFont: import("opentype.js").Font | undefined;
+  if (font) {
+    let needsSerif = false;
+
+    // Check STYLE table fontFile entries
+    if (styles) {
+      needsSerif = Object.values(styles).some(
+        (s) => s.fontFile && classifyFont(s.fontFile) === "serif",
+      );
+    }
+
+    // Check MTEXT inline \f font references in entities and blocks
+    if (!needsSerif) {
+      const inlineFontRegex = /\\f([^|;]*)/g;
+      const checkText = (text: string): boolean => {
+        let match;
+        while ((match = inlineFontRegex.exec(text)) !== null) {
+          if (classifyFont(match[1]) === "serif") return true;
+        }
+        return false;
+      };
+
+      for (const entity of dxf.entities) {
+        if (entity.type === "MTEXT" && isTextEntity(entity) && entity.text && checkText(entity.text)) {
+          needsSerif = true;
+          break;
+        }
+      }
+
+      if (!needsSerif && dxf.blocks) {
+        outer:
+        for (const block of Object.values(dxf.blocks)) {
+          for (const entity of block.entities ?? []) {
+            if (entity.type === "MTEXT" && isTextEntity(entity) && entity.text && checkText(entity.text)) {
+              needsSerif = true;
+              break outer;
+            }
+          }
+        }
+      }
+    }
+
+    if (needsSerif) {
+      loadedSerifFont = await loadSerifFont();
+    }
+  }
+
   const colorCtx: EntityColorContext = {
     layers,
     materialCache: new Map(),
@@ -1569,6 +1624,8 @@ export async function createThreeObjectsFromDXF(
     globalLtScale,
     darkTheme,
     font,
+    serifFont: loadedSerifFont,
+    styles,
   };
 
   const collector = new GeometryCollector();

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createScanner } from "../../__tests__/test-helpers";
 import { parseTables } from "../tables";
-import type { ILayer, ILineType } from "../tables";
+import type { ILayer, ILineType, IStyle } from "../tables";
 
 describe("parseTables", () => {
   // ── Layers ──────────────────────────────────────────────────────────
@@ -308,15 +308,99 @@ describe("parseTables", () => {
     });
   });
 
-  // ── Unknown table type ──────────────────────────────────────────────
+  // ── Styles ──────────────────────────────────────────────────────────
 
-  it("skips unknown table types without errors", () => {
+  describe("parseStyles", () => {
+    it("parses a single STYLE with Arial font", () => {
+      const scanner = createScanner(
+        "0", "TABLE",
+        "2", "STYLE",
+        "70", "1",
+        "0", "STYLE",
+        "2", "Standard",
+        "3", "arial.ttf",
+        "40", "0.0",
+        "41", "1.0",
+        "0", "ENDTAB",
+        "0", "ENDSEC",
+        "0", "EOF",
+      );
+
+      const tables = parseTables(scanner);
+
+      expect(tables).toHaveProperty("style");
+      const styles = tables.style.styles as Record<string, IStyle>;
+      expect(styles).toHaveProperty("Standard");
+      expect(styles.Standard.name).toBe("Standard");
+      expect(styles.Standard.fontFile).toBe("arial.ttf");
+      expect(styles.Standard.fixedHeight).toBe(0.0);
+      expect(styles.Standard.widthFactor).toBe(1.0);
+    });
+
+    it("parses STYLE with txt.shx font", () => {
+      const scanner = createScanner(
+        "0", "TABLE",
+        "2", "STYLE",
+        "70", "1",
+        "0", "STYLE",
+        "2", "Notes",
+        "3", "txt.shx",
+        "4", "bigfont.shx",
+        "40", "2.5",
+        "0", "ENDTAB",
+        "0", "ENDSEC",
+        "0", "EOF",
+      );
+
+      const tables = parseTables(scanner);
+
+      const styles = tables.style.styles as Record<string, IStyle>;
+      expect(styles.Notes.fontFile).toBe("txt.shx");
+      expect(styles.Notes.bigFont).toBe("bigfont.shx");
+      expect(styles.Notes.fixedHeight).toBe(2.5);
+    });
+
+    it("parses multiple styles", () => {
+      const scanner = createScanner(
+        "0", "TABLE",
+        "2", "STYLE",
+        "70", "2",
+        "0", "STYLE",
+        "2", "Standard",
+        "3", "arial.ttf",
+        "40", "0.0",
+        "41", "1.0",
+        "0", "STYLE",
+        "2", "Heading",
+        "3", "times.ttf",
+        "40", "5.0",
+        "41", "0.8",
+        "0", "ENDTAB",
+        "0", "ENDSEC",
+        "0", "EOF",
+      );
+
+      const tables = parseTables(scanner);
+
+      const styles = tables.style.styles as Record<string, IStyle>;
+      expect(Object.keys(styles)).toHaveLength(2);
+      expect(styles.Standard.fontFile).toBe("arial.ttf");
+      expect(styles.Heading.fontFile).toBe("times.ttf");
+      expect(styles.Heading.fixedHeight).toBe(5.0);
+      expect(styles.Heading.widthFactor).toBe(0.8);
+    });
+  });
+
+  // ── STYLE alongside other tables ──────────────────────────────────
+
+  it("parses STYLE table alongside LAYER table", () => {
     const scanner = createScanner(
       "0", "TABLE",
-      "2", "STYLE",          // not LAYER, LTYPE, or VPORT
+      "2", "STYLE",
       "70", "1",
       "0", "STYLE",
       "2", "Standard",
+      "3", "arial.ttf",
       "40", "0.0",
       "0", "ENDTAB",
       "0", "TABLE",
@@ -333,9 +417,10 @@ describe("parseTables", () => {
 
     const tables = parseTables(scanner);
 
-    // Unknown STYLE table is skipped, LAYER table is parsed
-    expect(tables).not.toHaveProperty("style");
+    expect(tables).toHaveProperty("style");
     expect(tables).toHaveProperty("layer");
+    const styles = tables.style.styles as Record<string, IStyle>;
+    expect(styles).toHaveProperty("Standard");
     const layers = tables.layer.layers as Record<string, ILayer>;
     expect(layers).toHaveProperty("Layer0");
   });

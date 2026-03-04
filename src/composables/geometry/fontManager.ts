@@ -2,6 +2,8 @@ import opentype from "opentype.js";
 import defaultFontBuffer from "@/assets/fonts/NotoSans-Light.ttf?arraybuffer";
 
 let defaultFont: opentype.Font | null = null;
+let serifFont: opentype.Font | null = null;
+let serifPromise: Promise<opentype.Font> | null = null;
 const fontCache = new Map<string, opentype.Font>();
 
 /**
@@ -28,6 +30,31 @@ export async function loadFont(url: string): Promise<opentype.Font> {
   const font = opentype.parse(buffer);
   fontCache.set(url, font);
   return font;
+}
+
+/**
+ * Lazy-load and parse the built-in Noto Serif Light font.
+ * The font data is in a separate chunk (dynamic import), loaded only when needed.
+ * Cached after first load — concurrent calls share the same promise.
+ */
+export async function loadSerifFont(): Promise<opentype.Font> {
+  if (serifFont) return serifFont;
+  if (serifPromise) return serifPromise;
+
+  serifPromise = (async () => {
+    const { default: buf } = await import("@/assets/fonts/NotoSerif-Light.ttf?arraybuffer");
+    serifFont = opentype.parse(buf);
+    return serifFont;
+  })();
+
+  return serifPromise;
+}
+
+/**
+ * Get the currently loaded serif font (null if not loaded yet).
+ */
+export function getSerifFont(): opentype.Font | null {
+  return serifFont;
 }
 
 /**

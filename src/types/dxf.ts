@@ -65,6 +65,7 @@ export interface DxfSplineEntity extends DxfEntityBase {
 export interface DxfTextEntity extends DxfEntityBase {
   type: "TEXT" | "MTEXT";
   text: string;
+  textStyle?: string; // Style name (code 7)
   position?: DxfVertex;
   startPoint?: DxfVertex;
   endPoint?: DxfVertex; // TEXT: second alignment point (codes 11/21/31)
@@ -374,6 +375,14 @@ export function isAttribEntity(entity: DxfEntity): entity is DxfAttribEntity {
   return entity.type === "ATTRIB";
 }
 
+export interface DxfStyle {
+  name: string;
+  fontFile?: string;
+  bigFont?: string;
+  fixedHeight?: number;
+  widthFactor?: number;
+}
+
 export interface DxfLayer {
   name: string;
   visible: boolean;
@@ -401,6 +410,11 @@ export interface DxfTables {
     handle?: string;
     ownerHandle?: string;
     lineTypes: Record<string, DxfLineType>;
+  };
+  style?: {
+    handle?: string;
+    ownerHandle?: string;
+    styles: Record<string, DxfStyle>;
   };
   [key: string]: unknown;
 }
