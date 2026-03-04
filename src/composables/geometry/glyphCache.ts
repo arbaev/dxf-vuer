@@ -2,8 +2,9 @@ import { ShapePath, ShapeUtils } from "three";
 import type { Font, Glyph } from "opentype.js";
 
 /** Number of line segments per curve in glyph outlines.
- *  2 is enough for CAD rendering (from dxf-viewer reference). */
-const CURVE_SUBDIVISION = 2;
+ *  5 gives smooth contours for fonts with cubic Bézier curves (Noto Sans etc.).
+ *  Lower values (2-3) produce visibly angular letter shapes. */
+const CURVE_SUBDIVISION = 5;
 
 /** Characters to use as fallback when a glyph is missing from the font. */
 const FALLBACK_CHARS = "\uFFFD?";
@@ -73,27 +74,17 @@ function triangulateGlyph(glyph: Glyph, unitsPerEm: number): GlyphData {
     }
   }
 
-  const shapes = shapePath.toShapes(false);
+  // isCCW=true: opentype.js getPath() uses screen coords (Y-down), so CW in screen
+  // appears as CCW to Three.js (Y-up). Passing true tells toShapes that CCW = solid,
+  // which correctly identifies outer contours as solids and inner contours as holes.
+  const shapes = shapePath.toShapes(true);
   const positions: number[] = [];
   const indices: number[] = [];
 
   for (const shape of shapes) {
     const shapePoints = shape.extractPoints(CURVE_SUBDIVISION);
 
-    // Winding order check — required for correct earcut triangulation (from dxf-viewer)
-    if (!ShapeUtils.isClockWise(shapePoints.shape)) {
-      shapePoints.shape.reverse();
-      for (let h = 0; h < shapePoints.holes.length; h++) {
-        if (ShapeUtils.isClockWise(shapePoints.holes[h])) {
-          shapePoints.holes[h].reverse();
-        }
-      }
-    }
-
-    const triangles = ShapeUtils.triangulateShape(
-      shapePoints.shape,
-      shapePoints.holes,
-    );
+    const triangles = ShapeUtils.triangulateShape(shapePoints.shape, shapePoints.holes);
     const baseIdx = positions.length / 3;
 
     // Outer contour vertices (normalized to unitsPerEm=1, y negated: screen→world coords)
@@ -115,17 +106,20 @@ function triangulateGlyph(glyph: Glyph, unitsPerEm: number): GlyphData {
 
   // Compute bounds from actual vertex positions (getPath uses y-down screen coords,
   // which differ from glyph.yMin/yMax font coords)
-  let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+  let xMin = Infinity,
+    xMax = -Infinity,
+    yMin = Infinity,
+    yMax = -Infinity;
   for (let i = 0; i < positions.length; i += 3) {
-    const x = positions[i], y = positions[i + 1];
+    const x = positions[i],
+      y = positions[i + 1];
     if (x < xMin) xMin = x;
     if (x > xMax) xMax = x;
     if (y < yMin) yMin = y;
     if (y > yMax) yMax = y;
   }
-  const bounds = positions.length > 0
-    ? { xMin, xMax, yMin, yMax }
-    : { xMin: 0, xMax: 0, yMin: 0, yMax: 0 };
+  const bounds =
+    positions.length > 0 ? { xMin, xMax, yMin, yMax } : { xMin: 0, xMax: 0, yMin: 0, yMax: 0 };
 
   return { positions, indices, advance, bounds };
 }
@@ -159,10 +153,7 @@ function getFallbackGlyph(font: Font): GlyphData | null {
  * Results are cached per font+glyph. Returns fallback glyph data
  * for characters not present in the font.
  */
-export function getTriangulatedGlyph(
-  font: Font,
-  char: string,
-): GlyphData | null {
+export function getTriangulatedGlyph(font: Font, char: string): GlyphData | null {
   const glyphIndex = font.charToGlyphIndex(char);
 
   // Missing glyph → fallback
