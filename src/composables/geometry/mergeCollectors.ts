@@ -150,6 +150,7 @@ export class GeometryCollector {
       geo.setAttribute("position", new THREE.Float32BufferAttribute(data, 3));
       const mat = getLineMaterial(color, materialCache);
       const obj = new THREE.LineSegments(geo, mat);
+      obj.frustumCulled = false;
       obj.userData.layerName = layer;
       objects.push(obj);
     }
@@ -162,6 +163,7 @@ export class GeometryCollector {
       geo.setAttribute("position", new THREE.Float32BufferAttribute(data, 3));
       const mat = getPointsMaterial(color, pointsMaterialCache);
       const obj = new THREE.Points(geo, mat);
+      obj.frustumCulled = false;
       obj.userData.layerName = layer;
       objects.push(obj);
     }
@@ -179,10 +181,13 @@ export class GeometryCollector {
           color,
           size: LINETYPE_DOT_SIZE,
           sizeAttenuation: false,
+          depthTest: false,
+          depthWrite: false,
         });
         dotMatCache.set(color, mat);
       }
       const obj = new THREE.Points(geo, mat);
+      obj.frustumCulled = false;
       obj.userData.layerName = layer;
       objects.push(obj);
     }
@@ -197,6 +202,7 @@ export class GeometryCollector {
       geo.setIndex(indices);
       const mat = getMeshMaterial(color, meshMaterialCache);
       const obj = new THREE.Mesh(geo, mat);
+      obj.frustumCulled = false;
       obj.userData.layerName = layer;
       objects.push(obj);
     }

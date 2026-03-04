@@ -32,7 +32,7 @@ export const getLineMaterial = (
 ): THREE.LineBasicMaterial => {
   let mat = cache.get(color);
   if (!mat) {
-    mat = new THREE.LineBasicMaterial({ color });
+    mat = new THREE.LineBasicMaterial({ color, depthTest: false, depthWrite: false });
     cache.set(color, mat);
   }
   return mat;
@@ -44,7 +44,7 @@ export const getMeshMaterial = (
 ): THREE.MeshBasicMaterial => {
   let mat = cache.get(color);
   if (!mat) {
-    mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
+    mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
     cache.set(color, mat);
   }
   return mat;
@@ -60,6 +60,8 @@ export const getPointsMaterial = (
       color,
       size: POINT_MARKER_SIZE,
       sizeAttenuation: false,
+      depthTest: false,
+      depthWrite: false,
     });
     cache.set(color, mat);
   }
@@ -105,6 +107,8 @@ export const createLine = (
           color: material.color,
           size: LINETYPE_DOT_SIZE,
           sizeAttenuation: false,
+          depthTest: false,
+          depthWrite: false,
         });
         group.add(new THREE.Points(dotGeo, dotMat));
       }

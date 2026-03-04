@@ -323,7 +323,7 @@ export const createStackedTextMesh = (
   }
 
   const texture = snapshotToTexture(canvas, context);
-  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
 
   const aspectRatio = canvasWidth / canvasHeight;
   const meshHeight = height * (canvasHeight / (Math.ceil(fontSize * 1.2) + PADDING * 2));
@@ -388,6 +388,8 @@ export const createTextMesh = (
   const material = new THREE.MeshBasicMaterial({
     map: texture,
     transparent: true,
+    depthTest: false,
+    depthWrite: false,
   });
 
   const aspectRatio = canvasWidth / canvasHeight;

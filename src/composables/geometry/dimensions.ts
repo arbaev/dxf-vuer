@@ -494,7 +494,7 @@ export const createDimensionTextMesh = (
     context.fillText(plain, PADDING, PADDING + Math.ceil(ascent));
 
     const texture = snapshotToTexture(canvas, context);
-    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
 
     // Normalize mesh height by reference canvas so font matches createTextMesh sizing
     const meshHeight = (height * canvasHeight) / refCanvasHeight;
@@ -588,7 +588,7 @@ export const createDimensionTextMesh = (
   }
 
   const texture = snapshotToTexture(canvas, context);
-  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
 
   const meshHeight = (height * canvasHeight) / refCanvasHeight;
   const aspectRatio = canvasWidth / canvasHeight;
