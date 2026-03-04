@@ -2,6 +2,7 @@ import type { Font, Glyph } from "opentype.js";
 import { getTriangulatedGlyph, type GlyphData } from "./glyphCache";
 import type { GeometryCollector } from "./mergeCollectors";
 import type { MTextLine } from "./text";
+import { cleanDimensionMText } from "./dimensions";
 
 /** DXF TEXT horizontal alignment (code 72) */
 export const enum HAlign {
@@ -486,5 +487,112 @@ export function addMTextToCollector(
     }
 
     lineYOffset -= lineHeight * LINE_SPACING;
+  }
+}
+
+// ── DIMENSION text support ──────────────────────────────────────────────
+
+/** Stacked fraction regex: prefix \S top^bottom; suffix */
+const STACKED_REGEX = /^(.*?)\\S([^^/;]*)\^([^;]*);(.*)$/;
+
+/**
+ * Measure dimension text width in world units.
+ * Cleans MTEXT formatting, handles stacked fractions (\S).
+ */
+export function measureDimensionTextWidth(
+  font: Font,
+  rawText: string,
+  height: number,
+): number {
+  const cleaned = cleanDimensionMText(rawText);
+  const stackedMatch = cleaned.match(STACKED_REGEX);
+
+  if (stackedMatch) {
+    const mainText = stackedMatch[1].trim();
+    const topText = stackedMatch[2].trim();
+    const bottomText = stackedMatch[3].trim();
+
+    const stackedHeight = height * STACKED_RATIO;
+    const mainAdvance = mainText
+      ? measureText(font, mainText).totalAdvance * height
+      : 0;
+    const topAdvance = topText
+      ? measureText(font, topText).totalAdvance * stackedHeight
+      : 0;
+    const bottomAdvance = bottomText
+      ? measureText(font, bottomText).totalAdvance * stackedHeight
+      : 0;
+    const stackedWidth = Math.max(topAdvance, bottomAdvance);
+    const gap = mainText ? height * STACKED_H_GAP : 0;
+
+    return mainAdvance + gap + stackedWidth;
+  }
+
+  // Plain text: strip remaining \S patterns
+  const plain = cleaned.replace(/\\S[^;]*;/g, "").trim();
+  return measureTextWidth(font, plain, height);
+}
+
+/**
+ * Add DIMENSION text to GeometryCollector as triangulated mesh.
+ * Cleans MTEXT formatting, applies baseline gap above the dimension line,
+ * and handles stacked fractions (\S format).
+ *
+ * @param collector   GeometryCollector to write into
+ * @param layer       Layer name for merge key
+ * @param color       Color hex string for merge key
+ * @param font        opentype.js Font
+ * @param rawText     Raw dimension text (may contain MTEXT formatting codes)
+ * @param height      Text height in world units
+ * @param posX        Position X (on the dimension line)
+ * @param posY        Position Y (on the dimension line)
+ * @param posZ        Position Z
+ * @param rotation    Rotation in radians (0 = horizontal)
+ * @param hAlign      Horizontal alignment ("left" | "center" | "right")
+ */
+export function addDimensionTextToCollector(
+  collector: GeometryCollector,
+  layer: string,
+  color: string,
+  font: Font,
+  rawText: string,
+  height: number,
+  posX: number,
+  posY: number,
+  posZ: number,
+  rotation: number = 0,
+  hAlign: "left" | "center" | "right" = "center",
+): void {
+  const cleaned = cleanDimensionMText(rawText);
+  if (!cleaned.trim() || height <= 0) return;
+
+  const stackedMatch = cleaned.match(STACKED_REGEX);
+
+  // Baseline gap: offset upward from dimension line in rotation direction
+  const baselineGap = height * 0.15;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const gapX = posX - baselineGap * sin;
+  const gapY = posY + baselineGap * cos;
+
+  if (stackedMatch) {
+    const mainText = stackedMatch[1].trim();
+    const topText = stackedMatch[2].trim();
+    const bottomText = stackedMatch[3].trim();
+
+    emitStackedText(
+      collector, layer, color, font,
+      mainText, topText, bottomText,
+      height, gapX, gapY, posZ, rotation, hAlign,
+    );
+  } else {
+    const plain = cleaned.replace(/\\S[^;]*;/g, "").trim();
+    if (!plain) return;
+
+    const hAlignEnum = mtextHAlignToEnum(hAlign);
+    addTextToCollector(
+      collector, layer, color, font, plain, height,
+      gapX, gapY, posZ, rotation, hAlignEnum, VAlign.BASELINE,
+    );
   }
 }

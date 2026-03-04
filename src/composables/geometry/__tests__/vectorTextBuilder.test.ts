@@ -2,7 +2,9 @@ import { describe, it, expect, beforeAll } from "vitest";
 import {
   addTextToCollector,
   addMTextToCollector,
+  addDimensionTextToCollector,
   measureTextWidth,
+  measureDimensionTextWidth,
   HAlign,
   VAlign,
 } from "../vectorTextBuilder";
@@ -521,6 +523,165 @@ describe("vectorTextBuilder", () => {
       // With 90° rotation, line stacking goes in -X direction instead of -Y
       const w = b.xMax - b.xMin;
       expect(w).toBeGreaterThan(5); // lines spread horizontally
+    });
+  });
+
+  describe("addDimensionTextToCollector — plain text", () => {
+    it("produces mesh data for dimension value", () => {
+      const c = new MockCollector();
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "25.40", 10, 0, 0, 0);
+      expect(c.meshCalls.length).toBe(1);
+      expect(c.totalVertices).toBeGreaterThan(0);
+      expect(c.totalTriangles).toBeGreaterThan(0);
+    });
+
+    it("produces nothing for empty text", () => {
+      const c = new MockCollector();
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "", 10, 0, 0, 0);
+      expect(c.meshCalls.length).toBe(0);
+    });
+
+    it("produces nothing for whitespace-only text", () => {
+      const c = new MockCollector();
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "   ", 10, 0, 0, 0);
+      expect(c.meshCalls.length).toBe(0);
+    });
+
+    it("produces nothing for zero height", () => {
+      const c = new MockCollector();
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "25.40", 0, 0, 0, 0);
+      expect(c.meshCalls.length).toBe(0);
+    });
+
+    it("strips MTEXT formatting codes", () => {
+      const c1 = new MockCollector();
+      const c2 = new MockCollector();
+      addDimensionTextToCollector(c1 as any, "0", "#fff", font, "\\fArial;25.40", 10, 0, 0, 0);
+      addDimensionTextToCollector(c2 as any, "0", "#fff", font, "25.40", 10, 0, 0, 0);
+      // Both should produce the same geometry (formatting stripped)
+      expect(c1.totalVertices).toBe(c2.totalVertices);
+    });
+  });
+
+  describe("addDimensionTextToCollector — stacked text", () => {
+    it("renders stacked fractions as multiple mesh calls", () => {
+      const c = new MockCollector();
+      // \S with caret separator: top=5.2, bottom=5.3 (tolerance format)
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "\\S5.2^5.3;", 10, 0, 0, 0);
+      // Top + bottom fractions (no main text prefix)
+      expect(c.meshCalls.length).toBeGreaterThanOrEqual(2);
+      expect(c.totalVertices).toBeGreaterThan(0);
+    });
+
+    it("renders prefix + stacked fractions", () => {
+      const c = new MockCollector();
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "Prefix \\S1^2;", 10, 0, 0, 0);
+      // Main text + top fraction + bottom fraction
+      expect(c.meshCalls.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  describe("addDimensionTextToCollector — alignment", () => {
+    it("center: text centered around position", () => {
+      const c = new MockCollector();
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "25.40", 10, 50, 0, 0, 0, "center");
+      const b = c.getBounds();
+      const midX = (b.xMin + b.xMax) / 2;
+      expect(Math.abs(midX - 50)).toBeLessThan(2);
+    });
+
+    it("left: text extends right of position", () => {
+      const c = new MockCollector();
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "25.40", 10, 50, 0, 0, 0, "left");
+      const b = c.getBounds();
+      expect(b.xMin).toBeGreaterThanOrEqual(49);
+      expect(b.xMax).toBeGreaterThan(55);
+    });
+
+    it("right: text extends left of position", () => {
+      const c = new MockCollector();
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "25.40", 10, 50, 0, 0, 0, "right");
+      const b = c.getBounds();
+      expect(b.xMax).toBeLessThanOrEqual(51);
+    });
+  });
+
+  describe("addDimensionTextToCollector — rotation", () => {
+    it("90° rotation changes text direction", () => {
+      const c0 = new MockCollector();
+      const c90 = new MockCollector();
+      addDimensionTextToCollector(c0 as any, "0", "#fff", font, "25.40", 10, 0, 0, 0, 0);
+      addDimensionTextToCollector(c90 as any, "0", "#fff", font, "25.40", 10, 0, 0, 0, Math.PI / 2);
+      const b0 = c0.getBounds();
+      const b90 = c90.getBounds();
+      // Unrotated: wider than tall
+      expect(b0.xMax - b0.xMin).toBeGreaterThan(b0.yMax - b0.yMin);
+      // Rotated 90°: taller than wide
+      expect(b90.yMax - b90.yMin).toBeGreaterThan(b90.xMax - b90.xMin);
+    });
+  });
+
+  describe("addDimensionTextToCollector — baseline gap", () => {
+    it("text positioned above insertion point by baseline gap", () => {
+      const c = new MockCollector();
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "25.40", 10, 0, 0, 0, 0, "center");
+      const b = c.getBounds();
+      // With baseline gap = height * 0.15 = 1.5, and VAlign.BASELINE,
+      // most of the text should be above y=0
+      const midY = (b.yMin + b.yMax) / 2;
+      expect(midY).toBeGreaterThan(0);
+    });
+
+    it("gap applied perpendicular to rotation direction", () => {
+      const c = new MockCollector();
+      // 90° rotation: gap should shift in -X direction (perpendicular)
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "A", 10, 50, 50, 0, Math.PI / 2, "center");
+      const b = c.getBounds();
+      const midX = (b.xMin + b.xMax) / 2;
+      // Gap shifts text in -X direction at 90° rotation
+      expect(midX).toBeLessThan(50);
+    });
+  });
+
+  describe("addDimensionTextToCollector — z coordinate", () => {
+    it("all vertices have correct posZ", () => {
+      const c = new MockCollector();
+      addDimensionTextToCollector(c as any, "0", "#fff", font, "25.40", 10, 0, 0, 3.5);
+      for (const call of c.meshCalls) {
+        for (let i = 2; i < call.vertices.length; i += 3) {
+          expect(call.vertices[i]).toBe(3.5);
+        }
+      }
+    });
+  });
+
+  describe("measureDimensionTextWidth", () => {
+    it("returns positive width for plain text", () => {
+      const w = measureDimensionTextWidth(font, "25.40", 10);
+      expect(w).toBeGreaterThan(0);
+    });
+
+    it("stacked text is wider than just the prefix", () => {
+      const wPrefix = measureDimensionTextWidth(font, "Value", 10);
+      const wStacked = measureDimensionTextWidth(font, "Value \\S1^2;", 10);
+      expect(wStacked).toBeGreaterThan(wPrefix);
+    });
+
+    it("doubling height doubles width", () => {
+      const w1 = measureDimensionTextWidth(font, "25.40", 10);
+      const w2 = measureDimensionTextWidth(font, "25.40", 20);
+      expect(w2).toBeCloseTo(w1 * 2, 1);
+    });
+
+    it("formatting codes are stripped before measuring", () => {
+      const w1 = measureDimensionTextWidth(font, "\\fArial;25.40", 10);
+      const w2 = measureDimensionTextWidth(font, "25.40", 10);
+      expect(w1).toBeCloseTo(w2, 5);
+    });
+
+    it("returns 0 for empty text", () => {
+      const w = measureDimensionTextWidth(font, "", 10);
+      expect(w).toBe(0);
     });
   });
 });
