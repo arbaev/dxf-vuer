@@ -144,10 +144,88 @@ function buildDiameterGlyph(): GlyphData {
   return mergeGeometry([ring, line], 0.73);
 }
 
+// ── Math relation symbols ───────────────────────────────────────────────
+// Reference: font's '=' glyph has advance=0.571, bars at x=[0.056..0.514],
+// lower bar center y≈0.254, upper bar center y≈0.451, stroke thickness≈0.052
+
+/** Shared constants for math relation glyphs (match font's '=' proportions) */
+const MATH_ADVANCE = 0.571;
+const MATH_X_LEFT = 0.056;
+const MATH_X_RIGHT = 0.514;
+const MATH_STROKE_HW = 0.026; // half of 0.052 stroke thickness
+const MATH_LOWER_Y = 0.254;   // lower bar center
+const MATH_UPPER_Y = 0.451;   // upper bar center
+
+/** Build a horizontal bar (used by =, ≠, ≡ glyphs). */
+function buildHBar(y: number): { positions: number[]; indices: number[] } {
+  return buildStroke(MATH_X_LEFT, y, MATH_X_RIGHT, y, MATH_STROKE_HW);
+}
+
+/** Build a wavy (sine) horizontal line for ≈ glyph. */
+function buildWavyLine(
+  yCenter: number, amplitude: number, segments: number = 16,
+): { positions: number[]; indices: number[] } {
+  const pieces: { positions: number[]; indices: number[] }[] = [];
+  for (let i = 0; i < segments; i++) {
+    const t1 = i / segments;
+    const t2 = (i + 1) / segments;
+    const x1 = MATH_X_LEFT + t1 * (MATH_X_RIGHT - MATH_X_LEFT);
+    const x2 = MATH_X_LEFT + t2 * (MATH_X_RIGHT - MATH_X_LEFT);
+    // 1.5 cycles, starting at bottom (t=0) → ending at top (t=1)
+    const y1 = yCenter + Math.sin(t1 * Math.PI * 3 - Math.PI / 2) * amplitude;
+    const y2 = yCenter + Math.sin(t2 * Math.PI * 3 - Math.PI / 2) * amplitude;
+    pieces.push(buildStroke(x1, y1, x2, y2, MATH_STROKE_HW));
+  }
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (const piece of pieces) {
+    const base = positions.length / 3;
+    for (const v of piece.positions) positions.push(v);
+    for (const idx of piece.indices) indices.push(idx + base);
+  }
+  return { positions, indices };
+}
+
+// ≈ APPROXIMATELY EQUAL TO (U+2248) — two wavy lines
+function buildApproxEqualGlyph(): GlyphData {
+  const wave1 = buildWavyLine(MATH_LOWER_Y, 0.035);
+  const wave2 = buildWavyLine(MATH_UPPER_Y, 0.035);
+  return mergeGeometry([wave1, wave2], MATH_ADVANCE);
+}
+
+// ≠ NOT EQUAL TO (U+2260) — two bars + diagonal slash
+function buildNotEqualGlyph(): GlyphData {
+  const bar1 = buildHBar(MATH_LOWER_Y);
+  const bar2 = buildHBar(MATH_UPPER_Y);
+  // Diagonal slash through both bars, extending slightly beyond
+  const midX = (MATH_X_LEFT + MATH_X_RIGHT) / 2;
+  const slashDx = 0.09;
+  const slashBottomY = MATH_LOWER_Y - 0.08;
+  const slashTopY = MATH_UPPER_Y + 0.08;
+  const slash = buildStroke(
+    midX - slashDx, slashBottomY,
+    midX + slashDx, slashTopY,
+    MATH_STROKE_HW,
+  );
+  return mergeGeometry([bar1, bar2, slash], MATH_ADVANCE);
+}
+
+// ≡ IDENTICAL TO (U+2261) — three horizontal bars
+function buildIdenticalGlyph(): GlyphData {
+  const midY = (MATH_LOWER_Y + MATH_UPPER_Y) / 2;
+  const bar1 = buildHBar(MATH_LOWER_Y - 0.05);
+  const bar2 = buildHBar(midY);
+  const bar3 = buildHBar(MATH_UPPER_Y + 0.05);
+  return mergeGeometry([bar1, bar2, bar3], MATH_ADVANCE);
+}
+
 // ── Registration ────────────────────────────────────────────────────────
 
 CUSTOM_GLYPHS.set("\u2300", buildDiameterGlyph); // ⌀ DIAMETER SIGN
 CUSTOM_GLYPHS.set("\u2205", buildDiameterGlyph); // ∅ EMPTY SET (visual alias)
+CUSTOM_GLYPHS.set("\u2248", buildApproxEqualGlyph); // ≈ APPROXIMATELY EQUAL TO
+CUSTOM_GLYPHS.set("\u2260", buildNotEqualGlyph);    // ≠ NOT EQUAL TO
+CUSTOM_GLYPHS.set("\u2261", buildIdenticalGlyph);    // ≡ IDENTICAL TO
 
 // ── Public API ──────────────────────────────────────────────────────────
 

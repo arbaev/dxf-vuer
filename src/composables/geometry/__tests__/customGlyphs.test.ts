@@ -3,12 +3,19 @@ import { getCustomGlyph, hasCustomGlyph } from "../customGlyphs";
 
 describe("customGlyphs", () => {
   describe("registry", () => {
-    it("has custom glyph for U+2300 (⌀ DIAMETER SIGN)", () => {
-      expect(hasCustomGlyph("\u2300")).toBe(true);
-    });
-
-    it("has custom glyph for U+2205 (∅ EMPTY SET)", () => {
-      expect(hasCustomGlyph("\u2205")).toBe(true);
+    it.each([
+      ["\u2300", "⌀ DIAMETER SIGN"],
+      ["\u2205", "∅ EMPTY SET"],
+      ["\u2248", "≈ APPROXIMATELY EQUAL"],
+      ["\u2260", "≠ NOT EQUAL TO"],
+      ["\u2261", "≡ IDENTICAL TO"],
+    ])("has custom glyph for %s (%s)", (char) => {
+      expect(hasCustomGlyph(char)).toBe(true);
+      const gd = getCustomGlyph(char);
+      expect(gd).not.toBeNull();
+      expect(gd!.positions.length).toBeGreaterThan(0);
+      expect(gd!.indices.length).toBeGreaterThan(0);
+      expect(gd!.advance).toBeGreaterThan(0);
     });
 
     it("returns null for unregistered characters", () => {
@@ -77,6 +84,43 @@ describe("customGlyphs", () => {
       const d2 = getCustomGlyph("\u2205")!;
       expect(d1.positions.length).toBe(d2.positions.length);
       expect(d1.indices.length).toBe(d2.indices.length);
+    });
+  });
+
+  describe("math relation glyphs share advance width", () => {
+    it("≈, ≠, ≡ all have same advance as font's '=' (~0.571)", () => {
+      const approx = getCustomGlyph("\u2248")!;
+      const notEq = getCustomGlyph("\u2260")!;
+      const ident = getCustomGlyph("\u2261")!;
+      expect(approx.advance).toBeCloseTo(0.571, 2);
+      expect(notEq.advance).toBeCloseTo(0.571, 2);
+      expect(ident.advance).toBeCloseTo(0.571, 2);
+    });
+  });
+
+  describe("geometry validity for all custom glyphs", () => {
+    const allChars = ["\u2300", "\u2205", "\u2248", "\u2260", "\u2261"];
+
+    it.each(allChars)("glyph %s has valid indices within vertex range", (char) => {
+      const gd = getCustomGlyph(char)!;
+      const vertexCount = gd.positions.length / 3;
+      for (const idx of gd.indices) {
+        expect(idx).toBeGreaterThanOrEqual(0);
+        expect(idx).toBeLessThan(vertexCount);
+      }
+    });
+
+    it.each(allChars)("glyph %s has all z-coordinates at 0", (char) => {
+      const gd = getCustomGlyph(char)!;
+      for (let i = 2; i < gd.positions.length; i += 3) {
+        expect(gd.positions[i]).toBe(0);
+      }
+    });
+
+    it.each(allChars)("glyph %s has valid bounds (xMin < xMax, yMin < yMax)", (char) => {
+      const gd = getCustomGlyph(char)!;
+      expect(gd.bounds.xMin).toBeLessThan(gd.bounds.xMax);
+      expect(gd.bounds.yMin).toBeLessThan(gd.bounds.yMax);
     });
   });
 });
