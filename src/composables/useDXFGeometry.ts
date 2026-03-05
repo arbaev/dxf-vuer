@@ -159,7 +159,12 @@ const computeSplinePoints = (entity: DxfSplineEntity): THREE.Vector3[] | null =>
         controlPoints.length * NURBS_SEGMENTS_MULTIPLIER,
         MIN_NURBS_SEGMENTS,
       );
-      return curve.getPoints(segments) as THREE.Vector3[];
+      const pts = curve.getPoints(segments) as THREE.Vector3[];
+      // Close the spline by appending the first point if flagged as closed
+      if (entity.closed && pts.length > 1) {
+        pts.push(pts[0].clone());
+      }
+      return pts;
     } catch (error) {
       console.warn("NURBS creation error, using fallback:", error);
     }
@@ -171,7 +176,7 @@ const computeSplinePoints = (entity: DxfSplineEntity): THREE.Vector3[] | null =>
     const points = splinePoints.map(
       (vertex: DxfVertex) => new THREE.Vector3(vertex.x, vertex.y, 0),
     );
-    const curve = new THREE.CatmullRomCurve3(points, false, "centripetal");
+    const curve = new THREE.CatmullRomCurve3(points, entity.closed === true, "centripetal");
     const segments = Math.max(
       points.length * CATMULL_ROM_SEGMENTS_MULTIPLIER,
       MIN_CATMULL_ROM_SEGMENTS,
