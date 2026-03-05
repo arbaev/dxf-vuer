@@ -1043,10 +1043,31 @@ const collectInsertEntity = async (
   const block = dxf.blocks[insertEntity.name];
   if (!block?.entities?.length) return;
 
-  // Compute INSERT transform matrix: position + rotation + scale
+  // Array INSERT: columnCount × rowCount grid of block instances
+  const cols = insertEntity.columnCount ?? 1;
+  const rows = insertEntity.rowCount ?? 1;
+  const colSpacing = insertEntity.columnSpacing ?? 0;
+  const rowSpacing = insertEntity.rowSpacing ?? 0;
+
+  // Block color context for ByBlock inheritance (shared across all array instances)
+  const insertColor = resolveEntityColor(insertEntity, colorCtx.layers, colorCtx.blockColor, colorCtx.darkTheme);
+  const blockColorCtx: EntityColorContext = {
+    ...colorCtx,
+    blockColor: insertColor,
+    blockLineType: insertEntity.lineType || colorCtx.blockLineType,
+  };
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+
+  // Compute INSERT transform matrix: position + rotation + scale + array offset
   const pos = insertEntity.position;
   const insertMatrix = new THREE.Matrix4().compose(
-    new THREE.Vector3(pos.x, pos.y, pos.z || 0),
+    new THREE.Vector3(
+      pos.x + col * colSpacing,
+      pos.y + row * rowSpacing,
+      pos.z || 0,
+    ),
     new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 0, 1),
       insertEntity.rotation ? degreesToRadians(insertEntity.rotation) : 0,
@@ -1066,14 +1087,6 @@ const collectInsertEntity = async (
   const worldMatrix = parentMatrix
     ? new THREE.Matrix4().multiplyMatrices(parentMatrix, insertMatrix)
     : insertMatrix;
-
-  // Block color context for ByBlock inheritance
-  const insertColor = resolveEntityColor(insertEntity, colorCtx.layers, colorCtx.blockColor, colorCtx.darkTheme);
-  const blockColorCtx: EntityColorContext = {
-    ...colorCtx,
-    blockColor: insertColor,
-    blockLineType: insertEntity.lineType || colorCtx.blockLineType,
-  };
 
   // Fast path: use cached template if available
   const template = blockTemplates?.get(insertEntity.name);
@@ -1135,8 +1148,8 @@ const collectInsertEntity = async (
       }
     }
 
-    // Handle ATTRIBs for template path (same as slow path below)
-    if (insertEntity.attribs && insertEntity.attribs.length > 0) {
+    // Handle ATTRIBs for template path (only for first array instance)
+    if (row === 0 && col === 0 && insertEntity.attribs && insertEntity.attribs.length > 0) {
       for (const attrib of insertEntity.attribs) {
         if (attrib.invisible) continue;
         const text = attrib.text;
@@ -1173,7 +1186,7 @@ const collectInsertEntity = async (
       }
     }
 
-    return;
+    continue;
   }
 
   // Slow path: process every entity individually
@@ -1236,8 +1249,8 @@ const collectInsertEntity = async (
     }
   }
 
-  // Handle ATTRIB entities (text attached to INSERT, in world coordinates)
-  if (insertEntity.attribs && insertEntity.attribs.length > 0) {
+  // Handle ATTRIB entities (only for first array instance)
+  if (row === 0 && col === 0 && insertEntity.attribs && insertEntity.attribs.length > 0) {
     for (const attrib of insertEntity.attribs) {
       if (attrib.invisible) continue;
       const text = attrib.text;
@@ -1273,6 +1286,9 @@ const collectInsertEntity = async (
       });
     }
   }
+
+  } // for col
+  } // for row
 };
 
 // ─── Object-based entity processing (for blocks and complex entities) ──
