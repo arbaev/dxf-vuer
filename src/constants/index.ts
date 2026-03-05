@@ -39,6 +39,11 @@ export const MAX_HATCH_LINES_PER_PATTERN = 1000;
 
 export const DEGREES_TO_RADIANS_DIVISOR = 180;
 
+// Number of line segments used to approximate circles in PDMODE point symbols
+export const POINT_SYMBOL_SEGMENTS = 32;
+// Default PDSIZE fallback when extents are unavailable (drawing units)
+export const POINT_SYMBOL_DEFAULT_SIZE = 1;
+
 // Reference divisor for auto-computing LTSCALE from drawing extents.
 // Target: ~25 repetitions of DASHED pattern (cycle 19.05) across longest dimension.
 export const AUTO_LTSCALE_DIVISOR = 500;

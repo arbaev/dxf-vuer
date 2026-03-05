@@ -25,6 +25,8 @@ export interface EntityColorContext {
   font?: Font; // Vector text font (null = canvas fallback)
   serifFont?: Font; // Lazy-loaded serif font for serif text styles
   styles?: Record<string, DxfStyle>; // STYLE table for font classification
+  pdMode?: number; // $PDMODE header variable (point display mode)
+  pointDisplaySize?: number; // Computed PDSIZE in drawing units
 }
 
 export const degreesToRadians = (degrees: number): number =>

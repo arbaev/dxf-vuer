@@ -29,6 +29,8 @@ import {
   CATMULL_ROM_SEGMENTS_MULTIPLIER,
   MIN_CATMULL_ROM_SEGMENTS,
   ARROW_SIZE,
+  POINT_SYMBOL_SEGMENTS,
+  POINT_SYMBOL_DEFAULT_SIZE,
 } from "@/constants";
 import { HATCH_PATTERNS } from "@/constants/hatchPatterns";
 import { resolveEntityColor } from "@/utils/colorResolver";
@@ -232,6 +234,105 @@ const computeFaceData = (pts: DxfVertex[]): { vertices: number[]; indices: numbe
   return { vertices, indices };
 };
 
+// ─── PDMODE point symbol rendering ───────────────────────────────────
+
+/**
+ * Generate point symbol geometry based on $PDMODE and $PDSIZE.
+ * Adds line segments, circle/square outlines, and/or a dot to the collector.
+ */
+const collectPointSymbol = (
+  collector: GeometryCollector,
+  layer: string,
+  color: string,
+  x: number,
+  y: number,
+  z: number,
+  pdMode: number,
+  halfSize: number,
+): void => {
+  const centerType = pdMode & 0xF;
+  const hasCircle = (pdMode & 32) !== 0;
+  const hasSquare = (pdMode & 64) !== 0;
+
+  // When combined with outer shapes, the center marker extends beyond the boundary
+  const armSize = (hasCircle || hasSquare) ? halfSize * 2 : halfSize;
+
+  // Center marker
+  switch (centerType) {
+    case 0: // dot
+      collector.addPoint(layer, color, x, y, z);
+      break;
+    case 1: // nothing
+      break;
+    case 2: // plus (+)
+      collector.addLineSegments(layer, color, [
+        x - armSize, y, z, x + armSize, y, z,
+        x, y - armSize, z, x, y + armSize, z,
+      ]);
+      break;
+    case 3: // X
+      collector.addLineSegments(layer, color, [
+        x - armSize, y - armSize, z, x + armSize, y + armSize, z,
+        x - armSize, y + armSize, z, x + armSize, y - armSize, z,
+      ]);
+      break;
+    case 4: // tick (short vertical line upward)
+      collector.addLineSegments(layer, color, [
+        x, y, z, x, y + armSize, z,
+      ]);
+      break;
+  }
+
+  // Circle
+  if (hasCircle) {
+    const data: number[] = [];
+    for (let i = 0; i < POINT_SYMBOL_SEGMENTS; i++) {
+      const a0 = (i / POINT_SYMBOL_SEGMENTS) * Math.PI * 2;
+      const a1 = ((i + 1) / POINT_SYMBOL_SEGMENTS) * Math.PI * 2;
+      data.push(
+        x + halfSize * Math.cos(a0), y + halfSize * Math.sin(a0), z,
+        x + halfSize * Math.cos(a1), y + halfSize * Math.sin(a1), z,
+      );
+    }
+    collector.addLineSegments(layer, color, data);
+  }
+
+  // Square
+  if (hasSquare) {
+    collector.addLineSegments(layer, color, [
+      x - halfSize, y - halfSize, z, x + halfSize, y - halfSize, z,
+      x + halfSize, y - halfSize, z, x + halfSize, y + halfSize, z,
+      x + halfSize, y + halfSize, z, x - halfSize, y + halfSize, z,
+      x - halfSize, y + halfSize, z, x - halfSize, y - halfSize, z,
+    ]);
+  }
+};
+
+/**
+ * Compute the effective point display size in drawing units from $PDSIZE header variable.
+ * Returns half-size (radius) for use with point symbol rendering.
+ */
+export const computePointDisplaySize = (
+  header: Record<string, unknown> | undefined,
+): number => {
+  if (!header) return POINT_SYMBOL_DEFAULT_SIZE;
+
+  const pdSizeRaw = (header["$PDSIZE"] as number) ?? 0;
+
+  if (pdSizeRaw > 0) return pdSizeRaw;
+
+  if (pdSizeRaw < 0) return Math.abs(pdSizeRaw);
+
+  // pdSizeRaw === 0: 5% of drawing area height
+  const extMin = header["$EXTMIN"] as { x: number; y: number } | undefined;
+  const extMax = header["$EXTMAX"] as { x: number; y: number } | undefined;
+  if (extMin && extMax && extMax.x > extMin.x && extMax.y > extMin.y) {
+    return (extMax.y - extMin.y) * 0.05;
+  }
+
+  return POINT_SYMBOL_DEFAULT_SIZE;
+};
+
 // ─── Collector-based entity processing ────────────────────────────────
 
 /** Apply world matrix to points array in-place */
@@ -404,7 +505,15 @@ const collectEntity = (
           matrix,
         );
         if (worldMatrix) pos.applyMatrix4(worldMatrix);
-        collector.addPoint(layer, entityColor, pos.x, pos.y, pos.z);
+
+        const pdMode = colorCtx.pdMode ?? 0;
+        if (pdMode === 0) {
+          // Default: simple dot
+          collector.addPoint(layer, entityColor, pos.x, pos.y, pos.z);
+        } else {
+          const halfSize = (colorCtx.pointDisplaySize ?? POINT_SYMBOL_DEFAULT_SIZE) / 2;
+          collectPointSymbol(collector, layer, entityColor, pos.x, pos.y, pos.z, pdMode, halfSize);
+        }
         return true;
       }
       return false;
@@ -1363,9 +1472,23 @@ const processEntity = (
           matrix,
         );
 
-        const geometry = new THREE.BufferGeometry().setFromPoints([pos]);
-        const pointMat = getPointsMaterial(entityColor, colorCtx.pointsMaterialCache);
-        return new THREE.Points(geometry, pointMat);
+        const pdMode = colorCtx.pdMode ?? 0;
+        if (pdMode === 0) {
+          const geometry = new THREE.BufferGeometry().setFromPoints([pos]);
+          const pointMat = getPointsMaterial(entityColor, colorCtx.pointsMaterialCache);
+          return new THREE.Points(geometry, pointMat);
+        }
+
+        // Use a temporary collector to generate PDMODE symbol geometry
+        const tmpCollector = new GeometryCollector();
+        const halfSize = (colorCtx.pointDisplaySize ?? POINT_SYMBOL_DEFAULT_SIZE) / 2;
+        collectPointSymbol(tmpCollector, entity.layer || "0", entityColor, pos.x, pos.y, pos.z, pdMode, halfSize);
+        const objects = tmpCollector.flush(colorCtx.materialCache, colorCtx.meshMaterialCache, colorCtx.pointsMaterialCache);
+        if (objects.length > 0) {
+          const grp = new THREE.Group();
+          for (const obj of objects) grp.add(obj);
+          return grp;
+        }
       }
       break;
     }
@@ -1524,6 +1647,10 @@ export async function createThreeObjectsFromDXF(
     ? computeAutoLtScale(dxf.header)
     : headerLtScale;
 
+  // Point display mode ($PDMODE / $PDSIZE)
+  const pdMode = (dxf.header?.["$PDMODE"] as number) ?? 0;
+  const pointDisplaySize = pdMode !== 0 ? computePointDisplaySize(dxf.header) : undefined;
+
   // Load serif font if any STYLE entry or MTEXT inline \f references a serif font
   const styles = dxf.tables?.style?.styles;
   let loadedSerifFont: import("opentype.js").Font | undefined;
@@ -1584,6 +1711,8 @@ export async function createThreeObjectsFromDXF(
     font,
     serifFont: loadedSerifFont,
     styles,
+    pdMode,
+    pointDisplaySize,
   };
 
   const collector = new GeometryCollector();
