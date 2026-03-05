@@ -384,28 +384,36 @@ function wrapTextToWidth(font: Font, text: string, height: number, maxWidth: num
   return lines;
 }
 
+interface StackedTextParams {
+  collector: GeometryCollector;
+  layer: string;
+  color: string;
+  font: Font;
+  mainText: string;
+  stackedTop: string;
+  stackedBottom: string;
+  height: number;
+  posX: number;
+  posY: number;
+  posZ: number;
+  rotation: number;
+  hAlign: "left" | "center" | "right";
+  transform?: readonly number[];
+  bold?: boolean;
+  italic?: boolean;
+}
+
 /**
  * Emit stacked text (main text + fraction) into collector.
  * Handles horizontal alignment for the combined width.
  */
-function emitStackedText(
-  collector: GeometryCollector,
-  layer: string,
-  color: string,
-  font: Font,
-  mainText: string,
-  stackedTop: string,
-  stackedBottom: string,
-  height: number,
-  posX: number,
-  posY: number,
-  posZ: number,
-  rotation: number,
-  hAlign: "left" | "center" | "right",
-  transform?: readonly number[],
-  bold?: boolean,
-  italic?: boolean,
-): void {
+function emitStackedText(p: StackedTextParams): void {
+  const {
+    collector, layer, color, font,
+    mainText, stackedTop, stackedBottom,
+    height, posX, posY, posZ, rotation, hAlign,
+    transform, bold, italic,
+  } = p;
   const cos = Math.cos(rotation);
   const sin = Math.sin(rotation);
   const stackedHeight = height * STACKED_RATIO;
@@ -575,12 +583,12 @@ export function addMTextToCollector(p: MTextParams): void {
     const worldY = posY + localY * cos + indentX * sin;
 
     if (line.stackedTop || line.stackedBottom) {
-      emitStackedText(
-        collector, layer, lineColor, lineFont,
-        line.text, line.stackedTop || "", line.stackedBottom || "",
-        lineHeight, worldX, worldY, posZ, rotation, hAlign,
-        undefined, line.bold, line.italic,
-      );
+      emitStackedText({
+        collector, layer, color: lineColor, font: lineFont,
+        mainText: line.text, stackedTop: line.stackedTop || "", stackedBottom: line.stackedBottom || "",
+        height: lineHeight, posX: worldX, posY: worldY, posZ, rotation, hAlign,
+        bold: line.bold, italic: line.italic,
+      });
     } else {
       addTextToCollector({
         collector, layer, color: lineColor, font: lineFont,

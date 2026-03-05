@@ -88,6 +88,68 @@ export function mergeEntityDimVars(
   return result;
 }
 
+// ── Parameter interfaces ──────────────────────────────────────────────
+
+/** Shared params for dimension type functions (ordinate, radial, diametric, angular) */
+export interface DimensionTypeParams {
+  entity: DxfDimensionEntity;
+  color: string;
+  font?: Font;
+  collector?: GeometryCollector;
+  layer?: string;
+  transform?: readonly number[];
+  dv?: DimVars;
+}
+
+/** Params for createLinearDimensionLines */
+export interface LinearDimensionLinesParams {
+  point1: DxfVertex;
+  point2: DxfVertex;
+  anchorPoint: DxfVertex;
+  textPos?: DxfVertex;
+  dimLineMaterial: THREE.LineBasicMaterial;
+  extensionLineMaterial: THREE.LineDashedMaterial;
+  arrowMaterial: THREE.MeshBasicMaterial;
+  isHorizontal: boolean;
+  dv?: DimVars;
+}
+
+/** Params for createRotatedDimensionLines */
+export interface RotatedDimensionLinesParams {
+  point1: DxfVertex;
+  point2: DxfVertex;
+  anchorPoint: DxfVertex;
+  textPos?: DxfVertex;
+  dimLineMaterial: THREE.LineBasicMaterial;
+  extensionLineMaterial: THREE.LineDashedMaterial;
+  arrowMaterial: THREE.MeshBasicMaterial;
+  angleRad: number;
+  dv?: DimVars;
+}
+
+/** Params for createDimensionGroup */
+export interface DimensionGroupParams {
+  point1: DxfVertex;
+  point2: DxfVertex;
+  anchorPoint: DxfVertex;
+  textPos?: DxfVertex;
+  textHeight: number;
+  isRadial: boolean;
+  color: string;
+  angle?: number;
+  dv?: DimVars;
+}
+
+/** Params for emitStackedText (vectorTextBuilder.ts) */
+
+/** Line defined by two points for intersectLines2D */
+export interface Line2D {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 const EXTENSION_LINE_OVERSHOOT = 2;
 
 export const createExtensionLine = (
@@ -124,17 +186,12 @@ export const createExtensionLine = (
   return line;
 };
 
-export const createLinearDimensionLines = (
-  point1: DxfVertex,
-  point2: DxfVertex,
-  anchorPoint: DxfVertex,
-  textPos: DxfVertex | undefined,
-  dimLineMaterial: THREE.LineBasicMaterial,
-  extensionLineMaterial: THREE.LineDashedMaterial,
-  arrowMaterial: THREE.MeshBasicMaterial,
-  isHorizontal: boolean,
-  dv: DimVars = DEFAULT_DIM_VARS,
-): THREE.Object3D[] => {
+export const createLinearDimensionLines = (p: LinearDimensionLinesParams): THREE.Object3D[] => {
+  const {
+    point1, point2, anchorPoint, textPos,
+    dimLineMaterial, extensionLineMaterial, arrowMaterial,
+    isHorizontal, dv = DEFAULT_DIM_VARS,
+  } = p;
   const objects: THREE.Object3D[] = [];
 
   const getMainCoord = (p: DxfVertex) => (isHorizontal ? p.x : p.y);
@@ -222,17 +279,12 @@ export const createLinearDimensionLines = (
  * Create lines and arrows for a rotated dimension (arbitrary angle).
  * Projects measurement points onto the dimension line via dot product.
  */
-export const createRotatedDimensionLines = (
-  point1: DxfVertex,
-  point2: DxfVertex,
-  anchorPoint: DxfVertex,
-  textPos: DxfVertex | undefined,
-  dimLineMaterial: THREE.LineBasicMaterial,
-  extensionLineMaterial: THREE.LineDashedMaterial,
-  arrowMaterial: THREE.MeshBasicMaterial,
-  angleRad: number,
-  dv: DimVars = DEFAULT_DIM_VARS,
-): THREE.Object3D[] => {
+export const createRotatedDimensionLines = (p: RotatedDimensionLinesParams): THREE.Object3D[] => {
+  const {
+    point1, point2, anchorPoint, textPos,
+    dimLineMaterial, extensionLineMaterial, arrowMaterial,
+    angleRad, dv = DEFAULT_DIM_VARS,
+  } = p;
   const objects: THREE.Object3D[] = [];
 
   const dirX = Math.cos(angleRad);
@@ -400,17 +452,12 @@ export const extractDimensionData = (entity: DxfDimensionEntity, dv: DimVars = D
   };
 };
 
-export const createDimensionGroup = (
-  point1: DxfVertex,
-  point2: DxfVertex,
-  anchorPoint: DxfVertex,
-  textPos: DxfVertex | undefined,
-  _textHeight: number,
-  isRadial: boolean,
-  color: string,
-  angle: number = 0,
-  dv: DimVars = DEFAULT_DIM_VARS,
-): THREE.Group => {
+export const createDimensionGroup = (p: DimensionGroupParams): THREE.Group => {
+  const {
+    point1, point2, anchorPoint, textPos,
+    textHeight: _textHeight, isRadial, color,
+    angle = 0, dv = DEFAULT_DIM_VARS,
+  } = p;
   const dimGroup = new THREE.Group();
 
   const dimLineMaterial = new THREE.LineBasicMaterial({ color });
@@ -453,34 +500,22 @@ export const createDimensionGroup = (
 
   if (angle !== 0) {
     const angleRad = (angle * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
-    dimensionObjects = createRotatedDimensionLines(
-      point1,
-      point2,
-      anchorPoint,
-      textPos,
-      dimLineMaterial,
-      extensionLineMaterial,
-      arrowMaterial,
-      angleRad,
-      dv,
-    );
+    dimensionObjects = createRotatedDimensionLines({
+      point1, point2, anchorPoint, textPos,
+      dimLineMaterial, extensionLineMaterial, arrowMaterial,
+      angleRad, dv,
+    });
   } else {
     // Determine orientation by comparing point spread in X vs Y
     const spreadX = Math.abs(point2.x - point1.x);
     const spreadY = Math.abs(point2.y - point1.y);
     const isHorizontal = spreadX >= spreadY;
 
-    dimensionObjects = createLinearDimensionLines(
-      point1,
-      point2,
-      anchorPoint,
-      textPos,
-      dimLineMaterial,
-      extensionLineMaterial,
-      arrowMaterial,
-      isHorizontal,
-      dv,
-    );
+    dimensionObjects = createLinearDimensionLines({
+      point1, point2, anchorPoint, textPos,
+      dimLineMaterial, extensionLineMaterial, arrowMaterial,
+      isHorizontal, dv,
+    });
   }
 
   dimensionObjects.forEach((obj) => dimGroup.add(obj));
@@ -525,15 +560,8 @@ export const cleanDimensionMText = (rawText: string): string => {
  * Displays the X or Y coordinate of a point with a dog-leg leader.
  * No arrows or dashed lines -- solid lines only (per AutoCAD convention).
  */
-export const createOrdinateDimension = (
-  entity: DxfDimensionEntity,
-  color: string,
-  font?: Font,
-  collector?: GeometryCollector,
-  layer?: string,
-  transform?: readonly number[],
-  dv: DimVars = DEFAULT_DIM_VARS,
-): THREE.Object3D[] | null => {
+export const createOrdinateDimension = (p: DimensionTypeParams): THREE.Object3D[] | null => {
+  const { entity, color, font, collector, layer, transform, dv = DEFAULT_DIM_VARS } = p;
   const feature = entity.linearOrAngularPoint1; // Code 13 -- point on object
   const leader = entity.linearOrAngularPoint2; // Code 14 -- end of diagonal
   const textPos = entity.middleOfText; // Code 11
@@ -662,15 +690,8 @@ export const createOrdinateDimension = (
  * Create a radial dimension (type 4).
  * Line from text edge to the point on the arc, arrow pointing outward at the arc.
  */
-export const createRadialDimension = (
-  entity: DxfDimensionEntity,
-  color: string,
-  font?: Font,
-  collector?: GeometryCollector,
-  layer?: string,
-  transform?: readonly number[],
-  dv: DimVars = DEFAULT_DIM_VARS,
-): THREE.Object3D[] | null => {
+export const createRadialDimension = (p: DimensionTypeParams): THREE.Object3D[] | null => {
+  const { entity, color, font, collector, layer, transform, dv = DEFAULT_DIM_VARS } = p;
   const center = entity.anchorPoint; // code 10
   const arcPt = entity.diameterOrRadiusPoint; // code 15
   const textPos = entity.middleOfText; // code 11
@@ -764,15 +785,8 @@ export const createRadialDimension = (
  * Diameter line between two points on the circle with arrows on both ends.
  * Text can be along the line or offset with a leader.
  */
-export const createDiametricDimension = (
-  entity: DxfDimensionEntity,
-  color: string,
-  font?: Font,
-  collector?: GeometryCollector,
-  layer?: string,
-  transform?: readonly number[],
-  dv: DimVars = DEFAULT_DIM_VARS,
-): THREE.Object3D[] | null => {
+export const createDiametricDimension = (p: DimensionTypeParams): THREE.Object3D[] | null => {
+  const { entity, color, font, collector, layer, transform, dv = DEFAULT_DIM_VARS } = p;
   const p10 = entity.anchorPoint; // code 10 -- first point on circle
   const p15 = entity.diameterOrRadiusPoint; // code 15 -- opposite point
   const textPos = entity.middleOfText; // code 11
@@ -914,24 +928,15 @@ export const createDiametricDimension = (
  * Compute intersection of two infinite lines (2D).
  * Returns null if lines are parallel.
  */
-export const intersectLines2D = (
-  p1x: number,
-  p1y: number,
-  p2x: number,
-  p2y: number,
-  p3x: number,
-  p3y: number,
-  p4x: number,
-  p4y: number,
-): { x: number; y: number } | null => {
-  const d1x = p2x - p1x;
-  const d1y = p2y - p1y;
-  const d2x = p4x - p3x;
-  const d2y = p4y - p3y;
+export const intersectLines2D = (a: Line2D, b: Line2D): { x: number; y: number } | null => {
+  const d1x = a.x2 - a.x1;
+  const d1y = a.y2 - a.y1;
+  const d2x = b.x2 - b.x1;
+  const d2y = b.y2 - b.y1;
   const denom = d1x * d2y - d1y * d2x;
   if (Math.abs(denom) < EPSILON) return null;
-  const t = ((p3x - p1x) * d2y - (p3y - p1y) * d2x) / denom;
-  return { x: p1x + t * d1x, y: p1y + t * d1y };
+  const t = ((b.x1 - a.x1) * d2y - (b.y1 - a.y1) * d2x) / denom;
+  return { x: a.x1 + t * d1x, y: a.y1 + t * d1y };
 };
 
 /** Normalize angle to [0, 2pi) */
@@ -956,15 +961,8 @@ export const isAngleInSweep = (startAngle: number, endAngle: number, testAngle: 
  * Create an angular dimension (type 2).
  * Arc between two rays with extension lines, arrows, and angle text in degrees.
  */
-export const createAngularDimension = (
-  entity: DxfDimensionEntity,
-  color: string,
-  font?: Font,
-  collector?: GeometryCollector,
-  layer?: string,
-  transform?: readonly number[],
-  dv: DimVars = DEFAULT_DIM_VARS,
-): THREE.Object3D[] | null => {
+export const createAngularDimension = (p: DimensionTypeParams): THREE.Object3D[] | null => {
+  const { entity, color, font, collector, layer, transform, dv = DEFAULT_DIM_VARS } = p;
   const p13 = entity.linearOrAngularPoint1; // code 13 -- end 1 of first line
   const p14 = entity.linearOrAngularPoint2; // code 14 -- end 2 of first line
   const p15 = entity.diameterOrRadiusPoint; // code 15 -- end 1 of second line
@@ -981,7 +979,10 @@ export const createAngularDimension = (
     // Lines converge at the same point
     vertex = { x: p14.x, y: p14.y };
   } else {
-    const v = intersectLines2D(p13.x, p13.y, p14.x, p14.y, p15.x, p15.y, p10.x, p10.y);
+    const v = intersectLines2D(
+      { x1: p13.x, y1: p13.y, x2: p14.x, y2: p14.y },
+      { x1: p15.x, y1: p15.y, x2: p10.x, y2: p10.y },
+    );
     if (!v) return null; // Parallel lines
     vertex = v;
   }

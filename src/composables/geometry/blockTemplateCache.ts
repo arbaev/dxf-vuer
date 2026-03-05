@@ -6,6 +6,16 @@ import type { EntityColorContext } from "./primitives";
 
 // ─── Interfaces ──────────────────────────────────────────────────────
 
+/** Params for the collectEntity callback passed to buildBlockTemplate */
+export interface CollectEntityParams {
+  entity: DxfEntity;
+  colorCtx: EntityColorContext;
+  collector: GeometryCollector;
+  layer: string;
+  worldMatrix?: THREE.Matrix4;
+  overrideColor?: string;
+}
+
 export interface BlockTemplateGeometry {
   lineSegments: number[];  // flat [x,y,z, x,y,z, ...]
   points: number[];
@@ -66,14 +76,7 @@ export function buildBlockTemplate(
   blockName: string,
   blockEntities: DxfEntity[],
   colorCtx: EntityColorContext,
-  collectEntityFn: (
-    entity: DxfEntity,
-    colorCtx: EntityColorContext,
-    collector: GeometryCollector,
-    layer: string,
-    worldMatrix?: THREE.Matrix4,
-    overrideColor?: string,
-  ) => boolean,
+  collectEntityFn: (p: CollectEntityParams) => boolean,
 ): BlockTemplate {
   const tempCollector = new GeometryCollector();
   const fallbackEntityIndices: number[] = [];
@@ -118,9 +121,9 @@ export function buildBlockTemplate(
     }
 
     // Collect geometry in local coordinates (no worldMatrix)
-    const collected = collectEntityFn(
-      entity, colorCtx, tempCollector, entityLayer, undefined, overrideColor,
-    );
+    const collected = collectEntityFn({
+      entity, colorCtx, collector: tempCollector, layer: entityLayer, overrideColor,
+    });
 
     if (!collected) {
       fallbackEntityIndices.push(i);

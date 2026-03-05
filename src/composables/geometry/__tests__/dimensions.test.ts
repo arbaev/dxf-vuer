@@ -240,7 +240,7 @@ describe("intersectLines2D", () => {
   it("finds intersection of perpendicular lines at origin", () => {
     // Horizontal line y=0: (−1,0)→(1,0)
     // Vertical line x=0: (0,−1)→(0,1)
-    const result = intersectLines2D(-1, 0, 1, 0, 0, -1, 0, 1);
+    const result = intersectLines2D({ x1: -1, y1: 0, x2: 1, y2: 0 }, { x1: 0, y1: -1, x2: 0, y2: 1 });
     expect(result).not.toBeNull();
     expect(result!.x).toBeCloseTo(0, 6);
     expect(result!.y).toBeCloseTo(0, 6);
@@ -248,7 +248,7 @@ describe("intersectLines2D", () => {
 
   it("returns null for parallel lines", () => {
     // Two horizontal lines: y=0 and y=1
-    const result = intersectLines2D(0, 0, 1, 0, 0, 1, 1, 1);
+    const result = intersectLines2D({ x1: 0, y1: 0, x2: 1, y2: 0 }, { x1: 0, y1: 1, x2: 1, y2: 1 });
     expect(result).toBeNull();
   });
 
@@ -256,7 +256,7 @@ describe("intersectLines2D", () => {
     // Line 1: (0,0) -> (2,2) -- slope 1
     // Line 2: (0,2) -> (2,0) -- slope -1
     // Intersection at (1,1)
-    const result = intersectLines2D(0, 0, 2, 2, 0, 2, 2, 0);
+    const result = intersectLines2D({ x1: 0, y1: 0, x2: 2, y2: 2 }, { x1: 0, y1: 2, x2: 2, y2: 0 });
     expect(result).not.toBeNull();
     expect(result!.x).toBeCloseTo(1, 6);
     expect(result!.y).toBeCloseTo(1, 6);
@@ -264,7 +264,7 @@ describe("intersectLines2D", () => {
 
   it("returns null for coincident (overlapping) lines", () => {
     // Same line defined by different points
-    const result = intersectLines2D(0, 0, 2, 2, 1, 1, 3, 3);
+    const result = intersectLines2D({ x1: 0, y1: 0, x2: 2, y2: 2 }, { x1: 1, y1: 1, x2: 3, y2: 3 });
     expect(result).toBeNull();
   });
 
@@ -272,7 +272,7 @@ describe("intersectLines2D", () => {
     // Line 1: (0,0) -> (4,2) -- slope 0.5
     // Line 2: (0,3) -> (6,0) -- slope -0.5
     // y = 0.5x and y = 3 - 0.5x => x = 3, y = 1.5
-    const result = intersectLines2D(0, 0, 4, 2, 0, 3, 6, 0);
+    const result = intersectLines2D({ x1: 0, y1: 0, x2: 4, y2: 2 }, { x1: 0, y1: 3, x2: 6, y2: 0 });
     expect(result).not.toBeNull();
     expect(result!.x).toBeCloseTo(3, 6);
     expect(result!.y).toBeCloseTo(1.5, 6);

@@ -78,6 +78,7 @@ import {
 } from "./geometry/vectorTextBuilder";
 import {
   type BlockTemplate,
+  type CollectEntityParams,
   INSTANCING_THRESHOLD,
   buildBlockTemplate,
   instantiateBlockTemplate,
@@ -238,20 +239,23 @@ const computeFaceData = (pts: DxfVertex[]): { vertices: number[]; indices: numbe
 
 // ─── PDMODE point symbol rendering ───────────────────────────────────
 
+interface PointSymbolParams {
+  collector: GeometryCollector;
+  layer: string;
+  color: string;
+  x: number;
+  y: number;
+  z: number;
+  pdMode: number;
+  halfSize: number;
+}
+
 /**
  * Generate point symbol geometry based on $PDMODE and $PDSIZE.
  * Adds line segments, circle/square outlines, and/or a dot to the collector.
  */
-const collectPointSymbol = (
-  collector: GeometryCollector,
-  layer: string,
-  color: string,
-  x: number,
-  y: number,
-  z: number,
-  pdMode: number,
-  halfSize: number,
-): void => {
+const collectPointSymbol = (p: PointSymbolParams): void => {
+  const { collector, layer, color, x, y, z, pdMode, halfSize } = p;
   const centerType = pdMode & 0xF;
   const hasCircle = (pdMode & 32) !== 0;
   const hasSquare = (pdMode & 64) !== 0;
@@ -348,14 +352,8 @@ const applyWorld = (points: THREE.Vector3[], m?: THREE.Matrix4): THREE.Vector3[]
  * When worldMatrix is provided (block context), all points are transformed to world space.
  * Returns true if the entity was collected, false if it needs individual processing.
  */
-const collectEntity = (
-  entity: DxfEntity,
-  colorCtx: EntityColorContext,
-  collector: GeometryCollector,
-  layer: string,
-  worldMatrix?: THREE.Matrix4,
-  overrideColor?: string,
-): boolean => {
+const collectEntity = (p: CollectEntityParams): boolean => {
+  const { entity, colorCtx, collector, layer, worldMatrix, overrideColor } = p;
   const entityColor = overrideColor ?? resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor, colorCtx.darkTheme);
   const ltInfo = resolveEntityLinetype(
     entity,
@@ -514,7 +512,7 @@ const collectEntity = (
           collector.addPoint(layer, entityColor, pos.x, pos.y, pos.z);
         } else {
           const halfSize = (colorCtx.pointDisplaySize ?? POINT_SYMBOL_DEFAULT_SIZE) / 2;
-          collectPointSymbol(collector, layer, entityColor, pos.x, pos.y, pos.z, pdMode, halfSize);
+          collectPointSymbol({ collector, layer, color: entityColor, x: pos.x, y: pos.y, z: pos.z, pdMode, halfSize });
         }
         return true;
       }
@@ -806,14 +804,15 @@ const collectDimensionEntity = (
   let result: THREE.Object3D[] | null = null;
 
   // Ordinate dimension (type 6 = Y-ordinate, type 7 = X-ordinate)
+  const dimParams = { entity, color: entityColor, font, collector, layer, transform, dv };
   if ((baseDimType & 0x0e) === 6) {
-    result = createOrdinateDimension(entity, entityColor, font, collector, layer, transform, dv);
+    result = createOrdinateDimension(dimParams);
   } else if (baseDimType === 2) {
-    result = createAngularDimension(entity, entityColor, font, collector, layer, transform, dv);
+    result = createAngularDimension(dimParams);
   } else if (baseDimType === 3) {
-    result = createDiametricDimension(entity, entityColor, font, collector, layer, transform, dv);
+    result = createDiametricDimension(dimParams);
   } else if (baseDimType === 4) {
-    result = createRadialDimension(entity, entityColor, font, collector, layer, transform, dv);
+    result = createRadialDimension(dimParams);
   } else {
     // Linear/aligned dimension
     const dimData = extractDimensionData(entity, dv);
@@ -826,11 +825,11 @@ const collectDimensionEntity = (
       dimAngle = (Math.atan2(dy, dx) * DEGREES_TO_RADIANS_DIVISOR) / Math.PI;
     }
 
-    const dimGroup = createDimensionGroup(
-      dimData.point1, dimData.point2, dimData.anchorPoint,
-      dimData.textPos, dimData.textHeight, dimData.isRadial,
-      entityColor, dimAngle, dv,
-    );
+    const dimGroup = createDimensionGroup({
+      point1: dimData.point1, point2: dimData.point2, anchorPoint: dimData.anchorPoint,
+      textPos: dimData.textPos, textHeight: dimData.textHeight, isRadial: dimData.isRadial,
+      color: entityColor, angle: dimAngle, dv,
+    });
     result = [dimGroup];
 
     if (dimData.textPos) {
@@ -1097,7 +1096,7 @@ const collectInsertEntity = async (
 
         // Try simple collection
         if (COLLECTABLE_TYPES.has(entity.type)) {
-          if (collectEntity(entity, blockColorCtx, collector, entityLayer, worldMatrix)) {
+          if (collectEntity({ entity, colorCtx: blockColorCtx, collector, layer: entityLayer, worldMatrix })) {
             continue;
           }
         }
@@ -1192,7 +1191,7 @@ const collectInsertEntity = async (
 
       // Try to collect simple geometry with world matrix
       if (COLLECTABLE_TYPES.has(entity.type)) {
-        if (collectEntity(entity, blockColorCtx, collector, entityLayer, worldMatrix)) {
+        if (collectEntity({ entity, colorCtx: blockColorCtx, collector, layer: entityLayer, worldMatrix })) {
           continue;
         }
       }
@@ -1501,7 +1500,7 @@ const processEntity = (
         // Use a temporary collector to generate PDMODE symbol geometry
         const tmpCollector = new GeometryCollector();
         const halfSize = (colorCtx.pointDisplaySize ?? POINT_SYMBOL_DEFAULT_SIZE) / 2;
-        collectPointSymbol(tmpCollector, entity.layer || "0", entityColor, pos.x, pos.y, pos.z, pdMode, halfSize);
+        collectPointSymbol({ collector: tmpCollector, layer: entity.layer || "0", color: entityColor, x: pos.x, y: pos.y, z: pos.z, pdMode, halfSize });
         const objects = tmpCollector.flush(colorCtx.materialCache, colorCtx.meshMaterialCache, colorCtx.pointsMaterialCache);
         if (objects.length > 0) {
           const grp = new THREE.Group();
@@ -1799,7 +1798,7 @@ export async function createThreeObjectsFromDXF(
 
       // Try to collect simple entities into merged buffers
       if (COLLECTABLE_TYPES.has(entity.type)) {
-        if (collectEntity(entity, colorCtx, collector, layer)) {
+        if (collectEntity({ entity, colorCtx, collector, layer })) {
           continue;
         }
       }

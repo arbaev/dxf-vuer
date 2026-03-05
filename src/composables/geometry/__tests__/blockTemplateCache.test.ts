@@ -4,6 +4,7 @@ import type { DxfEntity } from "@/types/dxf";
 import { GeometryCollector } from "../mergeCollectors";
 import type { EntityColorContext } from "../primitives";
 import {
+  type CollectEntityParams,
   transformFlatVertices,
   buildBlockTemplate,
   instantiateBlockTemplate,
@@ -86,22 +87,15 @@ describe("buildBlockTemplate", () => {
   });
 
   // Simple collectEntityFn stub: pushes a line segment from (0,0,0)→(1,0,0) for LINE
-  const stubCollect = (
-    entity: DxfEntity,
-    _colorCtx: EntityColorContext,
-    collector: GeometryCollector,
-    layer: string,
-    _worldMatrix?: THREE.Matrix4,
-    overrideColor?: string,
-  ): boolean => {
-    if (entity.type === "LINE") {
-      const color = overrideColor ?? "#ffffff";
-      collector.addLineSegments(layer, color, [0, 0, 0, 1, 0, 0]);
+  const stubCollect = (p: CollectEntityParams): boolean => {
+    if (p.entity.type === "LINE") {
+      const color = p.overrideColor ?? "#ffffff";
+      p.collector.addLineSegments(p.layer, color, [0, 0, 0, 1, 0, 0]);
       return true;
     }
-    if (entity.type === "CIRCLE") {
-      const color = overrideColor ?? "#ffffff";
-      collector.addLineSegments(layer, color, [1, 0, 0, 0, 1, 0, 0, 1, 0, -1, 0, 0]);
+    if (p.entity.type === "CIRCLE") {
+      const color = p.overrideColor ?? "#ffffff";
+      p.collector.addLineSegments(p.layer, color, [1, 0, 0, 0, 1, 0, 0, 1, 0, -1, 0, 0]);
       return true;
     }
     return false;
