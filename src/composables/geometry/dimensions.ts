@@ -20,17 +20,6 @@ import { addDimensionTextToCollector, measureDimensionTextWidth } from "./vector
 
 const EXTENSION_LINE_OVERSHOOT = 2;
 
-/** DEBUG: Add a cross marker at dimension text position for debugging. */
-function addDebugCross(
-  collector: GeometryCollector, layer: string,
-  x: number, y: number, z: number, height: number,
-): void {
-  const size = height * 0.5;
-  const c = "#ff0000";
-  collector.addLineSegments(layer, c, [x - size, y, z, x + size, y, z]);
-  collector.addLineSegments(layer, c, [x, y - size, z, x, y + size, z]);
-}
-
 export const createExtensionLine = (
   from: THREE.Vector3,
   to: THREE.Vector3,
@@ -499,7 +488,6 @@ export const createOrdinateDimension = (
     actualTextWidth = measureDimensionTextWidth(font!, dimensionText, textHeight);
     addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
       textPos.x, textPos.y, 0.2, 0, "center", transform);
-    addDebugCross(collector!, layer!, textPos.x, textPos.y, 0.2, textHeight);
   }
 
   // X-ordinate (bit 0 set in dimensionType) or Y-ordinate (bit 0 clear)
@@ -657,7 +645,6 @@ export const createRadialDimension = (
     const textWidth = measureDimensionTextWidth(font!, dimensionText, textHeight);
     addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
       textPos.x, textPos.y, 0.2, 0, "center", transform);
-    addDebugCross(collector!, layer!, textPos.x, textPos.y, 0.2, textHeight);
 
     const textLeft = textPos.x - textWidth / 2;
     const textRight = textPos.x + textWidth / 2;
@@ -784,7 +771,6 @@ export const createDiametricDimension = (
     if (angle < -Math.PI / 2) angle += Math.PI;
     addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
       textPos.x, textPos.y, 0.2, angle, "center", transform);
-    addDebugCross(collector!, layer!, textPos.x, textPos.y, 0.2, textHeight);
   } else if (textPos) {
     // Text offset outside -- leader from nearest line end toward text
     const dist10 = (textPos.x - p10.x) ** 2 + (textPos.y - p10.y) ** 2;
@@ -808,7 +794,6 @@ export const createDiametricDimension = (
     const textWidth = measureDimensionTextWidth(font!, dimensionText, textHeight);
     addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
       textPos.x, textPos.y, 0.2, 0, "center", transform);
-    addDebugCross(collector!, layer!, textPos.x, textPos.y, 0.2, textHeight);
 
     const textLeft = textPos.x - textWidth / 2;
     const textRight = textPos.x + textWidth / 2;
@@ -833,7 +818,6 @@ export const createDiametricDimension = (
     objects.push(new THREE.Line(diamLineGeom2, lineMat));
     addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
       cx, cy, 0.2, 0, "center", transform);
-    addDebugCross(collector!, layer!, cx, cy, 0.2, textHeight);
   }
 
   return objects.length > 0 ? objects : null;
@@ -1063,7 +1047,6 @@ export const createAngularDimension = (
 
     addDimensionTextToCollector(collector!, layer!, color, font!, dimensionText, textHeight,
       textX, textY, 0.2, textRotation, "center", transform);
-    addDebugCross(collector!, layer!, textX, textY, 0.2, textHeight);
   }
 
   return objects.length > 0 ? objects : null;

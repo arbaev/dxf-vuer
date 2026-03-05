@@ -551,30 +551,6 @@ const collectEntity = (
 // ─── Vector text collection ───────────────────────────────────────────
 
 /**
- * DEBUG: Add a cross marker at text insertion point for debugging positioning.
- * Red cross with size proportional to text height.
- */
-function addDebugCross(
-  collector: GeometryCollector,
-  layer: string,
-  x: number,
-  y: number,
-  z: number,
-  height: number,
-): void {
-  const size = height * 0.5;
-  const debugColor = "#ff0000";
-  // Horizontal line
-  collector.addLineSegments(layer, debugColor, [
-    x - size, y, z, x + size, y, z,
-  ]);
-  // Vertical line
-  collector.addLineSegments(layer, debugColor, [
-    x, y - size, z, x, y + size, z,
-  ]);
-}
-
-/**
  * Collect TEXT or MTEXT entity as vector glyphs into GeometryCollector.
  * Handles OCS transform and optional world matrix (for block inserts).
  */
@@ -653,8 +629,6 @@ const collectTextOrMText = (
       endX, endY,
     );
 
-    // DEBUG: cross marker at text insertion point
-    addDebugCross(collector, layer, pos.x, pos.y, pos.z, height);
   } else {
     // MTEXT
     const defaultHeight = entity.height || entity.textHeight || TEXT_HEIGHT;
@@ -691,8 +665,6 @@ const collectTextOrMText = (
       entity.lineSpacingFactor,
     );
 
-    // DEBUG: cross marker at MTEXT insertion point
-    addDebugCross(collector, layer, pos.x, pos.y, pos.z, height);
   }
 };
 
@@ -751,8 +723,6 @@ const collectDimensionEntity = (
       addDimensionTextToCollector(collector, layer, entityColor, font,
         dimData.dimensionText, dimData.textHeight,
         dimData.textPos.x, dimData.textPos.y, 0.2, dimAngleRad, "center", transform);
-      // DEBUG: cross marker at dimension text position
-      addDebugCross(collector, layer, dimData.textPos.x, dimData.textPos.y, 0.2, dimData.textHeight);
     }
   }
 
