@@ -567,11 +567,20 @@ export function addMTextToCollector(
   const row = Math.ceil(attachmentPoint / 3); // 1=top, 2=middle, 3=bottom
   const hAlign: "left" | "center" | "right" = col === 1 ? "center" : col === 2 ? "right" : "left";
 
-  // Vertical offset: how much to shift the text block up from the insertion point
+  // Vertical offset and VAlign depend on the attachment row.
+  // lineYOffset_last = -(totalHeight - lastLineHeight), so the formulas ensure:
+  //   Row 1 (top): first line's glyph top at insertion point
+  //   Row 2 (middle): text block visual center at insertion point
+  //   Row 3 (bottom): last line's glyph bottom at insertion point
   let groupYOffset = 0;
-  if (row === 2)
-    groupYOffset = totalHeight / 2; // middle
-  else if (row === 3) groupYOffset = totalHeight; // bottom
+  let rowVAlign = VAlign.TOP;
+  if (row === 2) {
+    groupYOffset = (totalHeight - lastLineHeight) / 2;
+    rowVAlign = VAlign.MIDDLE;
+  } else if (row === 3) {
+    groupYOffset = totalHeight - lastLineHeight;
+    rowVAlign = VAlign.BOTTOM;
+  }
 
   // 4. Emit each line
   const hAlignEnum = mtextHAlignToEnum(hAlign);
@@ -600,13 +609,6 @@ export function addMTextToCollector(
     const worldX = posX - localY * sin + indentX * cos;
     const worldY = posY + localY * cos + indentX * sin;
 
-    // MTEXT: ascender line at worldY (DXF attachment point semantics).
-    // Compute baseline position from font ascender for consistent placement.
-    const normAsc = lineFont.ascender / lineFont.unitsPerEm;
-    const ascBaseOffset = -normAsc * lineHeight;
-    const baseX = worldX - ascBaseOffset * sin;
-    const baseY = worldY + ascBaseOffset * cos;
-
     if (line.stackedTop || line.stackedBottom) {
       emitStackedText(
         collector,
@@ -627,6 +629,8 @@ export function addMTextToCollector(
         line.italic,
       );
     } else {
+      // MTEXT: VAlign per attachment row ensures correct positioning:
+      //   TOP → glyph top at worldY, MIDDLE → glyph center, BOTTOM → glyph bottom
       addTextToCollector(
         collector,
         layer,
@@ -634,12 +638,12 @@ export function addMTextToCollector(
         lineFont,
         line.text,
         lineHeight,
-        baseX,
-        baseY,
+        worldX,
+        worldY,
         posZ,
         rotation,
         hAlignEnum,
-        VAlign.BASELINE,
+        rowVAlign,
         1,
         undefined,
         undefined,

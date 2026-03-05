@@ -20,7 +20,6 @@ import {
 } from "@/types/dxf";
 import {
   TEXT_HEIGHT,
-  DIM_TEXT_HEIGHT,
   CIRCLE_SEGMENTS,
   DEGREES_TO_RADIANS_DIVISOR,
   EPSILON,
@@ -749,6 +748,8 @@ const collectDimensionEntity = (
       addDimensionTextToCollector(collector, layer, entityColor, font,
         dimData.dimensionText, dimData.textHeight,
         dimData.textPos.x, dimData.textPos.y, 0.2, dimAngleRad, "center", transform);
+      // DEBUG: cross marker at dimension text position
+      addDebugCross(collector, layer, dimData.textPos.x, dimData.textPos.y, 0.2, dimData.textHeight);
     }
   }
 
