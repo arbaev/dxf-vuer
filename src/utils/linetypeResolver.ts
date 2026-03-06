@@ -1,6 +1,9 @@
 import type { DxfEntity, DxfLayer, DxfLineType } from "@/types/dxf";
 import { AUTO_LTSCALE_DIVISOR, AUTO_LTSCALE_MIN_EXTENT } from "@/constants";
 
+/** If the smallest LTYPE cycle is at least this fraction of maxExtent, patterns are already visible */
+const AUTO_LTSCALE_PATTERN_THRESHOLD = 0.005;
+
 export interface LinetypeInfo {
   /** Scaled DXF pattern: positive = dash, negative = gap, 0 = dot */
   pattern: number[];
@@ -220,14 +223,19 @@ export function resolveEntityLinetype(
  * Compute an automatic LTSCALE from drawing extents ($EXTMIN / $EXTMAX).
  * When $LTSCALE is at its default value of 1, patterns defined in small
  * world units (e.g. 12.7 mm) are invisible on large drawings.
- * This function derives a scale that keeps ~25 pattern repetitions
- * across the longest drawing dimension.
+ * This function derives a scale that keeps patterns visible.
+ *
+ * When lineTypes are provided, the function checks whether patterns are
+ * already large enough relative to the drawing — e.g. in drawings measured
+ * in inches, the mm-based LTYPE values (6.35 for HIDDEN) are already
+ * visible and don't need scaling.
  *
  * Returns 1 if header is missing, extents are absent, or the drawing
  * is small enough that no scaling is needed.
  */
 export function computeAutoLtScale(
   header: Record<string, unknown> | undefined,
+  lineTypes?: Record<string, DxfLineType>,
 ): number {
   if (!header) return 1;
 
@@ -244,6 +252,23 @@ export function computeAutoLtScale(
   const maxExtent = Math.max(width, height);
 
   if (maxExtent < AUTO_LTSCALE_MIN_EXTENT) return 1;
+
+  // Check if any LTYPE pattern is already large enough relative to drawing extents.
+  // If the largest pattern cycle is visible, the drawing uses units where patterns
+  // make sense — no auto-scaling needed. Using max (not min) avoids false triggers
+  // from xref-dependent linetypes with tiny pattern values.
+  if (lineTypes) {
+    let maxCycle = 0;
+    for (const lt of Object.values(lineTypes)) {
+      if (lt.pattern && lt.pattern.length > 0 && lt.pattern.some((v) => v < 0)) {
+        const cycle = lt.pattern.reduce((sum, v) => sum + Math.abs(v), 0);
+        if (cycle > maxCycle) maxCycle = cycle;
+      }
+    }
+    if (maxCycle > 0 && maxCycle / maxExtent >= AUTO_LTSCALE_PATTERN_THRESHOLD) {
+      return 1;
+    }
+  }
 
   return Math.max(1, maxExtent / AUTO_LTSCALE_DIVISOR);
 }

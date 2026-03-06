@@ -1911,7 +1911,7 @@ export async function createThreeObjectsFromDXF(
   const lineTypes = dxf.tables?.lineType?.lineTypes ?? {};
   const headerLtScale = (dxf.header?.["$LTSCALE"] as number) ?? 1;
   const globalLtScale = headerLtScale === 1
-    ? computeAutoLtScale(dxf.header)
+    ? computeAutoLtScale(dxf.header, lineTypes)
     : headerLtScale;
 
   // Point display mode ($PDMODE / $PDSIZE)

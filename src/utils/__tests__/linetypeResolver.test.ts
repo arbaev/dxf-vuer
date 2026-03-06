@@ -435,4 +435,56 @@ describe("computeAutoLtScale", () => {
     // 200 / 500 = 0.4, but clamped to 1
     expect(computeAutoLtScale(header)).toBe(1);
   });
+
+  it("returns 1 when LTYPE patterns are already large enough relative to extents", () => {
+    // Drawing in inches: ~964 units, HIDDEN pattern cycle = 9.525
+    // 9.525 / 964 = 0.99% > 0.5% threshold → no scaling needed
+    const header = {
+      "$EXTMIN": { x: -725, y: -522, z: 0 },
+      "$EXTMAX": { x: 239, y: 416, z: 0 },
+    };
+    const lineTypes = {
+      HIDDEN: { name: "HIDDEN", description: "", pattern: [6.35, -3.175], patternLength: 9.525 },
+    };
+    expect(computeAutoLtScale(header, lineTypes)).toBe(1);
+  });
+
+  it("returns 1 when largest pattern is visible despite xref linetypes with tiny cycles", () => {
+    // floorplan.dxf: 964 inch drawing with HIDDEN (cycle=9.525) and
+    // xref-HIDDEN (cycle=0.375). Max cycle 9.525/964=0.99% > 0.5% → skip scaling.
+    const header = {
+      "$EXTMIN": { x: -725, y: -522, z: 0 },
+      "$EXTMAX": { x: 239, y: 416, z: 0 },
+    };
+    const lineTypes = {
+      HIDDEN: { name: "HIDDEN", description: "", pattern: [6.35, -3.175], patternLength: 9.525 },
+      CENTER: { name: "CENTER", description: "", pattern: [1.25, -0.25, 0.25, -0.25], patternLength: 2.0 },
+      "xref$0$HIDDEN": { name: "xref$0$HIDDEN", description: "", pattern: [0.25, -0.125], patternLength: 0.375 },
+    };
+    expect(computeAutoLtScale(header, lineTypes)).toBe(1);
+  });
+
+  it("still scales when LTYPE patterns are tiny relative to extents", () => {
+    // Large metric drawing: 30000mm, HIDDEN cycle = 9.525mm
+    // 9.525 / 30000 = 0.032% < 0.5% → scaling needed
+    const header = {
+      "$EXTMIN": { x: 0, y: 0, z: 0 },
+      "$EXTMAX": { x: 30000, y: 20000, z: 0 },
+    };
+    const lineTypes = {
+      HIDDEN: { name: "HIDDEN", description: "", pattern: [6.35, -3.175], patternLength: 9.525 },
+    };
+    // 30000 / 500 = 60
+    expect(computeAutoLtScale(header, lineTypes)).toBe(60);
+  });
+
+  it("scales without lineTypes (backward compatible)", () => {
+    const header = {
+      "$EXTMIN": { x: -725, y: -522, z: 0 },
+      "$EXTMAX": { x: 239, y: 416, z: 0 },
+    };
+    // No lineTypes → falls back to extent-based formula: 964 / 500 ≈ 1.928
+    const result = computeAutoLtScale(header);
+    expect(result).toBeCloseTo(1.928, 2);
+  });
 });
