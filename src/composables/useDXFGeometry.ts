@@ -940,7 +940,10 @@ const collectDimensionEntity = (
     result = [dimGroup];
 
     if (dimData.textPos) {
-      const dimAngleRad = dimAngle !== 0 ? degreesToRadians(dimAngle) : 0;
+      let dimAngleRad = dimAngle !== 0 ? degreesToRadians(dimAngle) : 0;
+      // Readability: flip text 180° if it would be upside-down
+      if (dimAngleRad > Math.PI / 2) dimAngleRad -= Math.PI;
+      if (dimAngleRad < -Math.PI / 2) dimAngleRad += Math.PI;
       addDimensionTextToCollector({
         collector, layer, color: entityColor, font,
         rawText: dimData.dimensionText, height: dimData.textHeight,
