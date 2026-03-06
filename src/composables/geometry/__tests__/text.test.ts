@@ -67,6 +67,23 @@ describe("replaceSpecialChars", () => {
   it("returns empty string unchanged", () => {
     expect(replaceSpecialChars("")).toBe("");
   });
+
+  it("replaces ^I (caret notation tab) with space", () => {
+    expect(replaceSpecialChars("MARK^IITEM")).toBe("MARK ITEM");
+    expect(replaceSpecialChars("X-00^I^IREFRIGERATOR")).toBe("X-00  REFRIGERATOR");
+  });
+
+  it("replaces ^^ with literal caret", () => {
+    expect(replaceSpecialChars("100^^50")).toBe("100^50");
+  });
+
+  it("removes other caret notation control chars", () => {
+    expect(replaceSpecialChars("text^Mmore")).toBe("textmore");
+  });
+
+  it("handles ^^ and ^I together", () => {
+    expect(replaceSpecialChars("A^^B^IC")).toBe("A^B C");
+  });
 });
 
 // ── parseTextWithUnderline ───────────────────────────────────────────────

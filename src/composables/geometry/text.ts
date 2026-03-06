@@ -19,6 +19,7 @@ export interface MTextLine {
 /**
  * Replace DXF special characters:
  * %%d -> deg, %%p -> +/-, %%c -> diameter, %%nnn -> char by code, %%u/%%o -> remove
+ * ^I -> tab (space), ^^ -> literal caret, ^X -> remove other control chars
  */
 export const replaceSpecialChars = (text: string): string =>
   text
@@ -26,7 +27,12 @@ export const replaceSpecialChars = (text: string): string =>
     .replace(/%%[pP]/g, "\u00B1")
     .replace(/%%[cC]/g, "\u2300")
     .replace(/%%[uUoO]/g, "") // toggle underline/overline — remove
-    .replace(/%%(\d{3})/g, (_, code) => String.fromCharCode(parseInt(code)));
+    .replace(/%%(\d{3})/g, (_, code) => String.fromCharCode(parseInt(code)))
+    // DXF caret notation: ^I = tab, ^^ = literal caret, ^X = control char
+    .replace(/\^\^/g, "\x04")
+    .replace(/\^I/g, " ")
+    .replace(/\^[A-Z]/g, "")
+    .replace(/\x04/g, "^");
 
 /**
  * Parse TEXT entity content: replace special chars and detect %%u underline.
