@@ -134,6 +134,13 @@ export function applyLinetypePattern(
         // Pattern element extends beyond this polyline segment
         remaining -= available;
         consumed = segLen;
+        if (drawing) {
+          // Emit intermediate segment to preserve polyline shape
+          segments.push(dashX, dashY, dashZ, p2x, p2y, p2z);
+          dashX = p2x;
+          dashY = p2y;
+          dashZ = p2z;
+        }
       }
     }
   }

@@ -92,6 +92,35 @@ describe("applyLinetypePattern", () => {
     expect(segments[10]).toBeCloseTo(4);
   });
 
+  it("preserves intermediate vertices when dash spans multiple segments", () => {
+    // Zigzag polyline: total length ~12.07, dash=20 covers entire polyline
+    const points = [
+      { x: 0, y: 0 },
+      { x: 3, y: 3 },
+      { x: 3, y: -3 },
+      { x: 6, y: 0 },
+    ];
+    const { segments } = applyLinetypePattern(points, [20, -5]);
+
+    // Should produce 3 segments (one per polyline edge), not 1 straight line
+    expect(segments.length).toBe(18); // 3 segments × 6 coords
+    // First segment: (0,0) → (3,3)
+    expect(segments[0]).toBeCloseTo(0);
+    expect(segments[1]).toBeCloseTo(0);
+    expect(segments[3]).toBeCloseTo(3);
+    expect(segments[4]).toBeCloseTo(3);
+    // Second segment: (3,3) → (3,-3)
+    expect(segments[6]).toBeCloseTo(3);
+    expect(segments[7]).toBeCloseTo(3);
+    expect(segments[9]).toBeCloseTo(3);
+    expect(segments[10]).toBeCloseTo(-3);
+    // Third segment: (3,-3) → (6,0)
+    expect(segments[12]).toBeCloseTo(3);
+    expect(segments[13]).toBeCloseTo(-3);
+    expect(segments[15]).toBeCloseTo(6);
+    expect(segments[16]).toBeCloseTo(0);
+  });
+
   it("handles CENTER pattern (long-short dash)", () => {
     const points = [{ x: 0, y: 0 }, { x: 100, y: 0 }];
     const { segments } = applyLinetypePattern(points, [31.75, -6.35, 6.35, -6.35]);
