@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createScanner } from "../../__tests__/test-helpers";
 import { parseTables } from "../tables";
-import type { ILayer, ILineType, IStyle, IBlockRecord } from "../tables";
+import type { ILayer, ILineType, IStyle, IBlockRecord, IDimStyle } from "../tables";
 
 describe("parseTables", () => {
   // ── Layers ──────────────────────────────────────────────────────────
@@ -475,6 +475,34 @@ describe("parseTables", () => {
 
       const records = tables.blockRecord.blockRecords as Record<string, IBlockRecord>;
       expect(records.InchBlock.units).toBe(1);
+    });
+  });
+
+  // ── DIMSTYLE ────────────────────────────────────────────────────────
+
+  describe("parseDimStyles", () => {
+    it("parses DIMSTYLE with dimtsz (code 142)", () => {
+      const scanner = createScanner(
+        "0", "TABLE",
+        "2", "DIMSTYLE",
+        "70", "1",
+        "0", "DIMSTYLE",
+        "2", "Arch",
+        "142", "2.5",        // DIMTSZ — tick size
+        "277", "4",           // DIMLUNIT — architectural
+        "78", "0",            // DIMZIN
+        "0", "ENDTAB",
+        "0", "ENDSEC",
+        "0", "EOF",
+      );
+
+      const tables = parseTables(scanner);
+
+      expect(tables).toHaveProperty("dimStyle");
+      const dimStyles = tables.dimStyle.dimStyles as Record<string, IDimStyle>;
+      expect(dimStyles).toHaveProperty("Arch");
+      expect(dimStyles.Arch.dimtsz).toBe(2.5);
+      expect(dimStyles.Arch.dimlunit).toBe(4);
     });
   });
 

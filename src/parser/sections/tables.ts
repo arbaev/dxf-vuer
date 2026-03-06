@@ -30,12 +30,15 @@ export interface IStyle {
 export interface IBlockRecord {
   name: string;
   units: number; // INSUNITS code (0=Unitless, 1=Inches, 4=mm, 6=Meters, ...)
+  handle?: string; // code 5: entity handle (used for DIMBLK resolution)
 }
 
 export interface IDimStyle {
   name: string;
   dimlunit?: number; // code 277: 2=Decimal, 4=Architectural
   dimzin?: number;   // code 78: zero suppression flags
+  dimtsz?: number;   // code 142: tick size (>0 = use ticks instead of arrows)
+  dimblkHandle?: string; // code 342: handle of arrow block (→ BLOCK_RECORD name)
 }
 
 interface IBaseTable {
@@ -361,6 +364,10 @@ function parseBlockRecords(scanner: DxfScanner): Record<string, IBlockRecord> {
         recName = curr.value as string;
         curr = scanner.next();
         break;
+      case 5:
+        rec.handle = curr.value as string;
+        curr = scanner.next();
+        break;
       case 70:
         rec.units = curr.value as number;
         curr = scanner.next();
@@ -399,8 +406,16 @@ function parseDimStyles(scanner: DxfScanner): Record<string, IDimStyle> {
         ds.dimzin = curr.value as number;
         curr = scanner.next();
         break;
+      case 142:
+        ds.dimtsz = curr.value as number;
+        curr = scanner.next();
+        break;
       case 277:
         ds.dimlunit = curr.value as number;
+        curr = scanner.next();
+        break;
+      case 342:
+        ds.dimblkHandle = curr.value as string;
         curr = scanner.next();
         break;
       case 0:

@@ -14,10 +14,20 @@ import {
   CIRCLE_SEGMENTS,
   MIN_ARC_SEGMENTS,
 } from "@/constants";
-import { createArrow } from "./primitives";
+import { createArrow, createTick } from "./primitives";
 import { replaceSpecialChars } from "./text";
 import type { GeometryCollector } from "./mergeCollectors";
 import { addDimensionTextToCollector, measureDimensionTextWidth } from "./vectorTextBuilder";
+
+/**
+ * Check if a DIMBLK block name represents a tick mark (oblique stroke).
+ * Common tick block names: _ArchTick, ArchTick, _OBLIQUE, Oblique, _Tick.
+ */
+export const isTickBlock = (name: string): boolean => {
+  if (!name) return false;
+  const n = name.toLowerCase();
+  return n.includes("tick") || n.includes("oblique");
+};
 
 /**
  * Resolved dimension variable set. Values are final (already scaled by DIMSCALE).
@@ -29,6 +39,8 @@ export interface DimVars {
   textGap: number;
   extLineDash: number;
   extLineGap: number;
+  useTicks: boolean;
+  tickSize: number;
 }
 
 /** Default DimVars using hardcoded constants (backward compatibility) */
@@ -38,6 +50,8 @@ export const DEFAULT_DIM_VARS: DimVars = {
   textGap: DIM_TEXT_GAP,
   extLineDash: EXTENSION_LINE_DASH_SIZE,
   extLineGap: EXTENSION_LINE_GAP_SIZE,
+  useTicks: false,
+  tickSize: 0,
 };
 
 /**
@@ -61,7 +75,13 @@ export function resolveDimVarsFromHeader(
   const extLineDash = EXTENSION_LINE_DASH_SIZE * scale;
   const extLineGap = EXTENSION_LINE_GAP_SIZE * scale;
 
-  return { arrowSize, textHeight, textGap, extLineDash, extLineGap };
+  const dimtsz = (header["$DIMTSZ"] as number) ?? 0;
+  const dimblk = (header["$DIMBLK"] as string) ?? "";
+  const useTicks = dimtsz > 0 || isTickBlock(dimblk);
+  // When using ticks: DIMTSZ provides explicit size, otherwise fall back to arrowSize
+  const tickSize = !useTicks ? 0 : dimtsz > 0 ? dimtsz * scale : arrowSize;
+
+  return { arrowSize, textHeight, textGap, extLineDash, extLineGap, useTicks, tickSize };
 }
 
 /**
@@ -256,21 +276,14 @@ export const createLinearDimensionLines = (p: LinearDimensionLinesParams): THREE
     );
   }
 
-  const arrow1 = createArrow(
-    createVec3(max, anchorFixed, 0.1),
-    createVec3(min, anchorFixed, 0.1),
-    dv.arrowSize,
-    arrowMaterial,
-  );
-  objects.push(arrow1);
-
-  const arrow2 = createArrow(
-    createVec3(min, anchorFixed, 0.1),
-    createVec3(max, anchorFixed, 0.1),
-    dv.arrowSize,
-    arrowMaterial,
-  );
-  objects.push(arrow2);
+  if (dv.useTicks) {
+    const dimAngle = isHorizontal ? 0 : Math.PI / 2;
+    objects.push(createTick(createVec3(min, anchorFixed, 0.1), dv.tickSize, dimAngle, dimLineMaterial));
+    objects.push(createTick(createVec3(max, anchorFixed, 0.1), dv.tickSize, dimAngle, dimLineMaterial));
+  } else {
+    objects.push(createArrow(createVec3(max, anchorFixed, 0.1), createVec3(min, anchorFixed, 0.1), dv.arrowSize, arrowMaterial));
+    objects.push(createArrow(createVec3(min, anchorFixed, 0.1), createVec3(max, anchorFixed, 0.1), dv.arrowSize, arrowMaterial));
+  }
 
   return objects;
 };
@@ -373,22 +386,13 @@ export const createRotatedDimensionLines = (p: RotatedDimensionLinesParams): THR
     objects.push(createExtensionLine(p2, foot2, extensionLineMaterial));
   }
 
-  objects.push(
-    createArrow(
-      new THREE.Vector3(maxPt.x, maxPt.y, 0.1),
-      new THREE.Vector3(minPt.x, minPt.y, 0.1),
-      dv.arrowSize,
-      arrowMaterial,
-    ),
-  );
-  objects.push(
-    createArrow(
-      new THREE.Vector3(minPt.x, minPt.y, 0.1),
-      new THREE.Vector3(maxPt.x, maxPt.y, 0.1),
-      dv.arrowSize,
-      arrowMaterial,
-    ),
-  );
+  if (dv.useTicks) {
+    objects.push(createTick(new THREE.Vector3(minPt.x, minPt.y, 0.1), dv.tickSize, angleRad, dimLineMaterial));
+    objects.push(createTick(new THREE.Vector3(maxPt.x, maxPt.y, 0.1), dv.tickSize, angleRad, dimLineMaterial));
+  } else {
+    objects.push(createArrow(new THREE.Vector3(maxPt.x, maxPt.y, 0.1), new THREE.Vector3(minPt.x, minPt.y, 0.1), dv.arrowSize, arrowMaterial));
+    objects.push(createArrow(new THREE.Vector3(minPt.x, minPt.y, 0.1), new THREE.Vector3(maxPt.x, maxPt.y, 0.1), dv.arrowSize, arrowMaterial));
+  }
 
   return objects;
 };

@@ -448,12 +448,15 @@ export interface DxfLineType {
 export interface DxfBlockRecord {
   name: string;
   units: number; // INSUNITS code (0=Unitless, 1=Inches, 4=mm, 6=Meters, ...)
+  handle?: string; // entity handle (used for DIMBLK resolution)
 }
 
 export interface DxfDimStyle {
   name: string;
   dimlunit?: number; // code 277: 2=Decimal, 4=Architectural
   dimzin?: number;   // code 78: zero suppression flags
+  dimtsz?: number;   // code 142: tick size (>0 = use ticks instead of arrows)
+  dimblkHandle?: string; // code 342: handle of arrow block (→ BLOCK_RECORD name)
 }
 
 export interface DxfTables {

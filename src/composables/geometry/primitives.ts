@@ -33,6 +33,7 @@ export interface EntityColorContext {
   xlineClipSize?: number; // Half-length for clipping XLINE/RAY to drawing extents
   dimStyles?: Record<string, DxfDimStyle>; // DIMSTYLE table for dimension formatting
   headerDimlunit?: number; // $DIMLUNIT from header (fallback for dimension formatting)
+  blockHandleToName?: Map<string, string>; // BLOCK_RECORD handle → name (for DIMBLK resolution)
 }
 
 export const degreesToRadians = (degrees: number): number =>
@@ -256,6 +257,28 @@ export const createArrow = (
   geometry.setIndex([0, 1, 2]);
 
   return new THREE.Mesh(geometry, material);
+};
+
+/**
+ * Create an architectural tick mark (oblique stroke at 45°) for dimension lines.
+ * The tick is a short line segment centered on `point`, rotated by `dimAngle + 45°`.
+ */
+export const createTick = (
+  point: THREE.Vector3,
+  size: number,
+  dimAngle: number,
+  material: THREE.LineBasicMaterial,
+): THREE.LineSegments => {
+  const tickAngle = dimAngle + Math.PI / 4;
+  const dx = Math.cos(tickAngle) * size;
+  const dy = Math.sin(tickAngle) * size;
+  const verts = new Float32Array([
+    point.x - dx, point.y - dy, point.z,
+    point.x + dx, point.y + dy, point.z,
+  ]);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(verts, 3));
+  return new THREE.LineSegments(geometry, material);
 };
 
 export const setLayerName = (obj: THREE.Object3D | THREE.Object3D[], layerName: string) => {

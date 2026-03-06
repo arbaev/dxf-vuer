@@ -59,6 +59,7 @@ import {
   createAngularDimension,
   resolveDimVarsFromHeader,
   mergeEntityDimVars,
+  isTickBlock,
   type DimFormatOptions,
 } from "./geometry/dimensions";
 import {
@@ -902,11 +903,27 @@ const collectDimensionEntity = (
   const baseDv = colorCtx.dimVars ?? resolveDimVarsFromHeader(undefined);
   const dv = mergeEntityDimVars(baseDv, entity);
 
-  // Resolve DIMLUNIT: DIMSTYLE → header $DIMLUNIT → undefined (decimal default)
+  // Resolve DIMLUNIT and DIMTSZ: DIMSTYLE → header → undefined (defaults)
   const dimStyleEntry = entity.styleName && colorCtx.dimStyles?.[entity.styleName];
   const dimlunit = dimStyleEntry ? dimStyleEntry.dimlunit : colorCtx.headerDimlunit;
   const dimzin = dimStyleEntry ? dimStyleEntry.dimzin : undefined;
   const dimFmt: DimFormatOptions | undefined = dimlunit !== undefined ? { dimlunit, dimzin } : undefined;
+
+  // DIMTSZ / DIMBLK from DIMSTYLE overrides header values
+  if (dimStyleEntry) {
+    if (dimStyleEntry.dimtsz !== undefined && dimStyleEntry.dimtsz > 0) {
+      const dimScale = (entity.dimScale ?? (_dxf.header?.["$DIMSCALE"] as number | undefined)) ?? 1;
+      const scale = dimScale > 0 ? dimScale : 1;
+      dv.useTicks = true;
+      dv.tickSize = dimStyleEntry.dimtsz * scale;
+    } else if (dimStyleEntry.dimblkHandle && colorCtx.blockHandleToName) {
+      const blockName = colorCtx.blockHandleToName.get(dimStyleEntry.dimblkHandle);
+      if (blockName && isTickBlock(blockName)) {
+        dv.useTicks = true;
+        if (dv.tickSize === 0) dv.tickSize = dv.arrowSize;
+      }
+    }
+  }
 
   let result: THREE.Object3D[] | null = null;
 
@@ -1868,6 +1885,16 @@ export async function createThreeObjectsFromDXF(
   const dimStyles = dxf.tables?.dimStyle?.dimStyles;
   const headerDimlunit = dxf.header?.["$DIMLUNIT"] as number | undefined;
 
+  // Build handle → name map from BLOCK_RECORD for DIMBLK resolution
+  let blockHandleToName: Map<string, string> | undefined;
+  const blockRecords = dxf.tables?.blockRecord?.blockRecords;
+  if (blockRecords) {
+    blockHandleToName = new Map();
+    for (const rec of Object.values(blockRecords)) {
+      if (rec.handle) blockHandleToName.set(rec.handle, rec.name);
+    }
+  }
+
   const colorCtx: EntityColorContext = {
     layers,
     materialCache: new Map(),
@@ -1886,6 +1913,7 @@ export async function createThreeObjectsFromDXF(
     mirrText,
     dimStyles,
     headerDimlunit,
+    blockHandleToName,
   };
 
   // Compute clip size for XLINE/RAY from drawing extents

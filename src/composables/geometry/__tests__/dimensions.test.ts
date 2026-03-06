@@ -389,6 +389,30 @@ describe("resolveDimVarsFromHeader", () => {
     expect(dv.extLineDash).toBe(10); // 2 * 5
     expect(dv.extLineGap).toBe(5);  // 1 * 5
   });
+
+  it("sets useTicks=true when $DIMTSZ > 0", () => {
+    const dv = resolveDimVarsFromHeader({ "$DIMTSZ": 2.5 });
+    expect(dv.useTicks).toBe(true);
+    expect(dv.tickSize).toBe(2.5);
+  });
+
+  it("sets useTicks=false when $DIMTSZ is 0", () => {
+    const dv = resolveDimVarsFromHeader({ "$DIMTSZ": 0 });
+    expect(dv.useTicks).toBe(false);
+    expect(dv.tickSize).toBe(0);
+  });
+
+  it("sets useTicks=false when $DIMTSZ is absent", () => {
+    const dv = resolveDimVarsFromHeader({});
+    expect(dv.useTicks).toBe(false);
+    expect(dv.tickSize).toBe(0);
+  });
+
+  it("scales $DIMTSZ by $DIMSCALE", () => {
+    const dv = resolveDimVarsFromHeader({ "$DIMTSZ": 1.5, "$DIMSCALE": 4 });
+    expect(dv.useTicks).toBe(true);
+    expect(dv.tickSize).toBe(6);
+  });
 });
 
 // =====================================================================
