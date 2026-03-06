@@ -504,6 +504,32 @@ describe("parseTables", () => {
       expect(dimStyles.Arch.dimtsz).toBe(2.5);
       expect(dimStyles.Arch.dimlunit).toBe(4);
     });
+
+    it("parses DIMSTYLE with dimscale, dimasz, dimtxt, dimclrt", () => {
+      const scanner = createScanner(
+        "0", "TABLE",
+        "2", "DIMSTYLE",
+        "70", "1",
+        "0", "DIMSTYLE",
+        "2", "ARCHARR",
+        "40", "32",            // DIMSCALE
+        "41", "0.15625",       // DIMASZ — arrow size
+        "140", "0.1875",       // DIMTXT — text height
+        "178", "1",            // DIMCLRT — text color (red)
+        "0", "ENDTAB",
+        "0", "ENDSEC",
+        "0", "EOF",
+      );
+
+      const tables = parseTables(scanner);
+
+      const dimStyles = tables.dimStyle.dimStyles as Record<string, IDimStyle>;
+      expect(dimStyles).toHaveProperty("ARCHARR");
+      expect(dimStyles.ARCHARR.dimscale).toBe(32);
+      expect(dimStyles.ARCHARR.dimasz).toBe(0.15625);
+      expect(dimStyles.ARCHARR.dimtxt).toBe(0.1875);
+      expect(dimStyles.ARCHARR.dimclrt).toBe(1);
+    });
   });
 
   // ── Empty TABLES section ────────────────────────────────────────────

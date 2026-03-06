@@ -35,9 +35,13 @@ export interface IBlockRecord {
 
 export interface IDimStyle {
   name: string;
+  dimscale?: number; // code 40: overall dimension scale factor
+  dimasz?: number;   // code 41: arrow size (unscaled)
+  dimtxt?: number;   // code 140: text height (unscaled)
+  dimtsz?: number;   // code 142: tick size (>0 = use ticks instead of arrows)
+  dimclrt?: number;  // code 178: dimension text color (ACI index)
   dimlunit?: number; // code 277: 2=Decimal, 4=Architectural
   dimzin?: number;   // code 78: zero suppression flags
-  dimtsz?: number;   // code 142: tick size (>0 = use ticks instead of arrows)
   dimblkHandle?: string; // code 342: handle of dimension arrow block (→ BLOCK_RECORD name)
   dimldrblkHandle?: string; // code 341: handle of leader arrow block (→ BLOCK_RECORD name)
 }
@@ -403,12 +407,28 @@ function parseDimStyles(scanner: DxfScanner): Record<string, IDimStyle> {
         dsName = curr.value as string;
         curr = scanner.next();
         break;
+      case 40:
+        ds.dimscale = curr.value as number;
+        curr = scanner.next();
+        break;
+      case 41:
+        ds.dimasz = curr.value as number;
+        curr = scanner.next();
+        break;
       case 78:
         ds.dimzin = curr.value as number;
         curr = scanner.next();
         break;
+      case 140:
+        ds.dimtxt = curr.value as number;
+        curr = scanner.next();
+        break;
       case 142:
         ds.dimtsz = curr.value as number;
+        curr = scanner.next();
+        break;
+      case 178:
+        ds.dimclrt = curr.value as number;
         curr = scanner.next();
         break;
       case 277:

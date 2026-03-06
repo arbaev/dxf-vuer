@@ -34,7 +34,8 @@ import {
   POINT_SYMBOL_DEFAULT_SIZE,
 } from "@/constants";
 import { HATCH_PATTERNS } from "@/constants/hatchPatterns";
-import { resolveEntityColor } from "@/utils/colorResolver";
+import { resolveEntityColor, rgbNumberToHex } from "@/utils/colorResolver";
+import ACI_PALETTE from "@/parser/acadColorIndex";
 import { resolveEntityLinetype, applyLinetypePattern, computeAutoLtScale } from "@/utils/linetypeResolver";
 import { buildOcsMatrix, transformOcsPoints, transformOcsPoint } from "@/utils/ocsTransform";
 import { getInsUnitsScale } from "@/utils/insUnitsScale";
@@ -59,6 +60,7 @@ import {
   createDiametricDimension,
   createAngularDimension,
   resolveDimVarsFromHeader,
+  applyDimStyleVars,
   mergeEntityDimVars,
   isTickBlock,
   type DimFormatOptions,
@@ -904,23 +906,36 @@ const collectDimensionEntity = (
   const transform = worldMatrix ? Array.from(worldMatrix.elements) : undefined;
   const matrix = worldMatrix ?? new THREE.Matrix4();
 
-  // Resolve dimension variables: header defaults merged with per-entity XDATA overrides
-  const baseDv = colorCtx.dimVars ?? resolveDimVarsFromHeader(undefined);
+  // Resolve dimension variables: header → DIMSTYLE → entity XDATA overrides
+  const dimStyleEntry = entity.styleName && colorCtx.dimStyles?.[entity.styleName];
+  let baseDv = colorCtx.dimVars ?? resolveDimVarsFromHeader(undefined);
+  // Apply DIMSTYLE-level overrides (DIMSCALE, DIMTXT, DIMASZ) between header and entity
+  if (dimStyleEntry) {
+    baseDv = applyDimStyleVars(baseDv, dimStyleEntry, _dxf.header ?? undefined);
+  }
   const dv = mergeEntityDimVars(baseDv, entity);
 
-  // Resolve DIMLUNIT and DIMTSZ: DIMSTYLE → header → undefined (defaults)
-  const dimStyleEntry = entity.styleName && colorCtx.dimStyles?.[entity.styleName];
+  // Resolve DIMLUNIT: DIMSTYLE → header → undefined (defaults)
   const dimlunit = dimStyleEntry ? dimStyleEntry.dimlunit : colorCtx.headerDimlunit;
   const dimzin = dimStyleEntry ? dimStyleEntry.dimzin : undefined;
   const dimFmt: DimFormatOptions | undefined = dimlunit !== undefined ? { dimlunit, dimzin } : undefined;
 
+  // DIMCLRT: dimension text color from DIMSTYLE (ACI index)
+  let textColor = entityColor;
+  if (dimStyleEntry && dimStyleEntry.dimclrt !== undefined && dimStyleEntry.dimclrt > 0 && dimStyleEntry.dimclrt <= 255) {
+    textColor = rgbNumberToHex(ACI_PALETTE[dimStyleEntry.dimclrt]);
+  }
+
   // DIMTSZ / DIMBLK from DIMSTYLE overrides header values
   if (dimStyleEntry) {
+    // Use DIMSTYLE's own DIMSCALE for tick scaling
+    const styleDimScale = dimStyleEntry.dimscale;
+    const headerDimScale = (_dxf.header?.["$DIMSCALE"] as number | undefined) ?? 1;
+    const dimScale = (entity.dimScale ?? styleDimScale ?? headerDimScale) || 1;
+
     if (dimStyleEntry.dimtsz !== undefined && dimStyleEntry.dimtsz > 0) {
-      const dimScale = (entity.dimScale ?? (_dxf.header?.["$DIMSCALE"] as number | undefined)) ?? 1;
-      const scale = dimScale > 0 ? dimScale : 1;
       dv.useTicks = true;
-      dv.tickSize = dimStyleEntry.dimtsz * scale;
+      dv.tickSize = dimStyleEntry.dimtsz * dimScale;
     } else if (dimStyleEntry.dimblkHandle && colorCtx.blockHandleToName) {
       const blockName = colorCtx.blockHandleToName.get(dimStyleEntry.dimblkHandle);
       if (blockName && isTickBlock(blockName)) {
@@ -974,7 +989,7 @@ const collectDimensionEntity = (
       if (dimAngleRad > Math.PI / 2) dimAngleRad -= Math.PI;
       if (dimAngleRad < -Math.PI / 2) dimAngleRad += Math.PI;
       addDimensionTextToCollector({
-        collector, layer, color: entityColor, font,
+        collector, layer, color: textColor, font,
         rawText: dimData.dimensionText, height: dimData.textHeight,
         posX: dimData.textPos.x, posY: dimData.textPos.y, posZ: 0.2,
         rotation: dimAngleRad, hAlign: "center", transform,

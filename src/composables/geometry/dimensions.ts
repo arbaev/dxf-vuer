@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { Font } from "opentype.js";
-import type { DxfVertex, DxfDimensionEntity } from "@/types/dxf";
+import type { DxfVertex, DxfDimensionEntity, DxfDimStyle } from "@/types/dxf";
 import {
   DIM_TEXT_HEIGHT,
   DIM_TEXT_GAP,
@@ -103,6 +103,55 @@ export function mergeEntityDimVars(
   if (entity.arrowSize !== undefined) {
     const scale = entity.dimScale ?? 1;
     result.arrowSize = entity.arrowSize * scale;
+  }
+
+  return result;
+}
+
+/**
+ * Apply DIMSTYLE-level overrides to resolved DimVars.
+ * Sits between header defaults and entity XDATA in priority chain:
+ *   header → DIMSTYLE → entity XDATA
+ *
+ * DIMSCALE from DIMSTYLE multiplies DIMTXT/DIMASZ.
+ * If DIMSTYLE has its own DIMTXT/DIMASZ, those override header values.
+ */
+export function applyDimStyleVars(
+  base: DimVars,
+  dimStyle: DxfDimStyle,
+  header?: Record<string, unknown>,
+): DimVars {
+  const result = { ...base };
+
+  // DIMSCALE: DIMSTYLE overrides header $DIMSCALE
+  const headerDimScale = (header?.["$DIMSCALE"] as number | undefined) ?? 1;
+  const styleDimScale = dimStyle.dimscale;
+  const scale = (styleDimScale ?? headerDimScale) || 1;
+
+  if (dimStyle.dimtxt !== undefined) {
+    // DIMSTYLE provides its own text height — use it × scale
+    result.textHeight = dimStyle.dimtxt * scale;
+    result.textGap = result.textHeight * DIM_TEXT_GAP_MULTIPLIER;
+  } else if (styleDimScale !== undefined && styleDimScale !== headerDimScale) {
+    // DIMSTYLE only overrides DIMSCALE — re-scale header DIMTXT with new scale
+    const headerDimTxt = (header?.["$DIMTXT"] as number | undefined) ?? DIM_TEXT_HEIGHT;
+    result.textHeight = headerDimTxt * scale;
+    result.textGap = result.textHeight * DIM_TEXT_GAP_MULTIPLIER;
+  }
+
+  if (dimStyle.dimasz !== undefined) {
+    // DIMSTYLE provides its own arrow size — use it × scale
+    result.arrowSize = dimStyle.dimasz * scale;
+  } else if (styleDimScale !== undefined && styleDimScale !== headerDimScale) {
+    // DIMSTYLE only overrides DIMSCALE — re-scale header DIMASZ with new scale
+    const headerDimAsz = (header?.["$DIMASZ"] as number | undefined) ?? ARROW_SIZE;
+    result.arrowSize = headerDimAsz * scale;
+  }
+
+  // Re-scale extension line geometry
+  if (styleDimScale !== undefined && styleDimScale !== headerDimScale) {
+    result.extLineDash = EXTENSION_LINE_DASH_SIZE * scale;
+    result.extLineGap = EXTENSION_LINE_GAP_SIZE * scale;
   }
 
   return result;

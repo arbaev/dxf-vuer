@@ -8,10 +8,11 @@ import {
   normalizeAngle,
   isAngleInSweep,
   resolveDimVarsFromHeader,
+  applyDimStyleVars,
   mergeEntityDimVars,
   DEFAULT_DIM_VARS,
 } from "../dimensions";
-import type { DxfDimensionEntity } from "@/types/dxf";
+import type { DxfDimensionEntity, DxfDimStyle } from "@/types/dxf";
 
 // Helper to build minimal DxfDimensionEntity objects for testing
 const makeDimEntity = (
@@ -412,6 +413,70 @@ describe("resolveDimVarsFromHeader", () => {
     const dv = resolveDimVarsFromHeader({ "$DIMTSZ": 1.5, "$DIMSCALE": 4 });
     expect(dv.useTicks).toBe(true);
     expect(dv.tickSize).toBe(6);
+  });
+});
+
+// =====================================================================
+// applyDimStyleVars
+// =====================================================================
+
+describe("applyDimStyleVars", () => {
+  const makeStyle = (overrides: Partial<DxfDimStyle> = {}): DxfDimStyle => ({
+    name: "TEST",
+    ...overrides,
+  });
+
+  it("returns base unchanged when DIMSTYLE has no overrides", () => {
+    const base = resolveDimVarsFromHeader({ "$DIMSCALE": 1, "$DIMTXT": 3, "$DIMASZ": 3 });
+    const result = applyDimStyleVars(base, makeStyle());
+    expect(result.textHeight).toBe(3);
+    expect(result.arrowSize).toBe(3);
+  });
+
+  it("applies DIMSTYLE DIMTXT × DIMSCALE", () => {
+    const base = resolveDimVarsFromHeader({ "$DIMSCALE": 1, "$DIMTXT": 3, "$DIMASZ": 3 });
+    const result = applyDimStyleVars(base, makeStyle({ dimscale: 32, dimtxt: 0.1875 }), {
+      "$DIMSCALE": 1, "$DIMTXT": 3, "$DIMASZ": 3,
+    });
+    expect(result.textHeight).toBe(6); // 0.1875 × 32
+  });
+
+  it("applies DIMSTYLE DIMASZ × DIMSCALE", () => {
+    const base = resolveDimVarsFromHeader({ "$DIMSCALE": 1, "$DIMTXT": 3, "$DIMASZ": 3 });
+    const result = applyDimStyleVars(base, makeStyle({ dimscale: 32, dimasz: 0.15625 }), {
+      "$DIMSCALE": 1, "$DIMTXT": 3, "$DIMASZ": 3,
+    });
+    expect(result.arrowSize).toBe(5); // 0.15625 × 32
+  });
+
+  it("re-scales header values when only DIMSCALE differs", () => {
+    const header = { "$DIMSCALE": 1, "$DIMTXT": 3, "$DIMASZ": 2 };
+    const base = resolveDimVarsFromHeader(header);
+    const result = applyDimStyleVars(base, makeStyle({ dimscale: 4 }), header);
+    expect(result.textHeight).toBe(12); // 3 × 4
+    expect(result.arrowSize).toBe(8);   // 2 × 4
+  });
+
+  it("uses header DIMSCALE when DIMSTYLE has no dimscale", () => {
+    const header = { "$DIMSCALE": 2, "$DIMTXT": 3, "$DIMASZ": 3 };
+    const base = resolveDimVarsFromHeader(header);
+    // DIMSTYLE overrides only DIMTXT, uses header DIMSCALE (2)
+    const result = applyDimStyleVars(base, makeStyle({ dimtxt: 5 }), header);
+    expect(result.textHeight).toBe(10); // 5 × 2
+  });
+
+  it("does not modify the base object", () => {
+    const base = { ...DEFAULT_DIM_VARS };
+    applyDimStyleVars(base, makeStyle({ dimscale: 10, dimtxt: 1 }));
+    expect(base.textHeight).toBe(DEFAULT_DIM_VARS.textHeight);
+  });
+
+  it("re-scales extension line geometry with new DIMSCALE", () => {
+    const header = { "$DIMSCALE": 1 };
+    const base = resolveDimVarsFromHeader(header);
+    const result = applyDimStyleVars(base, makeStyle({ dimscale: 5 }), header);
+    expect(result.extLineDash).toBe(10); // 2 × 5
+    expect(result.extLineGap).toBe(5);   // 1 × 5
   });
 });
 
