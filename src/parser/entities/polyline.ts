@@ -5,6 +5,11 @@ import type { IPoint, IEntityBase } from "../parseHelpers";
 
 interface IVertexEntity extends IEntityBase, IPoint {
   bulge?: number;
+  vertexFlags?: number;
+  faceA?: number;
+  faceB?: number;
+  faceC?: number;
+  faceD?: number;
 }
 
 export interface IPolylineEntity extends IEntityBase {
@@ -117,6 +122,7 @@ function parseVertex(scanner: DxfScanner, curr: IGroup): IVertexEntity {
         if (curr.value !== 0) entity.bulge = curr.value as number;
         break;
       case 70:
+        entity.vertexFlags = curr.value as number;
         break;
       case 50:
         break;

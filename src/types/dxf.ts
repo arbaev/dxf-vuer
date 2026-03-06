@@ -39,11 +39,21 @@ export interface DxfArcEntity extends DxfEntityBase {
   extrusionDirection?: DxfVertex;
 }
 
+export interface DxfPolylineVertex extends DxfVertex {
+  bulge?: number;
+  vertexFlags?: number;
+  faceA?: number;
+  faceB?: number;
+  faceC?: number;
+  faceD?: number;
+}
+
 export interface DxfPolylineEntity extends DxfEntityBase {
   type: "POLYLINE" | "LWPOLYLINE";
-  vertices: DxfVertex[];
+  vertices: DxfPolylineVertex[];
   shape?: boolean;
   width?: number; // Constant width (DXF code 43) — used for donuts and wide polylines
+  isPolyfaceMesh?: boolean;
   extrusionDirection?: DxfVertex;
 }
 

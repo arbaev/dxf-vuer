@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { NURBSCurve } from "three/examples/jsm/curves/NURBSCurve.js";
-import type { DxfVertex, DxfEntity, DxfData, DxfLayer, DxfSplineEntity, DxfTextEntity, DxfAttdefEntity, DxfMlineEntity, DxfXlineEntity } from "@/types/dxf";
+import type { DxfVertex, DxfEntity, DxfData, DxfLayer, DxfSplineEntity, DxfTextEntity, DxfAttdefEntity, DxfMlineEntity, DxfXlineEntity, DxfPolylineVertex } from "@/types/dxf";
 import {
   isLineEntity,
   isCircleEntity,
@@ -281,6 +281,53 @@ const add3DFaceEdges = (
   }
 };
 
+/**
+ * Render a POLYLINE polyface mesh as wireframe edges.
+ * Position vertices (vertexFlags & 64 or 128 set, no faceA) define point positions (1-based).
+ * Face vertices (faceA defined) reference those positions; negative index = invisible edge.
+ */
+const addPolyfaceMeshEdges = (
+  collector: GeometryCollector,
+  layer: string,
+  color: string,
+  vertices: DxfPolylineVertex[],
+  worldMatrix?: THREE.Matrix4,
+): void => {
+  // Separate position vertices from face vertices
+  const positions: THREE.Vector3[] = [];
+  const faces: DxfPolylineVertex[] = [];
+  for (const v of vertices) {
+    if (v.faceA !== undefined) {
+      faces.push(v);
+    } else {
+      positions.push(new THREE.Vector3(v.x, v.y, v.z || 0));
+    }
+  }
+  if (worldMatrix) {
+    for (const p of positions) p.applyMatrix4(worldMatrix);
+  }
+  if (positions.length === 0 || faces.length === 0) return;
+
+  // Each face has up to 4 vertex indices (1-based). Negative = invisible edge.
+  for (const face of faces) {
+    const indices = [face.faceA, face.faceB, face.faceC, face.faceD];
+    const faceVerts: number[] = [];
+    const visible: boolean[] = [];
+    for (const idx of indices) {
+      if (idx === undefined || idx === 0) continue;
+      faceVerts.push(Math.abs(idx));
+      visible.push(idx > 0);
+    }
+    for (let i = 0; i < faceVerts.length; i++) {
+      if (!visible[i]) continue;
+      const a = faceVerts[i] - 1;
+      const b = faceVerts[(i + 1) % faceVerts.length] - 1;
+      if (a < 0 || a >= positions.length || b < 0 || b >= positions.length) continue;
+      collector.addLineFromPoints(layer, color, [positions[a], positions[b]]);
+    }
+  }
+};
+
 // ─── PDMODE point symbol rendering ───────────────────────────────────
 
 interface PointSymbolParams {
@@ -524,6 +571,11 @@ const collectEntity = (p: CollectEntityParams): boolean => {
     case "LWPOLYLINE":
     case "POLYLINE": {
       if (isPolylineEntity(entity) && entity.vertices.length > 1) {
+        // Polyface mesh: vertices define positions + face indices
+        if (entity.isPolyfaceMesh) {
+          addPolyfaceMeshEdges(collector, layer, entityColor, entity.vertices, worldMatrix);
+          return true;
+        }
         const matrix = buildOcsMatrix(entity.extrusionDirection);
         const allPoints = computePolylinePoints(entity);
         addLineToCollector(collector, layer, entityColor, applyWorld(transformOcsPoints(allPoints, matrix), worldMatrix), pattern);
@@ -1708,6 +1760,17 @@ const processEntity = (
     case "LWPOLYLINE":
     case "POLYLINE": {
       if (isPolylineEntity(entity) && entity.vertices.length > 1) {
+        if (entity.isPolyfaceMesh) {
+          const tmpCollector = new GeometryCollector();
+          addPolyfaceMeshEdges(tmpCollector, entity.layer || "0", entityColor, entity.vertices);
+          const objects = tmpCollector.flush(colorCtx.materialCache, colorCtx.meshMaterialCache, colorCtx.pointsMaterialCache);
+          if (objects.length > 0) {
+            const group = new THREE.Group();
+            for (const obj of objects) group.add(obj);
+            return group;
+          }
+          return null;
+        }
         const matrix = buildOcsMatrix(entity.extrusionDirection);
         const allPoints = computePolylinePoints(entity);
         return createLine(transformOcsPoints(allPoints, matrix), lineMaterial, ltInfo?.pattern);
