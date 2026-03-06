@@ -311,6 +311,12 @@ export interface DxfMlineEntity extends DxfEntityBase {
   extrusionDirection?: DxfVertex;
 }
 
+export interface DxfXlineEntity extends DxfEntityBase {
+  type: "XLINE" | "RAY";
+  basePoint: DxfVertex;
+  direction: DxfVertex;
+}
+
 export interface DxfUnknownEntity extends DxfEntityBase {
   type: string;
   [key: string]: unknown;
@@ -335,6 +341,7 @@ export type DxfEntity =
   | DxfAttdefEntity
   | DxfAttribEntity
   | DxfMlineEntity
+  | DxfXlineEntity
   | DxfUnknownEntity;
 
 export function isLineEntity(entity: DxfEntity): entity is DxfLineEntity {
@@ -407,6 +414,10 @@ export function isAttribEntity(entity: DxfEntity): entity is DxfAttribEntity {
 
 export function isMlineEntity(entity: DxfEntity): entity is DxfMlineEntity {
   return entity.type === "MLINE";
+}
+
+export function isXlineEntity(entity: DxfEntity): entity is DxfXlineEntity {
+  return entity.type === "XLINE" || entity.type === "RAY";
 }
 
 export interface DxfStyle {

@@ -30,6 +30,7 @@ export interface EntityColorContext {
   dimVars?: import("./dimensions").DimVars; // Resolved dimension variables
   defaultTextHeight: number; // $TEXTSIZE from header (fallback for entities without explicit height)
   mirrText?: boolean; // $MIRRTEXT: true = mirror text with geometry, false (default) = keep readable
+  xlineClipSize?: number; // Half-length for clipping XLINE/RAY to drawing extents
 }
 
 export const degreesToRadians = (degrees: number): number =>

@@ -24,6 +24,7 @@ import { parseViewport } from "../entities/viewport";
 import { parseImage } from "../entities/image";
 import { parseWipeout } from "../entities/wipeout";
 import { parseMline } from "../entities/mline";
+import { parseXline } from "../entities/xline";
 
 type EntityHandler = (scanner: DxfScanner, curr: IGroup) => IEntityBase;
 
@@ -68,6 +69,8 @@ const entityHandlers: Record<string, EntityHandler> = {
   IMAGE: parseImage,
   WIPEOUT: parseWipeout,
   MLINE: parseMline,
+  XLINE: parseXline,
+  RAY: parseXline,
 };
 
 /**

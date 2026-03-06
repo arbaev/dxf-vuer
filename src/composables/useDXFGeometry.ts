@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { NURBSCurve } from "three/examples/jsm/curves/NURBSCurve.js";
-import type { DxfVertex, DxfEntity, DxfData, DxfLayer, DxfSplineEntity, DxfTextEntity, DxfAttdefEntity, DxfMlineEntity } from "@/types/dxf";
+import type { DxfVertex, DxfEntity, DxfData, DxfLayer, DxfSplineEntity, DxfTextEntity, DxfAttdefEntity, DxfMlineEntity, DxfXlineEntity } from "@/types/dxf";
 import {
   isLineEntity,
   isCircleEntity,
@@ -526,6 +526,24 @@ const collectEntity = (p: CollectEntityParams): boolean => {
           addLineToCollector(collector, layer, entityColor, applyWorld(points, worldMatrix), pattern);
           return true;
         }
+      }
+      return false;
+    }
+
+    case "XLINE":
+    case "RAY": {
+      const xline = entity as DxfXlineEntity;
+      if (xline.basePoint && xline.direction) {
+        const bp = xline.basePoint;
+        const dir = xline.direction;
+        const clip = colorCtx.xlineClipSize ?? 1000;
+        const t1 = entity.type === "RAY" ? 0 : -clip;
+        const points = [
+          new THREE.Vector3(bp.x + t1 * dir.x, bp.y + t1 * dir.y, (bp.z || 0) + t1 * (dir.z || 0)),
+          new THREE.Vector3(bp.x + clip * dir.x, bp.y + clip * dir.y, (bp.z || 0) + clip * (dir.z || 0)),
+        ];
+        addLineToCollector(collector, layer, entityColor, applyWorld(points, worldMatrix), pattern);
+        return true;
       }
       return false;
     }
@@ -1724,7 +1742,7 @@ const COLLECTABLE_TYPES = new Set([
   "LINE", "CIRCLE", "ARC", "ELLIPSE",
   "LWPOLYLINE", "POLYLINE", "SPLINE",
   "POINT", "SOLID", "3DFACE", "HATCH",
-  "MLINE",
+  "MLINE", "XLINE", "RAY",
 ]);
 
 /** Yield control to the browser so the UI stays responsive */
@@ -1852,6 +1870,15 @@ export async function createThreeObjectsFromDXF(
     defaultTextHeight,
     mirrText,
   };
+
+  // Compute clip size for XLINE/RAY from drawing extents
+  const extMin = dxf.header?.["$EXTMIN"] as { x: number; y: number } | undefined;
+  const extMax = dxf.header?.["$EXTMAX"] as { x: number; y: number } | undefined;
+  if (extMin && extMax && extMax.x > extMin.x && extMax.y > extMin.y) {
+    const dx = extMax.x - extMin.x;
+    const dy = extMax.y - extMin.y;
+    colorCtx.xlineClipSize = Math.sqrt(dx * dx + dy * dy) * 2;
+  }
 
   const collector = new GeometryCollector();
   const errors: string[] = [];
