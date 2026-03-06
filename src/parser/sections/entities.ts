@@ -40,6 +40,23 @@ const entityHandlers: Record<string, EntityHandler> = {
   INSERT: parseInsert,
   DIMENSION: parseDimension,
   SPLINE: parseSpline,
+  HELIX: (scanner, curr) => {
+    // HELIX uses AcDbSpline subclass internally; trim AcDbHelix pollution
+    const entity = parseSpline(scanner, { ...curr, value: "SPLINE" });
+    if (entity.numberOfControlPoints && entity.controlPoints) {
+      entity.controlPoints = entity.controlPoints.slice(0, entity.numberOfControlPoints);
+    }
+    if (entity.numberOfKnots && entity.knotValues) {
+      entity.knotValues = entity.knotValues.slice(0, entity.numberOfKnots);
+    }
+    if (entity.numberOfFitPoints !== undefined && entity.fitPoints) {
+      entity.fitPoints = entity.fitPoints.slice(0, entity.numberOfFitPoints);
+    }
+    if (entity.numberOfControlPoints && entity.weights) {
+      entity.weights = entity.weights.slice(0, entity.numberOfControlPoints);
+    }
+    return entity;
+  },
   POLYLINE: parsePolyline,
   LWPOLYLINE: parseLWPolyline,
   HATCH: parseHatch,

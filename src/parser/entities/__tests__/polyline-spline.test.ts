@@ -3,6 +3,8 @@ import { createScannerAt } from "../../__tests__/test-helpers";
 import { parsePolyline, type IPolylineEntity } from "../polyline";
 import { parseLWPolyline, type ILWPolylineEntity } from "../lwpolyline";
 import { parseSpline, type ISplineEntity } from "../spline";
+import { parseEntities } from "../../sections/entities";
+import { createScanner, wrapInEntitiesSection } from "../../__tests__/test-helpers";
 
 // =============================================================================
 // POLYLINE
@@ -399,5 +401,105 @@ describe("parseSpline", () => {
 
     expect(entity.knotValues).toHaveLength(5);
     expect(entity.controlPoints).toHaveLength(3);
+  });
+});
+
+// =============================================================================
+// HELIX (parsed as SPLINE)
+// =============================================================================
+describe("HELIX entity", () => {
+  /**
+   * Helper: parse entities from a HELIX wrapped in an ENTITIES section.
+   * Skips the SECTION/ENTITIES header (2 groups) so parseEntities can work.
+   */
+  function parseHelixEntity(...helixDataLines: string[]): ISplineEntity {
+    const pairs = wrapInEntitiesSection("0", "HELIX", ...helixDataLines);
+    const scanner = createScanner(...pairs);
+    scanner.next(); // skip "0 SECTION"
+    scanner.next(); // skip "2 ENTITIES"
+    const entities = parseEntities(scanner, false);
+    expect(entities).toHaveLength(1);
+    return entities[0] as ISplineEntity;
+  }
+
+  it("parses HELIX as SPLINE type", () => {
+    const entity = parseHelixEntity(
+      "8", "Layer1",
+      "100", "AcDbEntity",
+      "100", "AcDbSpline",
+      "70", "0",
+      "71", "3",
+      "72", "4",
+      "73", "2",
+      "74", "0",
+      "40", "0.0",
+      "40", "0.0",
+      "40", "1.0",
+      "40", "1.0",
+      "10", "0.0",
+      "20", "0.0",
+      "30", "0.0",
+      "10", "10.0",
+      "20", "5.0",
+      "30", "0.0",
+      "100", "AcDbHelix",
+      "90", "31",
+      "91", "0",
+      "10", "5.0",
+      "20", "5.0",
+      "30", "0.0",
+      "40", "2.5",
+      "41", "3.0",
+    );
+
+    expect(entity.type).toBe("SPLINE");
+    expect(entity.layer).toBe("Layer1");
+    expect(entity.degreeOfSplineCurve).toBe(3);
+  });
+
+  it("trims AcDbHelix pollution from control points and knots", () => {
+    const entity = parseHelixEntity(
+      "8", "0",
+      "100", "AcDbSpline",
+      "70", "0",
+      "71", "3",
+      "72", "4",
+      "73", "2",
+      "74", "0",
+      "40", "0.0",
+      "40", "0.0",
+      "40", "1.0",
+      "40", "1.0",
+      "10", "1.0",
+      "20", "2.0",
+      "30", "0.0",
+      "10", "3.0",
+      "20", "4.0",
+      "30", "0.0",
+      // AcDbHelix section pollutes arrays
+      "100", "AcDbHelix",
+      "90", "31",
+      "91", "0",
+      "10", "99.0",   // would add extra control point
+      "20", "99.0",
+      "30", "0.0",
+      "11", "88.0",   // would add extra fit point
+      "21", "88.0",
+      "31", "0.0",
+      "40", "2.5",    // would add extra knot
+      "41", "3.0",    // would add extra weight
+    );
+
+    // Control points trimmed to 2 (not 3)
+    expect(entity.controlPoints).toHaveLength(2);
+    expect(entity.controlPoints![0]).toEqual({ x: 1, y: 2, z: 0 });
+    expect(entity.controlPoints![1]).toEqual({ x: 3, y: 4, z: 0 });
+
+    // Knot values trimmed to 4 (not 5)
+    expect(entity.knotValues).toHaveLength(4);
+    expect(entity.knotValues).toEqual([0, 0, 1, 1]);
+
+    // Fit points trimmed to 0 (AcDbHelix code 11 was removed)
+    expect(entity.fitPoints).toHaveLength(0);
   });
 });
