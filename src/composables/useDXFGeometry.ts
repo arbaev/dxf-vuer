@@ -1303,6 +1303,34 @@ const collectDimensionEntity = (
 };
 
 /**
+ * Catmull-Rom spline interpolation through given points.
+ * Returns a smooth polyline that passes through all input points.
+ */
+const catmullRomSpline = (points: THREE.Vector3[], segmentsPerSpan = 12): THREE.Vector3[] => {
+  if (points.length <= 2) return points;
+  const result: THREE.Vector3[] = [];
+  const n = points.length;
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(n - 1, i + 2)];
+    for (let t = 0; t < segmentsPerSpan; t++) {
+      const s = t / segmentsPerSpan;
+      const s2 = s * s;
+      const s3 = s2 * s;
+      result.push(new THREE.Vector3(
+        0.5 * (2 * p1.x + (-p0.x + p2.x) * s + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * s2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * s3),
+        0.5 * (2 * p1.y + (-p0.y + p2.y) * s + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * s2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * s3),
+        0.5 * (2 * p1.z + (-p0.z + p2.z) * s + (2 * p0.z - 5 * p1.z + 4 * p2.z - p3.z) * s2 + (-p0.z + 3 * p1.z - 3 * p2.z + p3.z) * s3),
+      ));
+    }
+  }
+  result.push(points[n - 1]);
+  return result;
+};
+
+/**
  * Collect LEADER/MULTILEADER entity: lines and arrows decomposed into collector,
  * text rendered as vector glyphs directly into collector.
  */
@@ -1400,13 +1428,16 @@ const collectLeaderEntity = (
   };
 
   if (entity.type === "LEADER" && isLeaderEntity(entity) && entity.vertices.length >= 2) {
-    const points = entity.vertices.map(
+    const rawPoints = entity.vertices.map(
       (vt) => new THREE.Vector3(vt.x, vt.y, vt.z || 0),
     );
+    // Spline path (code 72 = 1): interpolate as Catmull-Rom curve
+    const points = entity.pathType === 1 ? catmullRomSpline(rawPoints) : rawPoints;
     addLineToCollector(points);
 
     // arrowHeadFlag: 0 = no arrow, 1 or undefined = with arrow (DXF default)
-    if (entity.arrowHeadFlag !== 0 && points.length >= 2) {
+    if (entity.arrowHeadFlag !== 0 && rawPoints.length >= 2) {
+      // Arrow direction from spline tangent at tip (first two interpolated points)
       const dx = points[0].x - points[1].x;
       const dy = points[0].y - points[1].y;
       const angle = Math.atan2(dy, dx);

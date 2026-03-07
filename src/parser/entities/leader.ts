@@ -8,6 +8,7 @@ export interface ILeaderEntity extends IEntityBase {
   vertices: IPoint[];
   styleName?: string;
   arrowHeadFlag?: number; // 71: 0 = no arrowhead, 1 = with arrowhead
+  pathType?: number; // 72: 0 = straight line, 1 = spline
   numVertices?: number; // 76: number of vertices
 }
 
@@ -25,6 +26,9 @@ export function parseLeader(scanner: DxfScanner, curr: IGroup): ILeaderEntity {
         break;
       case 71:
         entity.arrowHeadFlag = curr.value as number;
+        break;
+      case 72:
+        entity.pathType = curr.value as number;
         break;
       case 76:
         entity.numVertices = curr.value as number;
