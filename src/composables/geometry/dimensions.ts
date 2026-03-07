@@ -222,6 +222,8 @@ export interface DimensionGroupParams {
   isRadial: boolean;
   color: string;
   angle?: number;
+  /** Type-0 (rotated) dimension: always use rotated path, even for angle=0 (horizontal) */
+  forceRotated?: boolean;
   dv?: DimVars;
 }
 
@@ -575,7 +577,7 @@ export const createDimensionGroup = (p: DimensionGroupParams): THREE.Group => {
 
   let dimensionObjects: THREE.Object3D[];
 
-  if (angle !== 0) {
+  if (angle !== 0 || p.forceRotated) {
     const angleRad = (angle * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
     dimensionObjects = createRotatedDimensionLines({
       point1, point2, anchorPoint, textPos,

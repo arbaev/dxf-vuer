@@ -1209,7 +1209,7 @@ const collectDimensionEntity = (
     const dimGroup = createDimensionGroup({
       point1: dimData.point1, point2: dimData.point2, anchorPoint: dimData.anchorPoint,
       textPos: dimData.textPos, textHeight: dimData.textHeight, isRadial: dimData.isRadial,
-      color: entityColor, angle: dimAngle, dv,
+      color: entityColor, angle: dimAngle, forceRotated: baseDimType === 0, dv,
     });
     result = [dimGroup];
 
