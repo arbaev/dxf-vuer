@@ -69,8 +69,8 @@ describe("replaceSpecialChars", () => {
   });
 
   it("replaces ^I (caret notation tab) with space", () => {
-    expect(replaceSpecialChars("MARK^IITEM")).toBe("MARK ITEM");
-    expect(replaceSpecialChars("X-00^I^IREFRIGERATOR")).toBe("X-00  REFRIGERATOR");
+    expect(replaceSpecialChars("MARK^IITEM")).toBe("MARK  ITEM");
+    expect(replaceSpecialChars("X-00^I^IREFRIGERATOR")).toBe("X-00    REFRIGERATOR");
   });
 
   it("replaces ^^ with literal caret", () => {
@@ -82,7 +82,7 @@ describe("replaceSpecialChars", () => {
   });
 
   it("handles ^^ and ^I together", () => {
-    expect(replaceSpecialChars("A^^B^IC")).toBe("A^B C");
+    expect(replaceSpecialChars("A^^B^IC")).toBe("A^B  C");
   });
 });
 

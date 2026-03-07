@@ -30,7 +30,7 @@ export const replaceSpecialChars = (text: string): string =>
     .replace(/%%(\d{3})/g, (_, code) => String.fromCharCode(parseInt(code)))
     // DXF caret notation: ^I = tab, ^^ = literal caret, ^X = control char
     .replace(/\^\^/g, "\x04")
-    .replace(/\^I/g, " ")
+    .replace(/\^I/g, "  ")
     .replace(/\^[A-Z]/g, "")
     .replace(/\x04/g, "^");
 

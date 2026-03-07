@@ -94,8 +94,9 @@ export function measureTextWidth(
   widthFactor: number = 1,
 ): number {
   const m = measureText(font, text);
-  // bounds are normalized (unitsPerEm=1), so multiply by height directly
-  return (m.bounds.xMax - m.bounds.xMin) * height * widthFactor;
+  // DXF height = cap height; scale to em units for correct measurement
+  const capRatio = getCapHeightRatio(font);
+  return (m.bounds.xMax - m.bounds.xMin) * (height / capRatio) * widthFactor;
 }
 
 // ── Parameter interfaces ──────────────────────────────────────────────
@@ -176,9 +177,13 @@ export function addTextToCollector(p: TextParams): void {
   const m = measureText(font, text);
   if (m.glyphs.length === 0) return;
 
-  // All glyph data is normalized (unitsPerEm = 1), so height IS the scale
-  let scaleX = height * widthFactor;
-  let scaleY = height;
+  // DXF text height = cap height (visual height of uppercase letters).
+  // Font glyph data is normalized to em square (unitsPerEm = 1), so we need
+  // to scale by height/capHeightRatio to make cap height match DXF height.
+  const capRatio = getCapHeightRatio(font);
+  const emScale = height / capRatio;
+  let scaleX = emScale * widthFactor;
+  let scaleY = emScale;
 
   const boundsWidth = m.bounds.xMax - m.bounds.xMin;
 
@@ -363,6 +368,29 @@ export function addTextToCollector(p: TextParams): void {
 
 // ── Faux bold/italic constants ─────────────────────────────────────────
 
+/** Default cap height ratio when OS/2 table is unavailable */
+const DEFAULT_CAP_HEIGHT_RATIO = 0.7;
+
+/** Cache for per-font cap height ratio */
+const capHeightCache = new WeakMap<Font, number>();
+
+/**
+ * Get the cap height ratio (capHeight / unitsPerEm) for a font.
+ * DXF text height defines the cap height (height of uppercase letters),
+ * so we scale by 1/capHeightRatio to convert from DXF height to em scale.
+ */
+function getCapHeightRatio(font: Font): number {
+  let ratio = capHeightCache.get(font);
+  if (ratio !== undefined) return ratio;
+  const os2 = (font as { tables?: { os2?: { sCapHeight?: number } } }).tables?.os2;
+  const capHeight = os2?.sCapHeight;
+  ratio = (capHeight && capHeight > 0 && font.unitsPerEm > 0)
+    ? capHeight / font.unitsPerEm
+    : DEFAULT_CAP_HEIGHT_RATIO;
+  capHeightCache.set(font, ratio);
+  return ratio;
+}
+
 /** Italic slant: tan(12°) ≈ 0.2126 */
 const ITALIC_SLANT = Math.tan((12 * Math.PI) / 180);
 /** Bold offset as fraction of height (normalized units) */
@@ -396,14 +424,15 @@ function wrapTextToWidth(font: Font, text: string, height: number, maxWidth: num
   const words = text.split(" ");
   if (words.length <= 1) return [text];
 
+  const emScale = height / getCapHeightRatio(font);
   const lines: string[] = [];
   let currentLine = words[0];
 
   for (let i = 1; i < words.length; i++) {
     const testLine = currentLine + " " + words[i];
     const m = measureText(font, testLine);
-    // totalAdvance is normalized (unitsPerEm=1), multiply by height for world units
-    if (m.totalAdvance * height > maxWidth && currentLine.length > 0) {
+    // totalAdvance is normalized (unitsPerEm=1), multiply by emScale for world units
+    if (m.totalAdvance * emScale > maxWidth && currentLine.length > 0) {
       lines.push(currentLine);
       currentLine = words[i];
     } else {
@@ -448,14 +477,17 @@ function emitStackedText(p: StackedTextParams): void {
   const sin = Math.sin(rotation);
   const stackedHeight = height * STACKED_RATIO;
 
-  // Measure advance widths in world units
-  const mainAdvance = mainText ? measureText(font, mainText).totalAdvance * height : 0;
-  const topAdvance = stackedTop ? measureText(font, stackedTop).totalAdvance * stackedHeight : 0;
+  // Measure advance widths in world units (using em scale for cap height correction)
+  const capRatio = getCapHeightRatio(font);
+  const mainEmScale = height / capRatio;
+  const stackedEmScale = stackedHeight / capRatio;
+  const mainAdvance = mainText ? measureText(font, mainText).totalAdvance * mainEmScale : 0;
+  const topAdvance = stackedTop ? measureText(font, stackedTop).totalAdvance * stackedEmScale : 0;
   const bottomAdvance = stackedBottom
-    ? measureText(font, stackedBottom).totalAdvance * stackedHeight
+    ? measureText(font, stackedBottom).totalAdvance * stackedEmScale
     : 0;
   const stackedWidth = Math.max(topAdvance, bottomAdvance);
-  const gap = mainText ? height * STACKED_H_GAP : 0;
+  const gap = mainText ? mainEmScale * STACKED_H_GAP : 0;
   const totalWidth = mainAdvance + gap + stackedWidth;
 
   // Horizontal alignment offset (in local text direction)
@@ -465,7 +497,7 @@ function emitStackedText(p: StackedTextParams): void {
 
   // Visual center of the main text line
   const normAsc = font.ascender / font.unitsPerEm;
-  const halfAsc = normAsc * height * 0.5;
+  const halfAsc = normAsc * mainEmScale * 0.5;
   // Center point: shift down from top by halfAsc
   const centerOffsetY = -halfAsc;
   const centerX = posX - centerOffsetY * sin;
@@ -653,13 +685,16 @@ export function measureDimensionTextWidth(font: Font, rawText: string, height: n
     const bottomText = stackedMatch[3].trim();
 
     const stackedHeight = height * STACKED_RATIO;
-    const mainAdvance = mainText ? measureText(font, mainText).totalAdvance * height : 0;
-    const topAdvance = topText ? measureText(font, topText).totalAdvance * stackedHeight : 0;
+    const capRatio = getCapHeightRatio(font);
+    const mainEmScale = height / capRatio;
+    const stackedEmScale = stackedHeight / capRatio;
+    const mainAdvance = mainText ? measureText(font, mainText).totalAdvance * mainEmScale : 0;
+    const topAdvance = topText ? measureText(font, topText).totalAdvance * stackedEmScale : 0;
     const bottomAdvance = bottomText
-      ? measureText(font, bottomText).totalAdvance * stackedHeight
+      ? measureText(font, bottomText).totalAdvance * stackedEmScale
       : 0;
     const stackedWidth = Math.max(topAdvance, bottomAdvance);
-    const gap = mainText ? height * STACKED_H_GAP : 0;
+    const gap = mainText ? mainEmScale * STACKED_H_GAP : 0;
 
     return mainAdvance + gap + stackedWidth;
   }
@@ -696,14 +731,17 @@ export function addDimensionTextToCollector(p: DimensionTextParams): void {
     const cos = Math.cos(rotation);
     const sin = Math.sin(rotation);
 
-    // Measure widths to compute horizontal alignment
-    const mainAdvance = mainText ? measureText(font, mainText).totalAdvance * height : 0;
-    const topAdvance = topText ? measureText(font, topText).totalAdvance * stackedHeight : 0;
+    // Measure widths to compute horizontal alignment (using em scale)
+    const capRatio = getCapHeightRatio(font);
+    const mainEmScale = height / capRatio;
+    const stackedEmScale = stackedHeight / capRatio;
+    const mainAdvance = mainText ? measureText(font, mainText).totalAdvance * mainEmScale : 0;
+    const topAdvance = topText ? measureText(font, topText).totalAdvance * stackedEmScale : 0;
     const bottomAdvance = bottomText
-      ? measureText(font, bottomText).totalAdvance * stackedHeight
+      ? measureText(font, bottomText).totalAdvance * stackedEmScale
       : 0;
     const stackedWidth = Math.max(topAdvance, bottomAdvance);
-    const gap = mainText ? height * STACKED_H_GAP : 0;
+    const gap = mainText ? mainEmScale * STACKED_H_GAP : 0;
     const totalWidth = mainAdvance + gap + stackedWidth;
 
     // Horizontal alignment offset
@@ -727,20 +765,20 @@ export function addDimensionTextToCollector(p: DimensionTextParams): void {
     }
 
     // Fractions: centered vertically around posY (= dimension midpoint).
-    const vGap = height * 0.04;
+    const vGap = mainEmScale * 0.04;
     const topMetrics = topText ? measureText(font, topText) : null;
     const bottomMetrics = bottomText ? measureText(font, bottomText) : null;
     const topVisualH = topMetrics
-      ? (topMetrics.bounds.yMax - topMetrics.bounds.yMin) * stackedHeight
+      ? (topMetrics.bounds.yMax - topMetrics.bounds.yMin) * stackedEmScale
       : 0;
     const bottomVisualH = bottomMetrics
-      ? (bottomMetrics.bounds.yMax - bottomMetrics.bounds.yMin) * stackedHeight
+      ? (bottomMetrics.bounds.yMax - bottomMetrics.bounds.yMin) * stackedEmScale
       : 0;
     const totalStackH = topVisualH + vGap + bottomVisualH;
     const halfStack = totalStackH / 2;
 
     if (topText && topMetrics) {
-      const topBaseY = halfStack - topMetrics.bounds.yMax * stackedHeight;
+      const topBaseY = halfStack - topMetrics.bounds.yMax * stackedEmScale;
       const topX = curX - topBaseY * sin;
       const topY = curY + topBaseY * cos;
       addTextToCollector({
@@ -752,7 +790,7 @@ export function addDimensionTextToCollector(p: DimensionTextParams): void {
     }
 
     if (bottomText && bottomMetrics) {
-      const bottomBaseY = -halfStack - bottomMetrics.bounds.yMin * stackedHeight;
+      const bottomBaseY = -halfStack - bottomMetrics.bounds.yMin * stackedEmScale;
       const bottomX = curX - bottomBaseY * sin;
       const bottomY = curY + bottomBaseY * cos;
       addTextToCollector({
