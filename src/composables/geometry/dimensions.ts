@@ -1106,40 +1106,84 @@ export const createAngularDimension = (p: DimensionTypeParams): THREE.Object3D[]
     vertex = v;
   }
 
-  // Use the endpoint farthest from vertex on each line to determine ray directions
-  const dist13 = Math.sqrt((p13.x - vertex.x) ** 2 + (p13.y - vertex.y) ** 2);
-  const dist14 = Math.sqrt((p14.x - vertex.x) ** 2 + (p14.y - vertex.y) ** 2);
-  const farA = dist13 >= dist14 ? p13 : p14;
-
-  const dist15 = Math.sqrt((p15.x - vertex.x) ** 2 + (p15.y - vertex.y) ** 2);
-  const dist10 = Math.sqrt((p10.x - vertex.x) ** 2 + (p10.y - vertex.y) ** 2);
-  const farB = dist15 >= dist10 ? p15 : p10;
-
-  const angleA = Math.atan2(farA.y - vertex.y, farA.x - vertex.x);
-  const angleB = Math.atan2(farB.y - vertex.y, farB.x - vertex.x);
+  // Compute angles and distances from vertex to all 4 endpoints
+  const rays = [
+    { angle: Math.atan2(p13.y - vertex.y, p13.x - vertex.x), pt: p13, line: 1 as const,
+      dist: Math.sqrt((p13.x - vertex.x) ** 2 + (p13.y - vertex.y) ** 2) },
+    { angle: Math.atan2(p14.y - vertex.y, p14.x - vertex.x), pt: p14, line: 1 as const,
+      dist: Math.sqrt((p14.x - vertex.x) ** 2 + (p14.y - vertex.y) ** 2) },
+    { angle: Math.atan2(p15.y - vertex.y, p15.x - vertex.x), pt: p15, line: 2 as const,
+      dist: Math.sqrt((p15.x - vertex.x) ** 2 + (p15.y - vertex.y) ** 2) },
+    { angle: Math.atan2(p10.y - vertex.y, p10.x - vertex.x), pt: p10, line: 2 as const,
+      dist: Math.sqrt((p10.x - vertex.x) ** 2 + (p10.y - vertex.y) ** 2) },
+  ];
 
   const radius = p16
     ? Math.sqrt((p16.x - vertex.x) ** 2 + (p16.y - vertex.y) ** 2)
-    : Math.max(dist13, dist14, dist15, dist10) * 0.8;
+    : Math.max(...rays.map(r => r.dist)) * 0.8;
 
   if (radius < EPSILON) return null;
 
-  // Use arcPoint to determine which of the two possible sweep directions to use
-  let startAngle: number;
-  let endAngle: number;
+  // Determine start/end angles and extension line endpoints.
+  // Two lines through the vertex create 4 sectors; arcPoint (p16) selects the correct one.
+  let startAngle = 0;
+  let endAngle = 0;
+  let extPtStart: DxfVertex = p13;
+  let extPtEnd: DxfVertex = p10;
 
   if (p16) {
     const arcAngle = Math.atan2(p16.y - vertex.y, p16.x - vertex.x);
-    if (isAngleInSweep(angleA, angleB, arcAngle)) {
-      startAngle = angleA;
-      endAngle = angleB;
-    } else {
-      startAngle = angleB;
-      endAngle = angleA;
+
+    // Filter out degenerate rays (endpoint coincides with vertex)
+    const validRays = rays.filter(r => r.dist > EPSILON);
+
+    // Sort rays by normalized angle to identify sectors
+    const sorted = validRays
+      .map(r => ({ ...r, normAngle: normalizeAngle(r.angle) }))
+      .sort((a, b) => a.normAngle - b.normAngle);
+
+    // Find the sector between rays from different lines that contains arcAngle
+    const n = sorted.length;
+    let found = false;
+    for (let i = 0; i < n; i++) {
+      const r1 = sorted[i];
+      const r2 = sorted[(i + 1) % n];
+      if (r1.line === r2.line) continue;
+
+      if (isAngleInSweep(r1.angle, r2.angle, arcAngle)) {
+        startAngle = r1.angle;
+        endAngle = r2.angle;
+        extPtStart = r1.pt;
+        extPtEnd = r2.pt;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      // Fallback: use farthest endpoints with original sweep direction logic
+      const farA = rays[0].dist >= rays[1].dist ? rays[0] : rays[1];
+      const farB = rays[2].dist >= rays[3].dist ? rays[2] : rays[3];
+      if (isAngleInSweep(farA.angle, farB.angle, arcAngle)) {
+        startAngle = farA.angle;
+        endAngle = farB.angle;
+        extPtStart = farA.pt;
+        extPtEnd = farB.pt;
+      } else {
+        startAngle = farB.angle;
+        endAngle = farA.angle;
+        extPtStart = farB.pt;
+        extPtEnd = farA.pt;
+      }
     }
   } else {
-    startAngle = angleA;
-    endAngle = angleB;
+    // No arcPoint: use farthest endpoints
+    const farA = rays[0].dist >= rays[1].dist ? rays[0] : rays[1];
+    const farB = rays[2].dist >= rays[3].dist ? rays[2] : rays[3];
+    startAngle = farA.angle;
+    endAngle = farB.angle;
+    extPtStart = farA.pt;
+    extPtEnd = farB.pt;
   }
 
   // Always CCW sweep
@@ -1179,16 +1223,16 @@ export const createAngularDimension = (p: DimensionTypeParams): THREE.Object3D[]
   );
 
   const extLineA = createExtensionLine(
-    new THREE.Vector3(farA.x, farA.y, 0),
-    startAngle === angleA ? arcStartPt : arcEndPt,
+    new THREE.Vector3(extPtStart.x, extPtStart.y, 0),
+    arcStartPt,
     dashedMat,
     dv.extLineExtension,
   );
   objects.push(extLineA);
 
   const extLineB = createExtensionLine(
-    new THREE.Vector3(farB.x, farB.y, 0),
-    startAngle === angleA ? arcEndPt : arcStartPt,
+    new THREE.Vector3(extPtEnd.x, extPtEnd.y, 0),
+    arcEndPt,
     dashedMat,
     dv.extLineExtension,
   );

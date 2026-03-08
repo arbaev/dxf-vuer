@@ -667,3 +667,92 @@ describe("extractDimensionData with DIMLUNIT=4", () => {
     expect(data!.dimensionText).toBe("custom");
   });
 });
+
+// =====================================================================
+// Angular dimension sector selection (regression: 240° arc instead of 60°)
+// =====================================================================
+
+describe("angular dimension sector selection", () => {
+  it("selects correct 60° sector when farthest endpoint is on the opposite side", () => {
+    // Real data from American Farmhouse DXF, handle 3855
+    // Two lines through vertex create 4 sectors; the arc should be in the 60° sector
+    // containing arcPoint (p16), not the 240° complementary sector.
+    const vertex = { x: 1111.59, y: 3737.71 };
+    const p13 = { x: 1132.52, y: 3773.96 }; // line 1, far from vertex, at ~60°
+    const p14 = { x: 1112.02, y: 3738.46 }; // line 1, near vertex, at ~60°
+    const p15 = { x: 1092.03, y: 3737.71 }; // line 2, far from vertex, at 180°
+    const p10 = { x: 1120.78, y: 3737.71 }; // line 2, near vertex, at 0°
+    const p16 = { x: 1122.34, y: 3741.63 }; // arcPoint at ~20°
+
+    const pts = [p13, p14, p15, p10];
+    const lines = [1, 1, 2, 2];
+    const rays = pts.map((pt, i) => ({
+      angle: Math.atan2(pt.y - vertex.y, pt.x - vertex.x),
+      line: lines[i],
+      dist: Math.sqrt((pt.x - vertex.x) ** 2 + (pt.y - vertex.y) ** 2),
+    }));
+
+    const arcAngle = Math.atan2(p16.y - vertex.y, p16.x - vertex.x);
+
+    // Filter out degenerate rays and find sector
+    const { startAngle, endAngle } = findArcSector(rays, arcAngle);
+    const sweep = normalizeAngle(endAngle - startAngle);
+
+    // Should be ~60° (π/3), not 240° (4π/3)
+    expect(sweep).toBeCloseTo(Math.PI / 3, 1);
+
+    // Arc start should be at x≈1123 (right of vertex), not x≈1100 (left)
+    const radius = Math.sqrt((p16.x - vertex.x) ** 2 + (p16.y - vertex.y) ** 2);
+    const arcStartX = vertex.x + radius * Math.cos(startAngle);
+    expect(arcStartX).toBeCloseTo(1123, 0);
+  });
+
+  it("handles coincident vertex (p14 = p15) without producing full circle", () => {
+    // Entity from entities.dxf handle 187: p14 = p15 = vertex = (20, 10)
+    // Without filtering degenerate rays, both zero-length rays at 0° create
+    // a false sector match → sweep = 2π (full circle) instead of ~75°
+    const vertex = { x: 20, y: 10 };
+    const p13 = { x: 10, y: 80 };  // line 1, far, at ~98°
+    const p14 = { x: 20, y: 10 };  // line 1, AT vertex
+    const p15 = { x: 20, y: 10 };  // line 2, AT vertex
+    const p10 = { x: 90, y: 40 };  // line 2, far, at ~23°
+    const p16 = { x: 35.39, y: 27.20 }; // arcPoint at ~48°
+
+    const rays = [
+      { angle: Math.atan2(p13.y - vertex.y, p13.x - vertex.x), line: 1, dist: Math.sqrt((p13.x - vertex.x) ** 2 + (p13.y - vertex.y) ** 2) },
+      { angle: Math.atan2(p14.y - vertex.y, p14.x - vertex.x), line: 1, dist: Math.sqrt((p14.x - vertex.x) ** 2 + (p14.y - vertex.y) ** 2) },
+      { angle: Math.atan2(p15.y - vertex.y, p15.x - vertex.x), line: 2, dist: Math.sqrt((p15.x - vertex.x) ** 2 + (p15.y - vertex.y) ** 2) },
+      { angle: Math.atan2(p10.y - vertex.y, p10.x - vertex.x), line: 2, dist: Math.sqrt((p10.x - vertex.x) ** 2 + (p10.y - vertex.y) ** 2) },
+    ];
+
+    const arcAngle = Math.atan2(p16.y - vertex.y, p16.x - vertex.x);
+    const { startAngle, endAngle } = findArcSector(rays, arcAngle);
+    const sweep = normalizeAngle(endAngle - startAngle);
+
+    // Should be ~75° (1.308 rad), NOT 2π (full circle)
+    expect(sweep).toBeCloseTo(1.308, 1);
+    expect(sweep).toBeLessThan(Math.PI);
+  });
+});
+
+/** Helper: replicate the sector-finding algorithm from createAngularDimension */
+function findArcSector(
+  rays: { angle: number; line: number; dist: number }[],
+  arcAngle: number,
+): { startAngle: number; endAngle: number } {
+  const EPSILON = 1e-10;
+  const validRays = rays.filter(r => r.dist > EPSILON);
+  const sorted = validRays
+    .map(r => ({ ...r, normAngle: normalizeAngle(r.angle) }))
+    .sort((a, b) => a.normAngle - b.normAngle);
+  const n = sorted.length;
+  for (let i = 0; i < n; i++) {
+    const r1 = sorted[i];
+    const r2 = sorted[(i + 1) % n];
+    if (r1.line === r2.line) continue;
+    if (isAngleInSweep(r1.angle, r2.angle, arcAngle)) {
+      return { startAngle: r1.angle, endAngle: r2.angle };
+    }
+  }
+  return { startAngle: 0, endAngle: 0 };
+}
