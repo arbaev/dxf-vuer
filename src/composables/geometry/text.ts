@@ -20,8 +20,11 @@ export interface MTextLine {
  * Replace DXF special characters:
  * %%d -> deg, %%p -> +/-, %%c -> diameter, %%nnn -> char by code, %%u/%%o -> remove
  * ^I -> tab (space), ^^ -> literal caret, ^X -> remove other control chars
+ *
+ * @param preserveTabs When true, ^I becomes \t (real tab) instead of two spaces.
+ *   Used by MTEXT parser to enable tab stop calculations.
  */
-export const replaceSpecialChars = (text: string): string =>
+export const replaceSpecialChars = (text: string, preserveTabs = false): string =>
   text
     .replace(/%%[dD]/g, "\u00B0")
     .replace(/%%[pP]/g, "\u00B1")
@@ -30,7 +33,7 @@ export const replaceSpecialChars = (text: string): string =>
     .replace(/%%(\d{3})/g, (_, code) => String.fromCharCode(parseInt(code)))
     // DXF caret notation: ^I = tab, ^^ = literal caret, ^X = control char
     .replace(/\^\^/g, "\x04")
-    .replace(/\^I/g, "  ")
+    .replace(/\^I/g, preserveTabs ? "\t" : "  ")
     .replace(/\^[A-Z]/g, "")
     .replace(/\x04/g, "^");
 
@@ -58,7 +61,7 @@ export const parseMTextContent = (rawText: string, defaultHeight?: number): MTex
     String.fromCodePoint(parseInt(hex, 16)),
   );
 
-  text = replaceSpecialChars(text);
+  text = replaceSpecialChars(text, true);
 
   // Split by \P (MTEXT line break)
   const rawLines = text.split(/\\P/);

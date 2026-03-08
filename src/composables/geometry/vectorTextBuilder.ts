@@ -405,6 +405,63 @@ const DXF_LINE_SPACING_BASE = 5 / 3;
 const STACKED_RATIO = 0.6;
 /** Small gap between main text and stacked fraction, as ratio of height */
 const STACKED_H_GAP = 0.1;
+/** Default MTEXT tab stop interval: every 4 × text height (AutoCAD default) */
+const DEFAULT_TAB_MULTIPLIER = 4;
+
+/**
+ * Measure the width of a text line with tab stop support.
+ * Splits text by tab characters and advances to the next tab stop after each segment.
+ * @returns Width in world units.
+ */
+function measureLineWithTabs(
+  font: Font, text: string, emScale: number, tabStopWidth: number,
+): number {
+  if (!text.includes("\t")) {
+    return measureText(font, text).totalAdvance * emScale;
+  }
+  const segments = text.split("\t");
+  let worldX = 0;
+  for (let i = 0; i < segments.length; i++) {
+    if (segments[i]) {
+      worldX += measureText(font, segments[i]).totalAdvance * emScale;
+    }
+    // After each segment except the last, advance to next tab stop
+    if (i < segments.length - 1) {
+      worldX = Math.ceil((worldX + 1e-6) / tabStopWidth) * tabStopWidth;
+    }
+  }
+  return worldX;
+}
+
+/**
+ * Replace tab characters with the appropriate number of spaces
+ * to visually approximate tab stop positions.
+ */
+function expandTabsToSpaces(
+  font: Font, text: string, emScale: number, tabStopWidth: number,
+): string {
+  if (!text.includes("\t")) return text;
+
+  const spaceAdvance = measureText(font, " ").totalAdvance * emScale;
+  if (spaceAdvance <= 0) return text.replace(/\t/g, "    ");
+
+  const segments = text.split("\t");
+  let result = segments[0];
+  let worldX = segments[0] ? measureText(font, segments[0]).totalAdvance * emScale : 0;
+
+  for (let i = 1; i < segments.length; i++) {
+    const nextStop = Math.ceil((worldX + 1e-6) / tabStopWidth) * tabStopWidth;
+    const gap = nextStop - worldX;
+    const numSpaces = Math.max(1, Math.round(gap / spaceAdvance));
+    result += " ".repeat(numSpaces);
+    worldX = nextStop;
+    if (segments[i]) {
+      result += segments[i];
+      worldX += measureText(font, segments[i]).totalAdvance * emScale;
+    }
+  }
+  return result;
+}
 
 /**
  * Map MTEXT horizontal alignment string to HAlign enum.
@@ -565,19 +622,68 @@ export function addMTextToCollector(p: MTextParams): void {
   if (lines.length === 0 || defaultHeight <= 0) return;
   const lineSpacing = (lineSpacingFactor || 1) * DXF_LINE_SPACING_BASE;
 
-  // 1. Word wrapping: expand lines if width constraint is set
+  // 1. Tab expansion + Word wrapping
+  const tabStopWidth = DEFAULT_TAB_MULTIPLIER * defaultHeight;
   const expandedLines: MTextLine[] = [];
-  if (width && width > 0) {
-    for (const line of lines) {
-      // Skip wrapping for stacked lines (typically short fractions)
-      if (line.stackedTop || line.stackedBottom) {
-        expandedLines.push(line);
-        continue;
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
+    // Skip wrapping for stacked lines (typically short fractions)
+    if (line.stackedTop || line.stackedBottom) {
+      expandedLines.push(line);
+      continue;
+    }
+
+    let processedText = line.text;
+    let insertEmptyLine = false;
+
+    // Expand tab characters with proper tab stop positions
+    if (processedText.includes("\t")) {
+      const lineHeight = line.height || defaultHeight;
+      const emScale = lineHeight / getCapHeightRatio(font);
+
+      // Check if trailing tabs push beyond column width (causes visual line wrap).
+      // Two checks:
+      //  Strict: fullWidth > width — tabs definitely exceed column (works for any font).
+      //  Relaxed: fullWidth > width - tabStopWidth — the line with tabs reached the
+      //    last tab column before the boundary. With font substitution (e.g. Noto Sans
+      //    for Arial) text can be slightly narrower, landing one tab stop short of where
+      //    the original font would push it past the column width. Only applied when the
+      //    next line is not already empty (avoid double spacing from \P\P).
+      if (width && width > 0 && /\t$/.test(processedText)) {
+        const fullWidth = measureLineWithTabs(font, processedText, emScale, tabStopWidth);
+        const trimmed = processedText.replace(/\t+$/, "");
+        const trimmedWidth = trimmed.includes("\t")
+          ? measureLineWithTabs(font, trimmed, emScale, tabStopWidth)
+          : trimmed ? measureText(font, trimmed).totalAdvance * emScale : 0;
+
+        if (trimmedWidth <= width) {
+          if (fullWidth > width) {
+            // Strict: tabs definitely exceed column width
+            insertEmptyLine = true;
+          } else if (fullWidth > width - tabStopWidth) {
+            // Relaxed: within one tab stop of boundary — check next line
+            const nextText = lineIdx + 1 < lines.length ? lines[lineIdx + 1].text : "";
+            const nextIsEmpty = !nextText || !nextText.replace(/\t/g, "").trim();
+            if (!nextIsEmpty) {
+              insertEmptyLine = true;
+            }
+          }
+        }
       }
+
+      // Expand tabs to spaces. Always trim trailing tabs — they serve only
+      // as width markers for the wrapping check above, not as visible content.
+      // Keeping them would produce trailing spaces that cause spurious word wrapping.
+      const textForExpansion = processedText.replace(/\t+$/, "");
+      processedText = expandTabsToSpaces(font, textForExpansion, emScale, tabStopWidth);
+    }
+
+    // Word wrap (only when width constraint is set)
+    if (width && width > 0) {
       const lineHeight = line.height || defaultHeight;
       const margin = line.leftMargin || 0;
       const effectiveWidth = width - margin;
-      const wrapped = wrapTextToWidth(font, line.text, lineHeight, effectiveWidth > 0 ? effectiveWidth : width);
+      const wrapped = wrapTextToWidth(font, processedText, lineHeight, effectiveWidth > 0 ? effectiveWidth : width);
       for (let wi = 0; wi < wrapped.length; wi++) {
         expandedLines.push({
           ...line,
@@ -586,9 +692,14 @@ export function addMTextToCollector(p: MTextParams): void {
           firstIndent: wi === 0 ? line.firstIndent : undefined,
         });
       }
+    } else {
+      expandedLines.push({ ...line, text: processedText });
     }
-  } else {
-    expandedLines.push(...lines);
+
+    // Insert empty line when trailing tabs exceeded column width
+    if (insertEmptyLine) {
+      expandedLines.push({ text: "", color: line.color, height: line.height });
+    }
   }
 
   if (expandedLines.length === 0) return;

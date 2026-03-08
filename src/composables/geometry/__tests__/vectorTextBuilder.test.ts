@@ -511,6 +511,86 @@ describe("vectorTextBuilder", () => {
     });
   });
 
+  describe("addMTextToCollector — tab stops", () => {
+    it("trailing tabs exceeding column width insert empty line (more mesh calls)", () => {
+      // Tab stop = 4 × defaultHeight = 4 × 10 = 40 units
+      // "AB\tCD\t\t": AB width ~14, tab→40, CD width ~14, pos→54, tab→80, tab→120
+      // With column width=50, trailing tabs (120 > 50) cause wrapping → empty line
+      const cTabs = new MockCollector();
+      const cNoTabs = new MockCollector();
+      const linesWithTabs: MTextLine[] = [{ text: "AB\tCD\t\t" }, { text: "EF" }];
+      const linesNoTabs: MTextLine[] = [{ text: "AB CD" }, { text: "EF" }];
+      addMTextToCollector(mp({ collector: cTabs as any, font, lines: linesWithTabs, width: 50, attachmentPoint: 1 }));
+      addMTextToCollector(mp({ collector: cNoTabs as any, font, lines: linesNoTabs, width: 50, attachmentPoint: 1 }));
+      // With trailing tabs creating empty line, the MTEXT block is taller (3 visual lines vs 2)
+      const bTabs = cTabs.getBounds();
+      const bNoTabs = cNoTabs.getBounds();
+      expect(bTabs.yMin).toBeLessThan(bNoTabs.yMin);
+    });
+
+    it("tabs within text produce wider spacing than two spaces", () => {
+      const cTab = new MockCollector();
+      const cSpaces = new MockCollector();
+      // Tab stop at 40 units, so A\tB places B much further than "A  B"
+      addMTextToCollector(mp({ collector: cTab as any, font, lines: [{ text: "A\tB" }] }));
+      addMTextToCollector(mp({ collector: cSpaces as any, font, lines: [{ text: "A  B" }] }));
+      const bTab = cTab.getBounds();
+      const bSpaces = cSpaces.getBounds();
+      expect(bTab.xMax - bTab.xMin).toBeGreaterThan(bSpaces.xMax - bSpaces.xMin);
+    });
+
+    it("no empty line inserted when trailing tabs fit within column width", () => {
+      const cTabs = new MockCollector();
+      const cNoTabs = new MockCollector();
+      // Very wide column (1000 units) — tabs won't exceed it
+      const linesWithTabs: MTextLine[] = [{ text: "AB\tCD\t" }, { text: "EF" }];
+      const linesNoTabs: MTextLine[] = [{ text: "AB CD" }, { text: "EF" }];
+      addMTextToCollector(mp({ collector: cTabs as any, font, lines: linesWithTabs, width: 1000, attachmentPoint: 1 }));
+      addMTextToCollector(mp({ collector: cNoTabs as any, font, lines: linesNoTabs, width: 1000, attachmentPoint: 1 }));
+      // Same number of visual lines (2), so Y bounds should be similar
+      const bTabs = cTabs.getBounds();
+      const bNoTabs = cNoTabs.getBounds();
+      expect(Math.abs(bTabs.yMin - bNoTabs.yMin)).toBeLessThan(5);
+    });
+
+    it("tabs without column width are expanded to spaces (no crash)", () => {
+      const c = new MockCollector();
+      addMTextToCollector(mp({ collector: c as any, font, lines: [{ text: "X-00\tREFRIGERATOR\t\t" }] }));
+      expect(c.meshCalls.length).toBeGreaterThan(0);
+    });
+
+    it("relaxed check: trailing tab within one tab stop of boundary inserts empty line", () => {
+      // Tab stop = 4 × 10 = 40. "A\tB\t": A→tab(40), B~(48)→trailing tab(80).
+      // With width=81: strict fails (80 < 81), relaxed passes (80 > 81-40=41).
+      // Next line is "X" (not empty) → insert empty line.
+      const c = new MockCollector();
+      const linesRelaxed: MTextLine[] = [{ text: "A\tB\t" }, { text: "X" }];
+      addMTextToCollector(mp({ collector: c as any, font, lines: linesRelaxed, width: 81, attachmentPoint: 1 }));
+      const b = c.getBounds();
+      // 3 visual lines (text + empty + X), block should be taller than 2 lines
+      const cNoRelax = new MockCollector();
+      const linesNoRelax: MTextLine[] = [{ text: "A B" }, { text: "X" }];
+      addMTextToCollector(mp({ collector: cNoRelax as any, font, lines: linesNoRelax, width: 81, attachmentPoint: 1 }));
+      const bNoRelax = cNoRelax.getBounds();
+      expect(b.yMin).toBeLessThan(bNoRelax.yMin);
+    });
+
+    it("relaxed check does NOT insert empty line when next line is already empty", () => {
+      // Same tab layout: "A\tB\t" → trailing tab at 80. width=81.
+      // Strict fails (80<81), relaxed passes (80>41), but next line is "" → no insert.
+      const cWithTabs = new MockCollector();
+      const cPlain = new MockCollector();
+      const linesWithTabs: MTextLine[] = [{ text: "A\tB\t" }, { text: "" }, { text: "X" }];
+      const linesPlain: MTextLine[] = [{ text: "A B" }, { text: "" }, { text: "X" }];
+      addMTextToCollector(mp({ collector: cWithTabs as any, font, lines: linesWithTabs, width: 81, attachmentPoint: 1 }));
+      addMTextToCollector(mp({ collector: cPlain as any, font, lines: linesPlain, width: 81, attachmentPoint: 1 }));
+      const b1 = cWithTabs.getBounds();
+      const b2 = cPlain.getBounds();
+      // Same number of visual lines (3) — no extra empty line inserted
+      expect(Math.abs(b1.yMin - b2.yMin)).toBeLessThan(5);
+    });
+  });
+
   describe("addDimensionTextToCollector — plain text", () => {
     it("produces mesh data for dimension value", () => {
       const c = new MockCollector();

@@ -84,6 +84,15 @@ describe("replaceSpecialChars", () => {
   it("handles ^^ and ^I together", () => {
     expect(replaceSpecialChars("A^^B^IC")).toBe("A^B  C");
   });
+
+  it("preserves ^I as tab character when preserveTabs=true", () => {
+    expect(replaceSpecialChars("MARK^IITEM", true)).toBe("MARK\tITEM");
+    expect(replaceSpecialChars("X-00^I^IREFRIGERATOR", true)).toBe("X-00\t\tREFRIGERATOR");
+  });
+
+  it("handles ^^ and ^I with preserveTabs=true", () => {
+    expect(replaceSpecialChars("A^^B^IC", true)).toBe("A^B\tC");
+  });
 });
 
 // ── parseTextWithUnderline ───────────────────────────────────────────────
@@ -318,6 +327,13 @@ describe("parseMTextContent", () => {
     const result = parseMTextContent("Angle: 45%%d, Dia: %%c20");
     expect(result).toHaveLength(1);
     expect(result[0].text).toBe("Angle: 45\u00B0, Dia: \u230020");
+  });
+
+  it("preserves ^I as tab character in MTEXT lines", () => {
+    const result = parseMTextContent("X-00^IREFRIGERATOR^I^I\\PX-02^IKITCHEN SINK");
+    expect(result).toHaveLength(2);
+    expect(result[0].text).toBe("X-00\tREFRIGERATOR\t\t");
+    expect(result[1].text).toBe("X-02\tKITCHEN SINK");
   });
 });
 
