@@ -1199,16 +1199,66 @@ export const createAngularDimension = (p: DimensionTypeParams): THREE.Object3D[]
   });
   const arrowMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
 
-  const segments = Math.max(MIN_ARC_SEGMENTS, Math.floor((sweep * CIRCLE_SEGMENTS) / (Math.PI * 2)));
-  const arcPoints: THREE.Vector3[] = [];
-  for (let i = 0; i <= segments; i++) {
-    const a = startAngle + (i / segments) * sweep;
-    arcPoints.push(
-      new THREE.Vector3(vertex.x + radius * Math.cos(a), vertex.y + radius * Math.sin(a), 0),
-    );
+  // --- Compute dimension text before drawing arc (needed for text gap) ---
+  let dimensionText = entity.text;
+  const measurement = entity.actualMeasurement;
+
+  // Angular measurement is stored in radians; convert to degrees for display
+  if (typeof measurement === "number") {
+    const degrees = (measurement * DEGREES_TO_RADIANS_DIVISOR) / Math.PI;
+    const measStr = formatDimNumber(degrees) + "\u00B0";
+    if (dimensionText) {
+      dimensionText = dimensionText.replace(/<>/g, measStr);
+    } else {
+      dimensionText = measStr;
+    }
   }
-  const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPoints);
-  objects.push(new THREE.Line(arcGeom, lineMat));
+
+  const textHeight = entity.textHeight || dv.textHeight;
+
+  // Compute text position and angle
+  let textAngle: number;
+  let textX: number;
+  let textY: number;
+  let textOnArc = false;
+
+  if (dimensionText && textPos) {
+    textX = textPos.x;
+    textY = textPos.y;
+    textAngle = Math.atan2(textPos.y - vertex.y, textPos.x - vertex.x);
+    const textDist = Math.sqrt((textPos.x - vertex.x) ** 2 + (textPos.y - vertex.y) ** 2);
+    textOnArc = Math.abs(textDist - radius) < textHeight
+      && isAngleInSweep(startAngle, endAngle, textAngle);
+  } else {
+    // Default: place text at arc midpoint, offset outward (not on arc)
+    const midAngle = startAngle + sweep / 2;
+    const textRadius = radius + textHeight * 0.8;
+    textX = vertex.x + textRadius * Math.cos(midAngle);
+    textY = vertex.y + textRadius * Math.sin(midAngle);
+    textAngle = midAngle;
+  }
+
+  // --- Draw arc, splitting around text if text lies on it ---
+  const addArcSegment = (fromAngle: number, toAngle: number) => {
+    const arcSweep = normalizeAngle(toAngle - fromAngle);
+    if (arcSweep < EPSILON) return;
+    const segs = Math.max(MIN_ARC_SEGMENTS, Math.floor((arcSweep * CIRCLE_SEGMENTS) / (Math.PI * 2)));
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= segs; i++) {
+      const a = fromAngle + (i / segs) * arcSweep;
+      pts.push(new THREE.Vector3(vertex.x + radius * Math.cos(a), vertex.y + radius * Math.sin(a), 0));
+    }
+    objects.push(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
+  };
+
+  if (textOnArc && dimensionText && font) {
+    const textWidth = measureDimensionTextWidth(font, dimensionText, textHeight);
+    const halfGapAngle = (textWidth / 2 + dv.textGap / 4) / radius;
+    addArcSegment(startAngle, textAngle - halfGapAngle);
+    addArcSegment(textAngle + halfGapAngle, endAngle);
+  } else {
+    addArcSegment(startAngle, endAngle);
+  }
 
   // Extension lines from ray endpoints to points on the arc
   const arcStartPt = new THREE.Vector3(
@@ -1238,59 +1288,34 @@ export const createAngularDimension = (p: DimensionTypeParams): THREE.Object3D[]
   );
   objects.push(extLineB);
 
-  // Arrows follow arc curvature (chord direction, not pure tangent)
-  const arrowArcAngle = dv.arrowSize / radius;
+  // Arrowheads or tick marks at arc endpoints
+  if (dv.useTicks) {
+    // Tick marks: oriented along arc tangent at each endpoint
+    objects.push(createTick(new THREE.Vector3(arcStartPt.x, arcStartPt.y, 0.1), dv.tickSize, startAngle + Math.PI / 2, lineMat));
+    objects.push(createTick(new THREE.Vector3(arcEndPt.x, arcEndPt.y, 0.1), dv.tickSize, endAngle + Math.PI / 2, lineMat));
+  } else {
+    // Arrows follow arc curvature (chord direction, not pure tangent)
+    const arrowArcAngle = dv.arrowSize / radius;
 
-  const innerStartA = startAngle + arrowArcAngle;
-  const arrowStartFrom = new THREE.Vector3(
-    vertex.x + radius * Math.cos(innerStartA),
-    vertex.y + radius * Math.sin(innerStartA),
-    0.1,
-  );
-  objects.push(createArrow(arrowStartFrom, new THREE.Vector3(arcStartPt.x, arcStartPt.y, 0.1), dv.arrowSize, arrowMat));
+    const innerStartA = startAngle + arrowArcAngle;
+    const arrowStartFrom = new THREE.Vector3(
+      vertex.x + radius * Math.cos(innerStartA),
+      vertex.y + radius * Math.sin(innerStartA),
+      0.1,
+    );
+    objects.push(createArrow(arrowStartFrom, new THREE.Vector3(arcStartPt.x, arcStartPt.y, 0.1), dv.arrowSize, arrowMat));
 
-  const innerEndA = endAngle - arrowArcAngle;
-  const arrowEndFrom = new THREE.Vector3(
-    vertex.x + radius * Math.cos(innerEndA),
-    vertex.y + radius * Math.sin(innerEndA),
-    0.1,
-  );
-  objects.push(createArrow(arrowEndFrom, new THREE.Vector3(arcEndPt.x, arcEndPt.y, 0.1), dv.arrowSize, arrowMat));
-
-  let dimensionText = entity.text;
-  const measurement = entity.actualMeasurement;
-
-  // Angular measurement is stored in radians; convert to degrees for display
-  if (typeof measurement === "number") {
-    const degrees = (measurement * DEGREES_TO_RADIANS_DIVISOR) / Math.PI;
-    const measStr = formatDimNumber(degrees) + "\u00B0";
-    if (dimensionText) {
-      dimensionText = dimensionText.replace(/<>/g, measStr);
-    } else {
-      dimensionText = measStr;
-    }
+    const innerEndA = endAngle - arrowArcAngle;
+    const arrowEndFrom = new THREE.Vector3(
+      vertex.x + radius * Math.cos(innerEndA),
+      vertex.y + radius * Math.sin(innerEndA),
+      0.1,
+    );
+    objects.push(createArrow(arrowEndFrom, new THREE.Vector3(arcEndPt.x, arcEndPt.y, 0.1), dv.arrowSize, arrowMat));
   }
 
+  // --- Render text ---
   if (dimensionText) {
-    const textHeight = entity.textHeight || dv.textHeight;
-
-    let textAngle: number;
-    let textX: number;
-    let textY: number;
-
-    if (textPos) {
-      textX = textPos.x;
-      textY = textPos.y;
-      textAngle = Math.atan2(textPos.y - vertex.y, textPos.x - vertex.x);
-    } else {
-      // Default: place text at arc midpoint, offset outward
-      const midAngle = startAngle + sweep / 2;
-      const textRadius = radius + textHeight * 0.8;
-      textX = vertex.x + textRadius * Math.cos(midAngle);
-      textY = vertex.y + textRadius * Math.sin(midAngle);
-      textAngle = midAngle;
-    }
-
     // Rotate text along arc tangent (perpendicular to radius), keep it readable
     let textRotation = textAngle + Math.PI / 2;
     const norm = normalizeAngle(textRotation);
