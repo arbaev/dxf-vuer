@@ -226,10 +226,11 @@ export function addTextToCollector(p: TextParams): void {
   }
 
   // Horizontal origin offset (in normalized font units: divided by unitsPerEm)
+  // DXF insertion point = advance origin (not visual edge), so LEFT uses 0.
   let originX = 0;
   switch (hAlign) {
     case HAlign.LEFT:
-      originX = m.bounds.xMin;
+      originX = 0;
       break;
     case HAlign.CENTER:
       originX = (m.bounds.xMax + m.bounds.xMin) / 2;
