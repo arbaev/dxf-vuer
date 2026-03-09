@@ -214,13 +214,14 @@ describe("instantiateBlockTemplate", () => {
 
     instantiateBlockTemplate(template, collector, "IGNORED", "#000000", worldMatrix);
 
-    const data = collector.lineSegments.get("WALLS::#ff0000");
-    expect(data).toBeDefined();
-    expect(data!.length).toBe(6);
-    expect(data![0]).toBeCloseTo(10);
-    expect(data![1]).toBeCloseTo(20);
-    expect(data![3]).toBeCloseTo(11);
-    expect(data![4]).toBeCloseTo(20);
+    const raw = collector.lineSegments.get("WALLS::#ff0000");
+    expect(raw).toBeDefined();
+    const data = raw!.toArray();
+    expect(data.length).toBe(6);
+    expect(data[0]).toBeCloseTo(10);
+    expect(data[1]).toBeCloseTo(20);
+    expect(data[3]).toBeCloseTo(11);
+    expect(data[4]).toBeCloseTo(20);
   });
 
   it("resolves INHERIT_LAYER sentinel to insertLayer", () => {
@@ -315,12 +316,14 @@ describe("instantiateBlockTemplate", () => {
 
     instantiateBlockTemplate(template, collector, "WALLS", "#ff0000", worldMatrix);
 
-    const vertices = collector.meshVertices.get("WALLS::#ff0000");
-    const indices = collector.meshIndices.get("WALLS::#ff0000");
-    expect(vertices).toBeDefined();
-    expect(indices).toBeDefined();
-    expect(vertices![0]).toBeCloseTo(5);
-    expect(vertices![1]).toBeCloseTo(5);
+    const rawV = collector.meshVertices.get("WALLS::#ff0000");
+    const rawI = collector.meshIndices.get("WALLS::#ff0000");
+    expect(rawV).toBeDefined();
+    expect(rawI).toBeDefined();
+    const vertices = rawV!.toArray();
+    const indices = rawI!.toArray();
+    expect(vertices[0]).toBeCloseTo(5);
+    expect(vertices[1]).toBeCloseTo(5);
     expect(indices).toEqual([0, 1, 2]);
   });
 

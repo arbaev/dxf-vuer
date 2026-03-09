@@ -2,6 +2,118 @@ import * as THREE from "three";
 import { getLineMaterial, getMeshMaterial, getPointsMaterial } from "./primitives";
 import { LINETYPE_DOT_SIZE } from "@/constants";
 
+// ─── Growable typed arrays ──────────────────────────────────────────
+
+/**
+ * Growable Float32Array for efficient accumulation of vertex data.
+ * Avoids boxing overhead of number[] and eliminates the slow
+ * number[]→Float32Array conversion at flush time.
+ */
+export class GrowableFloat32Array {
+  buffer: Float32Array;
+  length = 0;
+
+  constructor(initialCapacity = 1024) {
+    this.buffer = new Float32Array(initialCapacity);
+  }
+
+  private grow(needed: number): void {
+    const newCap = Math.max(this.buffer.length * 2, this.length + needed);
+    const newBuf = new Float32Array(newCap);
+    newBuf.set(this.buffer.subarray(0, this.length));
+    this.buffer = newBuf;
+  }
+
+  push(v: number): void {
+    if (this.length >= this.buffer.length) this.grow(1);
+    this.buffer[this.length++] = v;
+  }
+
+  push3(x: number, y: number, z: number): void {
+    if (this.length + 3 > this.buffer.length) this.grow(3);
+    this.buffer[this.length++] = x;
+    this.buffer[this.length++] = y;
+    this.buffer[this.length++] = z;
+  }
+
+  push6(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): void {
+    if (this.length + 6 > this.buffer.length) this.grow(6);
+    this.buffer[this.length++] = x1;
+    this.buffer[this.length++] = y1;
+    this.buffer[this.length++] = z1;
+    this.buffer[this.length++] = x2;
+    this.buffer[this.length++] = y2;
+    this.buffer[this.length++] = z2;
+  }
+
+  pushArray(arr: number[]): void {
+    const n = arr.length;
+    if (this.length + n > this.buffer.length) this.grow(n);
+    for (let i = 0; i < n; i++) {
+      this.buffer[this.length + i] = arr[i];
+    }
+    this.length += n;
+  }
+
+  at(index: number): number {
+    return this.buffer[index];
+  }
+
+  /** Return a compact Float32Array copy for use in BufferAttribute */
+  toFloat32Array(): Float32Array {
+    return this.buffer.slice(0, this.length);
+  }
+
+  /** Convert to regular number[] (for block templates and tests) */
+  toArray(): number[] {
+    return Array.from(this.buffer.subarray(0, this.length));
+  }
+}
+
+/**
+ * Growable Uint32Array for efficient accumulation of mesh indices.
+ */
+export class GrowableUint32Array {
+  buffer: Uint32Array;
+  length = 0;
+
+  constructor(initialCapacity = 1024) {
+    this.buffer = new Uint32Array(initialCapacity);
+  }
+
+  private grow(needed: number): void {
+    const newCap = Math.max(this.buffer.length * 2, this.length + needed);
+    const newBuf = new Uint32Array(newCap);
+    newBuf.set(this.buffer.subarray(0, this.length));
+    this.buffer = newBuf;
+  }
+
+  pushArrayWithOffset(arr: number[], offset: number): void {
+    const n = arr.length;
+    if (this.length + n > this.buffer.length) this.grow(n);
+    for (let i = 0; i < n; i++) {
+      this.buffer[this.length + i] = arr[i] + offset;
+    }
+    this.length += n;
+  }
+
+  at(index: number): number {
+    return this.buffer[index];
+  }
+
+  /** Return a compact Uint32Array copy for BufferAttribute index */
+  toUint32Array(): Uint32Array {
+    return this.buffer.slice(0, this.length);
+  }
+
+  /** Convert to regular number[] (for block templates and tests) */
+  toArray(): number[] {
+    return Array.from(this.buffer.subarray(0, this.length));
+  }
+}
+
+// ─── GeometryCollector ──────────────────────────────────────────────
+
 /**
  * GeometryCollector accumulates vertex data from multiple DXF entities
  * and merges them into a minimal number of Three.js objects.
@@ -13,18 +125,27 @@ import { LINETYPE_DOT_SIZE } from "@/constants";
  */
 export class GeometryCollector {
   /** Line segment pairs: flat [x,y,z, x,y,z, ...] per key */
-  readonly lineSegments = new Map<string, number[]>();
+  readonly lineSegments = new Map<string, GrowableFloat32Array>();
   /** Point positions (POINT entities): flat [x,y,z, ...] per key */
-  readonly points = new Map<string, number[]>();
+  readonly points = new Map<string, GrowableFloat32Array>();
   /** Linetype dot positions (smaller size): flat [x,y,z, ...] per key */
-  readonly linetypeDots = new Map<string, number[]>();
+  readonly linetypeDots = new Map<string, GrowableFloat32Array>();
   /** Mesh vertex positions: flat [x,y,z, ...] per key */
-  readonly meshVertices = new Map<string, number[]>();
+  readonly meshVertices = new Map<string, GrowableFloat32Array>();
   /** Mesh triangle indices per key */
-  readonly meshIndices = new Map<string, number[]>();
+  readonly meshIndices = new Map<string, GrowableUint32Array>();
 
   private static makeKey(layer: string, color: string): string {
     return `${layer}::${color}`;
+  }
+
+  private getOrCreateFloat32(map: Map<string, GrowableFloat32Array>, key: string): GrowableFloat32Array {
+    let arr = map.get(key);
+    if (!arr) {
+      arr = new GrowableFloat32Array();
+      map.set(key, arr);
+    }
+    return arr;
   }
 
   /**
@@ -34,15 +155,11 @@ export class GeometryCollector {
   addLineFromPoints(layer: string, color: string, points: THREE.Vector3[]): void {
     if (points.length < 2) return;
     const key = GeometryCollector.makeKey(layer, color);
-    let arr = this.lineSegments.get(key);
-    if (!arr) {
-      arr = [];
-      this.lineSegments.set(key, arr);
-    }
+    const arr = this.getOrCreateFloat32(this.lineSegments, key);
     for (let i = 0; i < points.length - 1; i++) {
       const a = points[i];
       const b = points[i + 1];
-      arr.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      arr.push6(a.x, a.y, a.z, b.x, b.y, b.z);
     }
   }
 
@@ -53,53 +170,31 @@ export class GeometryCollector {
   addLineSegments(layer: string, color: string, flatData: number[]): void {
     if (flatData.length < 6) return;
     const key = GeometryCollector.makeKey(layer, color);
-    let arr = this.lineSegments.get(key);
-    if (!arr) {
-      arr = [];
-      this.lineSegments.set(key, arr);
-    }
-    for (let i = 0; i < flatData.length; i++) {
-      arr.push(flatData[i]);
-    }
+    const arr = this.getOrCreateFloat32(this.lineSegments, key);
+    arr.pushArray(flatData);
   }
 
   /** Add point positions (flat [x,y,z, ...]) */
   addPoints(layer: string, color: string, flatData: number[]): void {
     if (flatData.length < 3) return;
     const key = GeometryCollector.makeKey(layer, color);
-    let arr = this.points.get(key);
-    if (!arr) {
-      arr = [];
-      this.points.set(key, arr);
-    }
-    for (let i = 0; i < flatData.length; i++) {
-      arr.push(flatData[i]);
-    }
+    const arr = this.getOrCreateFloat32(this.points, key);
+    arr.pushArray(flatData);
   }
 
   /** Add a single point */
   addPoint(layer: string, color: string, x: number, y: number, z: number): void {
     const key = GeometryCollector.makeKey(layer, color);
-    let arr = this.points.get(key);
-    if (!arr) {
-      arr = [];
-      this.points.set(key, arr);
-    }
-    arr.push(x, y, z);
+    const arr = this.getOrCreateFloat32(this.points, key);
+    arr.push3(x, y, z);
   }
 
   /** Add linetype dot positions (rendered with smaller LINETYPE_DOT_SIZE) */
   addLinetypeDots(layer: string, color: string, flatData: number[]): void {
     if (flatData.length < 3) return;
     const key = GeometryCollector.makeKey(layer, color);
-    let arr = this.linetypeDots.get(key);
-    if (!arr) {
-      arr = [];
-      this.linetypeDots.set(key, arr);
-    }
-    for (let i = 0; i < flatData.length; i++) {
-      arr.push(flatData[i]);
-    }
+    const arr = this.getOrCreateFloat32(this.linetypeDots, key);
+    arr.pushArray(flatData);
   }
 
   /**
@@ -111,29 +206,27 @@ export class GeometryCollector {
     const key = GeometryCollector.makeKey(layer, color);
 
     let vArr = this.meshVertices.get(key);
-    let iArr = this.meshIndices.get(key);
     if (!vArr) {
-      vArr = [];
+      vArr = new GrowableFloat32Array();
       this.meshVertices.set(key, vArr);
     }
+    let iArr = this.meshIndices.get(key);
     if (!iArr) {
-      iArr = [];
+      iArr = new GrowableUint32Array();
       this.meshIndices.set(key, iArr);
     }
 
     // Offset indices by existing vertex count
     const vertexOffset = vArr.length / 3;
-    for (let i = 0; i < indices.length; i++) {
-      iArr.push(indices[i] + vertexOffset);
-    }
-    for (let i = 0; i < vertices.length; i++) {
-      vArr.push(vertices[i]);
-    }
+    iArr.pushArrayWithOffset(indices, vertexOffset);
+    vArr.pushArray(vertices);
   }
 
   /**
    * Create merged Three.js objects from accumulated data.
    * Returns array of objects with userData.layerName set.
+   * Buffers exceeding MAX_BUFFER_VERTICES are split into multiple objects
+   * to stay within WebGL draw call limits.
    */
   flush(
     materialCache: Map<string, THREE.LineBasicMaterial>,
@@ -142,54 +235,111 @@ export class GeometryCollector {
   ): THREE.Object3D[] {
     const objects: THREE.Object3D[] = [];
 
+    // Log buffer sizes for diagnostics
+    let totalFloats = 0;
+    for (const arr of this.lineSegments.values()) totalFloats += arr.length;
+    for (const arr of this.points.values()) totalFloats += arr.length;
+    for (const arr of this.linetypeDots.values()) totalFloats += arr.length;
+    for (const arr of this.meshVertices.values()) totalFloats += arr.length;
+    const totalMB = (totalFloats * 4 / 1048576).toFixed(1);
+    const totalVerts = Math.round(totalFloats / 3);
+    console.log(`[DXF]   Buffer totals: ${totalVerts} vertices (${totalMB} MB)`);
+
+    // Log per-category breakdown
+    const catSizes: string[] = [];
+    let linesTotal = 0;
+    for (const arr of this.lineSegments.values()) linesTotal += arr.length;
+    if (linesTotal) catSizes.push(`lines: ${Math.round(linesTotal / 3)} verts`);
+    let meshTotal = 0;
+    for (const arr of this.meshVertices.values()) meshTotal += arr.length;
+    if (meshTotal) catSizes.push(`mesh: ${Math.round(meshTotal / 3)} verts`);
+    let ptsTotal = 0;
+    for (const arr of this.points.values()) ptsTotal += arr.length;
+    if (ptsTotal) catSizes.push(`pts: ${Math.round(ptsTotal / 3)} verts`);
+    let dotsTotal = 0;
+    for (const arr of this.linetypeDots.values()) dotsTotal += arr.length;
+    if (dotsTotal) catSizes.push(`dots: ${Math.round(dotsTotal / 3)} verts`);
+    console.log(`[DXF]   Breakdown: ${catSizes.join(", ")}`);
+
+    // Log top 5 largest buffers by key
+    const allBufs: [string, string, number][] = [];
+    for (const [k, a] of this.lineSegments) allBufs.push(["line", k, a.length / 3]);
+    for (const [k, a] of this.meshVertices) allBufs.push(["mesh", k, a.length / 3]);
+    for (const [k, a] of this.points) allBufs.push(["pts", k, a.length / 3]);
+    for (const [k, a] of this.linetypeDots) allBufs.push(["dots", k, a.length / 3]);
+    allBufs.sort((a, b) => b[2] - a[2]);
+    console.log(`[DXF]   Top buffers: ${allBufs.slice(0, 5).map(([t, k, v]) => `${t}[${k}]: ${v}`).join(", ")}`);
+
     // Merged Meshes — rendered first (behind lines/points)
-    for (const [key, vertices] of this.meshVertices) {
-      const indices = this.meshIndices.get(key);
-      if (!indices || vertices.length < 9 || indices.length < 3) continue;
+    for (const [key, vArr] of this.meshVertices) {
+      const iArr = this.meshIndices.get(key);
+      if (!iArr || vArr.length < 9 || iArr.length < 3) continue;
       const [layer, color] = parseKey(key);
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-      geo.setIndex(indices);
       const mat = getMeshMaterial(color, meshMaterialCache);
-      const obj = new THREE.Mesh(geo, mat);
-      obj.frustumCulled = false;
-      obj.userData.layerName = layer;
-      objects.push(obj);
+
+      // Split meshes by triangle: find split points in index array
+      const totalVerts = vArr.length / 3;
+      if (totalVerts <= MAX_BUFFER_VERTICES) {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(vArr.toFloat32Array(), 3));
+        geo.setIndex(new THREE.BufferAttribute(iArr.toUint32Array(), 1));
+        const obj = new THREE.Mesh(geo, mat);
+        obj.frustumCulled = false;
+        obj.userData.layerName = layer;
+        objects.push(obj);
+      } else {
+        // Emit all vertices + indices, but split index runs so each draw stays under the limit.
+        // Since all triangles share one position buffer, we split by index range.
+        const allPos = vArr.toFloat32Array();
+        const allIdx = iArr.toUint32Array();
+        for (let start = 0; start < allIdx.length; start += MAX_BUFFER_VERTICES * 3) {
+          const end = Math.min(start + MAX_BUFFER_VERTICES * 3, allIdx.length);
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute("position", new THREE.BufferAttribute(allPos, 3));
+          geo.setIndex(new THREE.BufferAttribute(allIdx.slice(start, end), 1));
+          const obj = new THREE.Mesh(geo, mat);
+          obj.frustumCulled = false;
+          obj.userData.layerName = layer;
+          objects.push(obj);
+        }
+      }
     }
 
     // Merged LineSegments — on top of meshes
-    for (const [key, data] of this.lineSegments) {
-      if (data.length < 6) continue;
+    for (const [key, arr] of this.lineSegments) {
+      if (arr.length < 6) continue;
       const [layer, color] = parseKey(key);
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.Float32BufferAttribute(data, 3));
       const mat = getLineMaterial(color, materialCache);
-      const obj = new THREE.LineSegments(geo, mat);
-      obj.frustumCulled = false;
-      obj.userData.layerName = layer;
-      objects.push(obj);
+      emitSplitBuffers(arr, layer, 3, objects, (posAttr, lyr) => {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", posAttr);
+        const obj = new THREE.LineSegments(geo, mat);
+        obj.frustumCulled = false;
+        obj.userData.layerName = lyr;
+        return obj;
+      });
     }
 
     // Merged Points (POINT entities — POINT_MARKER_SIZE)
-    for (const [key, data] of this.points) {
-      if (data.length < 3) continue;
+    for (const [key, arr] of this.points) {
+      if (arr.length < 3) continue;
       const [layer, color] = parseKey(key);
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.Float32BufferAttribute(data, 3));
       const mat = getPointsMaterial(color, pointsMaterialCache);
-      const obj = new THREE.Points(geo, mat);
-      obj.frustumCulled = false;
-      obj.userData.layerName = layer;
-      objects.push(obj);
+      emitSplitBuffers(arr, layer, 3, objects, (posAttr, lyr) => {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", posAttr);
+        const obj = new THREE.Points(geo, mat);
+        obj.frustumCulled = false;
+        obj.userData.layerName = lyr;
+        return obj;
+      });
     }
 
     // Merged linetype dots (smaller LINETYPE_DOT_SIZE)
     const dotMatCache = new Map<string, THREE.PointsMaterial>();
-    for (const [key, data] of this.linetypeDots) {
-      if (data.length < 3) continue;
+    for (const [key, arr] of this.linetypeDots) {
+      if (arr.length < 3) continue;
       const [layer, color] = parseKey(key);
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.Float32BufferAttribute(data, 3));
       let mat = dotMatCache.get(color);
       if (!mat) {
         mat = new THREE.PointsMaterial({
@@ -201,13 +351,51 @@ export class GeometryCollector {
         });
         dotMatCache.set(color, mat);
       }
-      const obj = new THREE.Points(geo, mat);
-      obj.frustumCulled = false;
-      obj.userData.layerName = layer;
-      objects.push(obj);
+      emitSplitBuffers(arr, layer, 3, objects, (posAttr, lyr) => {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", posAttr);
+        const obj = new THREE.Points(geo, mat!);
+        obj.frustumCulled = false;
+        obj.userData.layerName = lyr;
+        return obj;
+      });
     }
 
     return objects;
+  }
+}
+
+/**
+ * Maximum vertices per draw call. WebGL contexts commonly limit this to 30M;
+ * we use 10M to stay safely below and keep GPU uploads fast.
+ */
+const MAX_BUFFER_VERTICES = 10_000_000;
+/** Max floats = MAX_BUFFER_VERTICES * 3 (xyz) */
+const MAX_BUFFER_FLOATS = MAX_BUFFER_VERTICES * 3;
+
+/**
+ * Emit one or more Three.js objects from a GrowableFloat32Array,
+ * splitting into chunks of MAX_BUFFER_FLOATS if needed.
+ * `stride` must be 3 (xyz) or 6 (segment pair) — splits are aligned to stride.
+ */
+function emitSplitBuffers(
+  arr: GrowableFloat32Array,
+  layer: string,
+  stride: number,
+  out: THREE.Object3D[],
+  factory: (posAttr: THREE.BufferAttribute, layer: string) => THREE.Object3D,
+): void {
+  const total = arr.length;
+  if (total <= MAX_BUFFER_FLOATS) {
+    out.push(factory(new THREE.BufferAttribute(arr.toFloat32Array(), 3), layer));
+    return;
+  }
+  // Split into chunks aligned to stride
+  const chunkFloats = Math.floor(MAX_BUFFER_FLOATS / stride) * stride;
+  for (let offset = 0; offset < total; offset += chunkFloats) {
+    const end = Math.min(offset + chunkFloats, total);
+    const slice = arr.buffer.slice(offset, end);
+    out.push(factory(new THREE.BufferAttribute(slice, 3), layer));
   }
 }
 

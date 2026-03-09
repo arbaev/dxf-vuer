@@ -19,15 +19,15 @@ export const DIM_TEXT_GAP = DIM_TEXT_HEIGHT * DIM_TEXT_GAP_MULTIPLIER;
 export const DIM_TEXT_DECIMAL_PLACES = 4;
 export const ARROW_SIZE = 3;
 export const ARROW_BASE_WIDTH_DIVISOR = 4;
-export const CIRCLE_SEGMENTS = 128;
+export const CIRCLE_SEGMENTS = 64;
 export const EXTENSION_LINE_DASH_SIZE = 2;
 export const EXTENSION_LINE_GAP_SIZE = 1;
 export const EXTENSION_LINE_EXTENSION = 1.25; // DIMEXE default: extension past dim line
 // Threshold for near-zero checks (bulge, lengths, parallel lines)
 export const EPSILON = 0.0001;
 export const MIN_ARC_SEGMENTS = 8;
-export const NURBS_SEGMENTS_MULTIPLIER = 4;
-export const MIN_NURBS_SEGMENTS = 100;
+export const NURBS_SEGMENTS_MULTIPLIER = 3;
+export const MIN_NURBS_SEGMENTS = 50;
 export const CATMULL_ROM_SEGMENTS_MULTIPLIER = 2;
 export const MIN_CATMULL_ROM_SEGMENTS = 50;
 // sizeAttenuation: false -- constant screen-space size
@@ -50,3 +50,8 @@ export const POINT_SYMBOL_DEFAULT_SIZE = 1;
 export const AUTO_LTSCALE_DIVISOR = 500;
 // Drawing extents below this threshold don't need auto-scaling
 export const AUTO_LTSCALE_MIN_EXTENT = 100;
+// Max pattern repetitions per entity before falling back to continuous line.
+// Beyond ~2000 repetitions, dashes are sub-pixel and visually indistinguishable
+// from solid lines. Without this cap, long curves with fine patterns can produce
+// millions of dash vertices (e.g. a large circle with a short pattern cycle).
+export const MAX_LINETYPE_REPETITIONS = 2000;

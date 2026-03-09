@@ -32,6 +32,7 @@ import {
   ARROW_SIZE,
   POINT_SYMBOL_SEGMENTS,
   POINT_SYMBOL_DEFAULT_SIZE,
+  MAX_LINETYPE_REPETITIONS,
 } from "@/constants";
 import { HATCH_PATTERNS } from "@/constants/hatchPatterns";
 import { resolveEntityColor, rgbNumberToHex } from "@/utils/colorResolver";
@@ -88,12 +89,16 @@ import {
 import {
   type BlockTemplate,
   type CollectEntityParams,
+  type SharedBlockGeo,
   INSTANCING_THRESHOLD,
   buildBlockTemplate,
   instantiateBlockTemplate,
+  buildSharedBlockGeo,
+  addSharedBlockInstance,
 } from "./geometry/blockTemplateCache";
 import { resolveEntityFont, classifyFont } from "./geometry/fontClassifier";
 import { loadSerifFont } from "./geometry/fontManager";
+import { clearGlyphCache } from "./geometry/glyphCache";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -211,6 +216,24 @@ const addLineToCollector = (
   if (points.length < 2) return;
 
   if (pattern && pattern.length > 0) {
+    // Estimate path length vs pattern cycle to avoid vertex explosion.
+    // Long curves with fine patterns generate millions of sub-pixel dashes;
+    // fall back to continuous line when repetitions exceed the threshold.
+    let patternCycleLen = 0;
+    for (const v of pattern) patternCycleLen += Math.abs(v);
+    if (patternCycleLen > 0) {
+      let totalLen = 0;
+      for (let i = 0; i < points.length - 1; i++) {
+        const dx = points[i + 1].x - points[i].x;
+        const dy = points[i + 1].y - points[i].y;
+        totalLen += Math.sqrt(dx * dx + dy * dy);
+      }
+      if (totalLen / patternCycleLen > MAX_LINETYPE_REPETITIONS) {
+        collector.addLineFromPoints(layer, color, points);
+        return;
+      }
+    }
+
     const pg = applyLinetypePattern(points, pattern);
     const hasSegments = pg.segments.length >= 6;
     const hasDots = pg.dots.length >= 3;
@@ -1520,6 +1543,7 @@ const collectInsertEntity = async (
   depth: number,
   yieldState: YieldState,
   blockTemplates?: Map<string, BlockTemplate>,
+  sharedBlockGeos?: Map<string, SharedBlockGeo>,
 ): Promise<void> => {
   if (depth > MAX_RECURSION_DEPTH || !isInsertEntity(insertEntity)) return;
   if (!dxf.blocks || typeof dxf.blocks !== "object") return;
@@ -1582,8 +1606,14 @@ const collectInsertEntity = async (
   // Fast path: use cached template if available
   const template = blockTemplates?.get(insertEntity.name);
   if (template) {
-    // Transform cached geometry by worldMatrix
-    instantiateBlockTemplate(template, collector, insertLayer, insertColor, worldMatrix);
+    // Shared geometry path: GPU stores block geometry once, each INSERT is just a matrix
+    const shared = sharedBlockGeos?.get(insertEntity.name);
+    if (shared) {
+      addSharedBlockInstance(shared, fallbackGroup, insertLayer, insertColor, worldMatrix, colorCtx);
+    } else {
+      // Flat copy fallback (should not normally happen)
+      instantiateBlockTemplate(template, collector, insertLayer, insertColor, worldMatrix);
+    }
 
     // Process fallback entities individually (TEXT, nested INSERT, etc.)
     for (const idx of template.fallbackEntityIndices) {
@@ -1594,7 +1624,7 @@ const collectInsertEntity = async (
 
         // Nested INSERT: recurse (with blockTemplates for nested fast path)
         if (entity.type === "INSERT" && isInsertEntity(entity)) {
-          await collectInsertEntity(entity, dxf, blockColorCtx, collector, entityLayer, worldMatrix, fallbackGroup, depth + 1, yieldState, blockTemplates);
+          await collectInsertEntity(entity, dxf, blockColorCtx, collector, entityLayer, worldMatrix, fallbackGroup, depth + 1, yieldState, blockTemplates, sharedBlockGeos);
           continue;
         }
 
@@ -1689,7 +1719,7 @@ const collectInsertEntity = async (
 
       // Nested INSERT: recurse (with blockTemplates for nested fast path)
       if (entity.type === "INSERT" && isInsertEntity(entity)) {
-        await collectInsertEntity(entity, dxf, blockColorCtx, collector, entityLayer, worldMatrix, fallbackGroup, depth + 1, yieldState, blockTemplates);
+        await collectInsertEntity(entity, dxf, blockColorCtx, collector, entityLayer, worldMatrix, fallbackGroup, depth + 1, yieldState, blockTemplates, sharedBlockGeos);
         continue;
       }
 
@@ -2193,6 +2223,16 @@ interface YieldState {
   signal?: DisplaySignal;
 }
 
+/** Dispose all cached materials (used on cancellation to prevent leaks) */
+function disposeMaterialCaches(colorCtx: EntityColorContext): void {
+  for (const mat of colorCtx.materialCache.values()) mat.dispose();
+  colorCtx.materialCache.clear();
+  for (const mat of colorCtx.meshMaterialCache.values()) mat.dispose();
+  colorCtx.meshMaterialCache.clear();
+  for (const mat of colorCtx.pointsMaterialCache.values()) mat.dispose();
+  colorCtx.pointsMaterialCache.clear();
+}
+
 export async function createThreeObjectsFromDXF(
   dxf: DxfData,
   signal?: DisplaySignal,
@@ -2203,6 +2243,10 @@ export async function createThreeObjectsFromDXF(
   warnings?: string;
   unsupportedEntities?: string[];
 }> {
+  // Clear glyph cache to prevent unbounded memory growth across reloads
+  clearGlyphCache();
+
+  const tStart = performance.now();
   const group = new THREE.Group();
 
   if (!dxf.entities || dxf.entities.length === 0) {
@@ -2336,10 +2380,37 @@ export async function createThreeObjectsFromDXF(
   const yieldState: YieldState = { lastYield: performance.now(), signal };
 
   // Pre-pass: count INSERT usage and build templates for frequently-used blocks
+  let tTemplates = performance.now();
   const blockRefCounts = new Map<string, number>();
   for (const entity of dxf.entities) {
     if (entity.type === "INSERT" && !entity.inPaperSpace && isInsertEntity(entity)) {
       blockRefCounts.set(entity.name, (blockRefCounts.get(entity.name) ?? 0) + 1);
+    }
+  }
+
+  // Propagate counts through nested blocks: if block A is used N times and
+  // contains M INSERT refs to block B, then B is used at least N*M times.
+  // Process ALL referenced blocks (not just those ≥ threshold) because a block
+  // used once may contain hundreds of INSERTs to sub-blocks that need templates.
+  if (dxf.blocks) {
+    const visited = new Set<string>();
+    const queue = [...blockRefCounts.keys()];
+    while (queue.length > 0) {
+      const name = queue.shift()!;
+      if (visited.has(name)) continue;
+      visited.add(name);
+      const parentCount = blockRefCounts.get(name) ?? 0;
+      if (parentCount === 0) continue;
+      const block = dxf.blocks[name];
+      if (!block?.entities) continue;
+      for (const entity of block.entities) {
+        if (entity.type === "INSERT" && isInsertEntity(entity)) {
+          blockRefCounts.set(entity.name, (blockRefCounts.get(entity.name) ?? 0) + parentCount);
+          if (!visited.has(entity.name)) {
+            queue.push(entity.name);
+          }
+        }
+      }
     }
   }
 
@@ -2354,8 +2425,21 @@ export async function createThreeObjectsFromDXF(
       }
     }
   }
+
+  // Build shared GPU geometries for all templates — each INSERT becomes
+  // a matrix transform instead of copying all vertices
+  const sharedBlockGeos = new Map<string, SharedBlockGeo>();
+  for (const [name, template] of blockTemplates) {
+    sharedBlockGeos.set(name, buildSharedBlockGeo(template));
+  }
+  console.log(`[DXF]   Templates: ${blockTemplates.size} blocks, ${sharedBlockGeos.size} shared (${Math.round(performance.now() - tTemplates)}ms)`);
+
+  const tEntities = performance.now();
+  const typeTimers = new Map<string, number>();
+  const typeCounts = new Map<string, number>();
   for (let index = 0; index < dxf.entities.length; index++) {
     if (signal?.cancelled) {
+      disposeMaterialCaches(colorCtx);
       return { group };
     }
 
@@ -2368,6 +2452,7 @@ export async function createThreeObjectsFromDXF(
       yieldState.lastYield = performance.now();
     }
 
+    const tEntity = performance.now();
     try {
       // Skip paper space entities — they belong to layouts, not model space
       if (entity.inPaperSpace) continue;
@@ -2379,7 +2464,7 @@ export async function createThreeObjectsFromDXF(
 
       // INSERT blocks: flatten into collector (merged geometry)
       if (entity.type === "INSERT") {
-        await collectInsertEntity(entity, dxf, colorCtx, collector, layer, null, group, 0, yieldState, blockTemplates);
+        await collectInsertEntity(entity, dxf, colorCtx, collector, layer, null, group, 0, yieldState, blockTemplates, sharedBlockGeos);
         continue;
       }
 
@@ -2429,16 +2514,25 @@ export async function createThreeObjectsFromDXF(
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       errors.push(`Entity ${index} (${entity.type || "unknown type"}): ${errorMsg}`);
+    } finally {
+      const t = entity.type || "UNKNOWN";
+      typeTimers.set(t, (typeTimers.get(t) ?? 0) + (performance.now() - tEntity));
+      typeCounts.set(t, (typeCounts.get(t) ?? 0) + 1);
     }
   }
 
+  console.log(`[DXF]   Entities: ${Math.round(performance.now() - tEntities)}ms`);
+  const sortedTypes = [...typeTimers.entries()].sort((a, b) => b[1] - a[1]);
+  console.log(`[DXF]   By type: ${sortedTypes.slice(0, 8).map(([t, ms]) => `${t}: ${Math.round(ms)}ms (${typeCounts.get(t) ?? 0})`).join(", ")}`);
   signal?.onProgress?.(1);
 
   if (signal?.cancelled) {
+    disposeMaterialCaches(colorCtx);
     return { group };
   }
 
   // Flush merged geometry into Three.js objects
+  const tFlush = performance.now();
   const mergedObjects = collector.flush(
     colorCtx.materialCache,
     colorCtx.meshMaterialCache,
@@ -2447,6 +2541,15 @@ export async function createThreeObjectsFromDXF(
   for (const obj of mergedObjects) {
     group.add(obj);
   }
+  // Count merged objects by type
+  let lineCount = 0, meshCount = 0, ptsCount = 0;
+  for (const obj of mergedObjects) {
+    if (obj instanceof THREE.LineSegments) lineCount++;
+    else if (obj instanceof THREE.Mesh) meshCount++;
+    else if (obj instanceof THREE.Points) ptsCount++;
+  }
+  console.log(`[DXF]   Flush: ${Math.round(performance.now() - tFlush)}ms → ${lineCount} lines, ${meshCount} meshes, ${ptsCount} pts`);
+  console.log(`[DXF] Geometry total: ${Math.round(performance.now() - tStart)}ms (${dxf.entities.length} entities)`);
 
   const totalIssues = errors.length + unsupportedTypes.length;
   if (totalIssues > 0) {

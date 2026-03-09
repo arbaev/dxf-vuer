@@ -84,6 +84,11 @@ export function useThreeScene() {
       if (child instanceof THREE.Mesh || child instanceof THREE.Line || child instanceof THREE.Points) {
         if (child.geometry) {
           child.geometry.dispose();
+          // Break JS references to Float32Array buffers so GC can reclaim them sooner
+          for (const attrName of Object.keys(child.geometry.attributes)) {
+            child.geometry.deleteAttribute(attrName);
+          }
+          child.geometry.setIndex(null);
         }
 
         if (child.material) {

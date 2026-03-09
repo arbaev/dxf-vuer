@@ -397,8 +397,13 @@ const handleHideAllLayers = () => {
 const loadDXFFromText = async (dxfText: string) => {
   isLoading.value = true;
   try {
+    const sizeMB = (dxfText.length / 1048576).toFixed(1);
+    console.log(`[DXF] ── Load start (${sizeMB} MB) ──`);
+
     loadingPhase.value = "parsing";
+    const tParse = performance.now();
     const dxf = await parseDXFAsync(dxfText);
+    console.log(`[DXF] Parse: ${Math.round(performance.now() - tParse)}ms`);
 
     lastLoadedDxf = dxf;
 

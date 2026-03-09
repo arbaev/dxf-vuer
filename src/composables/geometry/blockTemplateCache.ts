@@ -2,7 +2,8 @@ import * as THREE from "three";
 import type { DxfEntity } from "@/types/dxf";
 import { resolveEntityColor } from "@/utils/colorResolver";
 import { GeometryCollector } from "./mergeCollectors";
-import type { EntityColorContext } from "./primitives";
+import { type EntityColorContext, getLineMaterial, getMeshMaterial, getPointsMaterial } from "./primitives";
+import { LINETYPE_DOT_SIZE } from "@/constants";
 
 // ─── Interfaces ──────────────────────────────────────────────────────
 
@@ -131,7 +132,7 @@ export function buildBlockTemplate(
     }
   }
 
-  // Extract data from collector maps into template buckets
+  // Extract data from collector maps into template buckets (convert typed → number[])
   const buckets = new Map<string, BlockTemplateGeometry>();
 
   const allKeys = new Set<string>();
@@ -142,11 +143,11 @@ export function buildBlockTemplate(
 
   for (const key of allKeys) {
     buckets.set(key, {
-      lineSegments: tempCollector.lineSegments.get(key) || [],
-      points: tempCollector.points.get(key) || [],
-      linetypeDots: tempCollector.linetypeDots.get(key) || [],
-      meshVertices: tempCollector.meshVertices.get(key) || [],
-      meshIndices: tempCollector.meshIndices.get(key) || [],
+      lineSegments: tempCollector.lineSegments.get(key)?.toArray() ?? [],
+      points: tempCollector.points.get(key)?.toArray() ?? [],
+      linetypeDots: tempCollector.linetypeDots.get(key)?.toArray() ?? [],
+      meshVertices: tempCollector.meshVertices.get(key)?.toArray() ?? [],
+      meshIndices: tempCollector.meshIndices.get(key)?.toArray() ?? [],
     });
   }
 
@@ -190,6 +191,141 @@ export function instantiateBlockTemplate(
 
     if (geo.meshVertices.length >= 9 && geo.meshIndices.length >= 3) {
       collector.addMesh(layer, color, transformFlatVertices(geo.meshVertices, me), geo.meshIndices);
+    }
+  }
+}
+
+// ─── Shared geometry (GPU instancing via matrix transform) ──────────
+
+/** Pre-built BufferGeometry per bucket, shared across all instances */
+export interface SharedBlockGeoEntry {
+  rawLayer: string;
+  rawColor: string;
+  lineGeo?: THREE.BufferGeometry;
+  meshGeo?: THREE.BufferGeometry;
+  pointsGeo?: THREE.BufferGeometry;
+  dotsGeo?: THREE.BufferGeometry;
+}
+
+export interface SharedBlockGeo {
+  entries: SharedBlockGeoEntry[];
+  fallbackEntityIndices: number[];
+}
+
+/**
+ * Build shared BufferGeometry objects from a block template.
+ * The geometry is in block-local coordinates and is stored once on the GPU.
+ * Each INSERT creates a Three.js object referencing the shared geometry
+ * with the INSERT's world matrix as the object transform.
+ */
+export function buildSharedBlockGeo(template: BlockTemplate): SharedBlockGeo {
+  const entries: SharedBlockGeoEntry[] = [];
+
+  for (const [key, geo] of template.buckets) {
+    const sepIdx = key.indexOf("::");
+    const rawLayer = sepIdx === -1 ? "0" : key.substring(0, sepIdx);
+    const rawColor = sepIdx === -1 ? key : key.substring(sepIdx + 2);
+
+    const entry: SharedBlockGeoEntry = { rawLayer, rawColor };
+    let hasGeo = false;
+
+    if (geo.lineSegments.length >= 6) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(geo.lineSegments), 3));
+      entry.lineGeo = g;
+      hasGeo = true;
+    }
+
+    if (geo.meshVertices.length >= 9 && geo.meshIndices.length >= 3) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(geo.meshVertices), 3));
+      g.setIndex(geo.meshIndices);
+      entry.meshGeo = g;
+      hasGeo = true;
+    }
+
+    if (geo.points.length >= 3) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(geo.points), 3));
+      entry.pointsGeo = g;
+      hasGeo = true;
+    }
+
+    if (geo.linetypeDots.length >= 3) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(geo.linetypeDots), 3));
+      entry.dotsGeo = g;
+      hasGeo = true;
+    }
+
+    if (hasGeo) entries.push(entry);
+  }
+
+  return { entries, fallbackEntityIndices: template.fallbackEntityIndices };
+}
+
+/**
+ * Add one block instance to the scene group using shared geometry.
+ * Creates Three.js objects that reference the shared BufferGeometry
+ * and use the INSERT's world matrix as the object transform.
+ * GPU stores geometry ONCE; each instance is just a matrix + draw call.
+ */
+export function addSharedBlockInstance(
+  shared: SharedBlockGeo,
+  group: THREE.Group,
+  insertLayer: string,
+  insertColor: string,
+  worldMatrix: THREE.Matrix4,
+  colorCtx: EntityColorContext,
+): void {
+  for (const entry of shared.entries) {
+    const layer = entry.rawLayer === INHERIT_LAYER ? insertLayer : entry.rawLayer;
+    const color = entry.rawColor === BYBLOCK_COLOR ? insertColor : entry.rawColor;
+
+    if (entry.lineGeo) {
+      const mat = getLineMaterial(color, colorCtx.materialCache);
+      const obj = new THREE.LineSegments(entry.lineGeo, mat);
+      obj.matrixAutoUpdate = false;
+      obj.matrix.copy(worldMatrix);
+      obj.frustumCulled = false;
+      obj.userData.layerName = layer;
+      group.add(obj);
+    }
+
+    if (entry.meshGeo) {
+      const mat = getMeshMaterial(color, colorCtx.meshMaterialCache);
+      const obj = new THREE.Mesh(entry.meshGeo, mat);
+      obj.matrixAutoUpdate = false;
+      obj.matrix.copy(worldMatrix);
+      obj.frustumCulled = false;
+      obj.userData.layerName = layer;
+      group.add(obj);
+    }
+
+    if (entry.pointsGeo) {
+      const mat = getPointsMaterial(color, colorCtx.pointsMaterialCache);
+      const obj = new THREE.Points(entry.pointsGeo, mat);
+      obj.matrixAutoUpdate = false;
+      obj.matrix.copy(worldMatrix);
+      obj.frustumCulled = false;
+      obj.userData.layerName = layer;
+      group.add(obj);
+    }
+
+    if (entry.dotsGeo) {
+      const mat = new THREE.PointsMaterial({
+        color,
+        size: LINETYPE_DOT_SIZE,
+        sizeAttenuation: false,
+        depthTest: false,
+        depthWrite: false,
+      });
+      const obj = new THREE.Points(entry.dotsGeo, mat);
+      obj.matrixAutoUpdate = false;
+      obj.matrix.copy(worldMatrix);
+      obj.frustumCulled = false;
+      obj.userData.layerName = layer;
+      group.add(obj);
     }
   }
 }

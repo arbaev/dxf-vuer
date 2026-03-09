@@ -116,10 +116,13 @@ export function useDXFRenderer() {
   const displayDXF = async (dxf: DxfData, darkTheme?: boolean, fontUrl?: string): Promise<string[] | undefined> => {
     const scene = getScene();
     const camera = getCamera();
+    const renderer = getRenderer();
 
     if (!scene) {
       return undefined;
     }
+
+    const tTotal = performance.now();
 
     // Update scene background for theme
     scene.background = new THREE.Color(darkTheme ? SCENE_BG_COLOR_DARK : SCENE_BG_COLOR);
@@ -135,16 +138,29 @@ export function useDXFRenderer() {
     };
     displaySignal = signal;
 
+    let tDispose = performance.now();
     if (currentDXFGroup) {
       disposeObject3D(currentDXFGroup);
       scene.remove(currentDXFGroup);
       currentDXFGroup = null;
     }
+    // Clear renderer internal render lists to free cached references
+    if (renderer) {
+      renderer.renderLists.dispose();
+    }
+    console.log(`[DXF] Dispose previous: ${Math.round(performance.now() - tDispose)}ms`);
 
+    let tFont = performance.now();
     const font = fontUrl ? await loadFont(fontUrl) : loadDefaultFont();
+    console.log(`[DXF] Font: ${Math.round(performance.now() - tFont)}ms`);
+
+    let tGeometry = performance.now();
     const result = await createThreeObjectsFromDXF(dxf, signal, darkTheme, font);
+    console.log(`[DXF] Geometry: ${Math.round(performance.now() - tGeometry)}ms`);
 
     if (signal.cancelled) {
+      // Dispose leaked group and its objects on cancellation
+      disposeObject3D(result.group);
       return undefined;
     }
 
@@ -152,6 +168,7 @@ export function useDXFRenderer() {
 
     currentDXFGroup = result.group;
 
+    let tCamera = performance.now();
     if (camera) {
       const extMin = dxf.header?.["$EXTMIN"] as { x: number; y: number; z?: number } | undefined;
       const extMax = dxf.header?.["$EXTMAX"] as { x: number; y: number; z?: number } | undefined;
@@ -180,6 +197,14 @@ export function useDXFRenderer() {
     }
 
     render();
+    console.log(`[DXF] Camera + render: ${Math.round(performance.now() - tCamera)}ms`);
+
+    console.log(`[DXF] Total: ${Math.round(performance.now() - tTotal)}ms`);
+    if (renderer) {
+      const mem = renderer.info.memory;
+      const heapMB = (performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize;
+      console.log(`[DXF] GPU: ${mem.geometries} geometries | Heap: ${heapMB ? Math.round(heapMB / 1048576) + " MB" : "N/A"}`);
+    }
 
     if (result.warnings) {
       console.warn("Warnings during DXF processing:", result.warnings);
