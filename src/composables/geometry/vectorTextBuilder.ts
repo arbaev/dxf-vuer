@@ -260,7 +260,11 @@ export function addTextToCollector(p: TextParams): void {
       originY = (m.bounds.yMax + m.bounds.yMin) / 2;
       break;
     case VAlign.TOP:
-      originY = m.bounds.yMax;
+      // Use cap height (font metric) instead of glyph-specific bounds.yMax.
+      // DXF MTEXT "Top" attachment means insertion point is at the cap height line,
+      // not the visual top of the specific characters. This ensures consistent
+      // positioning regardless of whether text is uppercase or lowercase.
+      originY = capRatio;
       break;
   }
   // MIDDLE (hAlign=4) also centers vertically

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import * as THREE from "three";
 import {
   pointInPolygon2D,
   clipSegmentToPolygon,
@@ -6,6 +7,8 @@ import {
   clipSegmentToPolygons,
   generateHatchPattern,
   boundaryPathToPoint2DArray,
+  addBoundaryPathToShapePath,
+  buildSolidHatchShapes,
 } from "../hatch";
 import type { Point2D } from "../hatch";
 import type { HatchPatternLine, HatchBoundaryPath } from "@/types/dxf";
@@ -385,6 +388,149 @@ describe("generateHatchPattern", () => {
     // Donut should have more segment vertex pairs (each line split into 2)
     // segmentVertices / 6 = number of segment pairs
     expect(resultDonut.segmentVertices.length / 6).toBeGreaterThan(resultSingle.segmentVertices.length / 6);
+  });
+});
+
+// ── addBoundaryPathToShapePath (solid fill donut) ──────────────────
+
+describe("addBoundaryPathToShapePath", () => {
+  it("adds a polyline boundary as a subpath", () => {
+    const shapePath = new THREE.ShapePath();
+    const bp: HatchBoundaryPath = {
+      polylineVertices: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 10, y: 10 },
+        { x: 0, y: 10 },
+        { x: 0, y: 0 },
+      ],
+    };
+    expect(addBoundaryPathToShapePath(shapePath, bp)).toBe(true);
+    expect(shapePath.subPaths.length).toBe(1);
+  });
+
+  it("returns false for empty boundary", () => {
+    const shapePath = new THREE.ShapePath();
+    expect(addBoundaryPathToShapePath(shapePath, {})).toBe(false);
+    expect(shapePath.subPaths.length).toBe(0);
+  });
+
+  it("adds edge-based boundary as a subpath", () => {
+    const shapePath = new THREE.ShapePath();
+    const bp: HatchBoundaryPath = {
+      edges: [{
+        type: "arc" as const,
+        center: { x: 0, y: 0 },
+        radius: 10,
+        startAngle: 0,
+        endAngle: 360,
+        ccw: true,
+      }],
+    };
+    expect(addBoundaryPathToShapePath(shapePath, bp)).toBe(true);
+    expect(shapePath.subPaths.length).toBe(1);
+  });
+});
+
+// ── buildSolidHatchShapes ─────────────────────────────────────────
+
+describe("buildSolidHatchShapes", () => {
+  it("returns single shape for single boundary", () => {
+    const bp: HatchBoundaryPath = {
+      polylineVertices: [
+        { x: 0, y: 0 }, { x: 10, y: 0 },
+        { x: 10, y: 10 }, { x: 0, y: 10 }, { x: 0, y: 0 },
+      ],
+    };
+    const shapes = buildSolidHatchShapes([bp]);
+    expect(shapes.length).toBe(1);
+    expect(shapes[0].extractPoints(12).holes.length).toBe(0);
+  });
+
+  it("returns empty array for empty boundary paths", () => {
+    expect(buildSolidHatchShapes([])).toHaveLength(0);
+  });
+
+  it("builds donut from two concentric circles with same winding (both CCW)", () => {
+    // Real DXF scenario: both arcs are CCW 0°→360°, but inner should be a hole
+    const outerBp: HatchBoundaryPath = {
+      edges: [{
+        type: "arc" as const,
+        center: { x: 0, y: 0 },
+        radius: 10,
+        startAngle: 0,
+        endAngle: 360,
+        ccw: true,
+      }],
+    };
+    const innerBp: HatchBoundaryPath = {
+      edges: [{
+        type: "arc" as const,
+        center: { x: 0, y: 0 },
+        radius: 5,
+        startAngle: 0,
+        endAngle: 360,
+        ccw: true,
+      }],
+    };
+
+    const shapes = buildSolidHatchShapes([outerBp, innerBp]);
+    expect(shapes.length).toBe(1);
+
+    const extracted = shapes[0].extractPoints(12);
+    expect(extracted.holes.length).toBe(1);
+  });
+
+  it("builds donut from two concentric circles with opposite winding", () => {
+    const outerBp: HatchBoundaryPath = {
+      edges: [{
+        type: "arc" as const,
+        center: { x: 0, y: 0 },
+        radius: 10,
+        startAngle: 0,
+        endAngle: 360,
+        ccw: true,
+      }],
+    };
+    const innerBp: HatchBoundaryPath = {
+      edges: [{
+        type: "arc" as const,
+        center: { x: 0, y: 0 },
+        radius: 5,
+        startAngle: 360,
+        endAngle: 0,
+        ccw: false,
+      }],
+    };
+
+    const shapes = buildSolidHatchShapes([outerBp, innerBp]);
+    expect(shapes.length).toBe(1);
+    expect(shapes[0].extractPoints(12).holes.length).toBe(1);
+  });
+
+  it("handles nested even-odd: 3 concentric squares", () => {
+    const outer: HatchBoundaryPath = {
+      polylineVertices: [
+        { x: 0, y: 0 }, { x: 30, y: 0 },
+        { x: 30, y: 30 }, { x: 0, y: 30 }, { x: 0, y: 0 },
+      ],
+    };
+    const middle: HatchBoundaryPath = {
+      polylineVertices: [
+        { x: 5, y: 5 }, { x: 25, y: 5 },
+        { x: 25, y: 25 }, { x: 5, y: 25 }, { x: 5, y: 5 },
+      ],
+    };
+    const inner: HatchBoundaryPath = {
+      polylineVertices: [
+        { x: 10, y: 10 }, { x: 20, y: 10 },
+        { x: 20, y: 20 }, { x: 10, y: 20 }, { x: 10, y: 10 },
+      ],
+    };
+
+    const shapes = buildSolidHatchShapes([outer, middle, inner]);
+    // outer = shape, middle = hole of outer, inner = new outer shape
+    expect(shapes.length).toBe(2);
   });
 });
 

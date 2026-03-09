@@ -93,9 +93,11 @@ const splineEdgeToPoints = (
   return curve.getPoints(segments);
 };
 
-export const boundaryPathToShapePath = (bp: HatchBoundaryPath): THREE.ShapePath | null => {
-  const shapePath = new THREE.ShapePath();
-
+/**
+ * Add a single boundary path as a new subpath to an existing ShapePath.
+ * Each moveTo() starts a new subpath within the ShapePath.
+ */
+export const addBoundaryPathToShapePath = (shapePath: THREE.ShapePath, bp: HatchBoundaryPath): boolean => {
   if (bp.edges && bp.edges.length > 0) {
     const firstEdge = bp.edges[0];
     const firstPt = getEdgeStartPoint(firstEdge);
@@ -104,6 +106,7 @@ export const boundaryPathToShapePath = (bp: HatchBoundaryPath): THREE.ShapePath 
     for (const edge of bp.edges) {
       addEdgeToPath(shapePath, edge);
     }
+    return true;
   } else if (bp.polylineVertices && bp.polylineVertices.length > 1) {
     const verts = bp.polylineVertices;
     shapePath.moveTo(verts[0].x, verts[0].y);
@@ -118,11 +121,70 @@ export const boundaryPathToShapePath = (bp: HatchBoundaryPath): THREE.ShapePath 
         shapePath.currentPath.lineTo(v2.x, v2.y);
       }
     }
-  } else {
-    return null;
+    return true;
+  }
+  return false;
+};
+
+export const boundaryPathToShapePath = (bp: HatchBoundaryPath): THREE.ShapePath | null => {
+  const shapePath = new THREE.ShapePath();
+  return addBoundaryPathToShapePath(shapePath, bp) ? shapePath : null;
+};
+
+/**
+ * Build THREE.Shape array from HATCH boundary paths with even-odd hole detection.
+ * Handles the common DXF case where inner boundaries have the same winding direction
+ * as outer boundaries (both CCW). Uses area-based sorting and containment testing
+ * to manually assign holes to their parent shapes.
+ */
+export const buildSolidHatchShapes = (boundaryPaths: HatchBoundaryPath[]): THREE.Shape[] => {
+  // Convert each boundary path to an independent Shape
+  const entries: { shape: THREE.Shape; area: number; pts: THREE.Vector2[] }[] = [];
+  for (const bp of boundaryPaths) {
+    const sp = new THREE.ShapePath();
+    if (!addBoundaryPathToShapePath(sp, bp)) continue;
+    for (const shape of sp.toShapes(false)) {
+      const pts = shape.getPoints(12);
+      entries.push({ shape, area: Math.abs(THREE.ShapeUtils.area(pts)), pts });
+    }
   }
 
-  return shapePath;
+  if (entries.length <= 1) return entries.map((e) => e.shape);
+
+  // Sort by area descending (outermost first)
+  entries.sort((a, b) => b.area - a.area);
+
+  // Determine nesting level per shape; even = outer, odd = hole
+  const result: THREE.Shape[] = [];
+  const isHoleFlag: boolean[] = [];
+
+  for (let i = 0; i < entries.length; i++) {
+    const testPt = entries[i].pts[0];
+    let nestLevel = 0;
+
+    for (let j = 0; j < i; j++) {
+      if (pointInPolygon2D(testPt.x, testPt.y, entries[j].pts)) {
+        nestLevel++;
+      }
+    }
+
+    if (nestLevel % 2 === 0) {
+      // Outer shape
+      result.push(entries[i].shape);
+      isHoleFlag[i] = false;
+    } else {
+      // Hole — add to the smallest containing outer shape
+      isHoleFlag[i] = true;
+      for (let j = i - 1; j >= 0; j--) {
+        if (!isHoleFlag[j] && pointInPolygon2D(testPt.x, testPt.y, entries[j].pts)) {
+          entries[j].shape.holes.push(new THREE.Path(entries[i].pts));
+          break;
+        }
+      }
+    }
+  }
+
+  return result;
 };
 
 export const addEdgeToPath = (shapePath: THREE.ShapePath, edge: HatchEdge): void => {

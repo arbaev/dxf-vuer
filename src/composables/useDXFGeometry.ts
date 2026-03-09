@@ -72,7 +72,7 @@ import {
   parseMTextContent,
 } from "./geometry/text";
 import {
-  boundaryPathToShapePath,
+  buildSolidHatchShapes,
   boundaryPathToLinePoints,
   boundaryPathToPoint2DArray,
   generateHatchPattern,
@@ -885,14 +885,9 @@ const collectEntity = (p: CollectEntityParams): boolean => {
         const hatchMatrix = buildOcsMatrix(entity.extrusionDirection);
 
         if (entity.solid) {
-          // Direct triangulation via ShapeUtils (skip BufferGeometry overhead)
-          const shapes: THREE.Shape[] = [];
-          for (let i = 0; i < entity.boundaryPaths.length; i++) {
-            const sp = boundaryPathToShapePath(entity.boundaryPaths[i]);
-            if (!sp) continue;
-            const pathShapes = sp.toShapes(false);
-            shapes.push(...pathShapes);
-          }
+          // Build shapes with even-odd hole detection (handles DXF boundaries
+          // where inner and outer arcs share the same winding direction).
+          const shapes = buildSolidHatchShapes(entity.boundaryPaths);
           if (shapes.length === 0) return false;
 
           const v = new THREE.Vector3();
@@ -2138,14 +2133,7 @@ const processEntity = (
       if (isHatchEntity(entity) && entity.boundaryPaths.length > 0) {
         const hatchMatrix = buildOcsMatrix(entity.extrusionDirection);
         if (entity.solid) {
-          const shapes: THREE.Shape[] = [];
-
-          for (let i = 0; i < entity.boundaryPaths.length; i++) {
-            const sp = boundaryPathToShapePath(entity.boundaryPaths[i]);
-            if (!sp) continue;
-            const pathShapes = sp.toShapes(false);
-            shapes.push(...pathShapes);
-          }
+          const shapes = buildSolidHatchShapes(entity.boundaryPaths);
 
           if (shapes.length === 0) break;
 
