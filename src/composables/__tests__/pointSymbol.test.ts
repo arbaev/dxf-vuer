@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computePointDisplaySize } from "../useDXFGeometry";
+import { computePointDisplaySize } from "@/composables/geometry/collectors";
 import { POINT_SYMBOL_DEFAULT_SIZE } from "@/constants";
 
 describe("computePointDisplaySize", () => {

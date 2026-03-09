@@ -11,7 +11,7 @@ export { useThreeScene } from "./composables/useThreeScene";
 export { useCamera } from "./composables/useCamera";
 export { useOrbitControls } from "./composables/useOrbitControls";
 export { useLayers } from "./composables/useLayers";
-export { createThreeObjectsFromDXF } from "./composables/useDXFGeometry";
+export { createThreeObjectsFromDXF, type CreateDXFSceneOptions } from "./composables/createDXFScene";
 
 export { resolveEntityColor, rgbNumberToHex } from "./utils/colorResolver";
 

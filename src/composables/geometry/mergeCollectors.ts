@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { getLineMaterial, getMeshMaterial, getPointsMaterial } from "./primitives";
+import type { MaterialCacheStore } from "./materialCache";
 import { LINETYPE_DOT_SIZE } from "@/constants";
 
 // ─── Growable typed arrays ──────────────────────────────────────────
@@ -228,11 +229,7 @@ export class GeometryCollector {
    * Buffers exceeding MAX_BUFFER_VERTICES are split into multiple objects
    * to stay within WebGL draw call limits.
    */
-  flush(
-    materialCache: Map<string, THREE.LineBasicMaterial>,
-    meshMaterialCache: Map<string, THREE.MeshBasicMaterial>,
-    pointsMaterialCache: Map<string, THREE.PointsMaterial>,
-  ): THREE.Object3D[] {
+  flush(materials: MaterialCacheStore): THREE.Object3D[] {
     const objects: THREE.Object3D[] = [];
 
     // Log buffer sizes for diagnostics
@@ -275,7 +272,7 @@ export class GeometryCollector {
       const iArr = this.meshIndices.get(key);
       if (!iArr || vArr.length < 9 || iArr.length < 3) continue;
       const [layer, color] = parseKey(key);
-      const mat = getMeshMaterial(color, meshMaterialCache);
+      const mat = getMeshMaterial(color, materials.mesh);
 
       // Split meshes by triangle: find split points in index array
       const totalVerts = vArr.length / 3;
@@ -309,7 +306,7 @@ export class GeometryCollector {
     for (const [key, arr] of this.lineSegments) {
       if (arr.length < 6) continue;
       const [layer, color] = parseKey(key);
-      const mat = getLineMaterial(color, materialCache);
+      const mat = getLineMaterial(color, materials.line);
       emitSplitBuffers(arr, layer, 3, objects, (posAttr, lyr) => {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute("position", posAttr);
@@ -324,7 +321,7 @@ export class GeometryCollector {
     for (const [key, arr] of this.points) {
       if (arr.length < 3) continue;
       const [layer, color] = parseKey(key);
-      const mat = getPointsMaterial(color, pointsMaterialCache);
+      const mat = getPointsMaterial(color, materials.points);
       emitSplitBuffers(arr, layer, 3, objects, (posAttr, lyr) => {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute("position", posAttr);

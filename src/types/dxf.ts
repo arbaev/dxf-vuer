@@ -1,3 +1,7 @@
+import type { DxfHeader } from "./header";
+
+export type { DxfHeader } from "./header";
+
 export interface DxfVertex {
   x: number;
   y: number;
@@ -477,8 +481,8 @@ export interface DxfDimStyle {
   dimclrt?: number;  // code 178: dimension text color (ACI index)
   dimlunit?: number; // code 277: 2=Decimal, 4=Architectural
   dimzin?: number;   // code 78: zero suppression flags
-  dimblkHandle?: string; // code 342: handle of dimension arrow block (→ BLOCK_RECORD name)
-  dimldrblkHandle?: string; // code 341: handle of leader arrow block (→ BLOCK_RECORD name)
+  dimblkHandle?: string; // code 342: handle of dimension arrow block (-> BLOCK_RECORD name)
+  dimldrblkHandle?: string; // code 341: handle of leader arrow block (-> BLOCK_RECORD name)
 }
 
 export interface DxfTables {
@@ -525,7 +529,7 @@ export interface DxfBlock {
 
 export interface DxfData {
   entities: DxfEntity[];
-  header?: Record<string, unknown>;
+  header?: DxfHeader;
   tables?: DxfTables;
   blocks?: Record<string, DxfBlock>;
 }

@@ -1,4 +1,5 @@
 import type { DxfEntity, DxfLayer, DxfLineType } from "@/types/dxf";
+import type { DxfHeader } from "@/types/header";
 import { AUTO_LTSCALE_DIVISOR, AUTO_LTSCALE_MIN_EXTENT } from "@/constants";
 
 /** If the smallest LTYPE cycle is at least this fraction of maxExtent, patterns are already visible */
@@ -240,13 +241,13 @@ export function resolveEntityLinetype(
  * is small enough that no scaling is needed.
  */
 export function computeAutoLtScale(
-  header: Record<string, unknown> | undefined,
+  header: DxfHeader | undefined,
   lineTypes?: Record<string, DxfLineType>,
 ): number {
   if (!header) return 1;
 
-  const extMin = header["$EXTMIN"] as { x: number; y: number } | undefined;
-  const extMax = header["$EXTMAX"] as { x: number; y: number } | undefined;
+  const extMin = header.$EXTMIN;
+  const extMax = header.$EXTMAX;
 
   if (!extMin || !extMax) return 1;
 

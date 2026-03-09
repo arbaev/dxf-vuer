@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import * as THREE from "three";
 import type { DxfEntity } from "@/types/dxf";
 import { GeometryCollector } from "../mergeCollectors";
-import type { EntityColorContext } from "../primitives";
+import type { RenderContext } from "../primitives";
+import { MaterialCacheStore } from "../materialCache";
 import {
   type CollectEntityParams,
   transformFlatVertices,
@@ -76,11 +77,9 @@ describe("transformFlatVertices", () => {
 // ─── buildBlockTemplate ─────────────────────────────────────────────
 
 describe("buildBlockTemplate", () => {
-  const makeColorCtx = (): EntityColorContext => ({
+  const makeColorCtx = (): RenderContext => ({
     layers: {},
-    materialCache: new Map(),
-    meshMaterialCache: new Map(),
-    pointsMaterialCache: new Map(),
+    materials: new MaterialCacheStore(),
     lineTypes: {},
     globalLtScale: 1,
     headerLtScale: 1,

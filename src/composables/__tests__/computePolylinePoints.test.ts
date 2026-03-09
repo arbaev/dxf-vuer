@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { computePolylinePoints } from "../useDXFGeometry";
-import type { DxfEntity, DxfVertex } from "@/types";
+import { computePolylinePoints } from "@/composables/geometry/collectors";
+import type { DxfEntity, DxfVertex } from "@/types/dxf";
 
 function makePolyEntity(
   vertices: DxfVertex[],

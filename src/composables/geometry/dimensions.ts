@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Font } from "opentype.js";
 import type { DxfVertex, DxfDimensionEntity, DxfDimStyle } from "@/types/dxf";
+import type { DxfHeader } from "@/types/header";
 import {
   DIM_TEXT_HEIGHT,
   DIM_TEXT_GAP,
@@ -62,25 +63,25 @@ export const DEFAULT_DIM_VARS: DimVars = {
  * $DIMSCALE multiplies all other $DIM* values.
  */
 export function resolveDimVarsFromHeader(
-  header: Record<string, unknown> | undefined,
+  header: DxfHeader | undefined,
 ): DimVars {
   if (!header) return { ...DEFAULT_DIM_VARS };
 
-  const dimScale = (header["$DIMSCALE"] as number) ?? 1;
+  const dimScale = header.$DIMSCALE ?? 1;
   const scale = dimScale > 0 ? dimScale : 1;
 
-  const arrowSize = ((header["$DIMASZ"] as number) ?? ARROW_SIZE) * scale;
-  const textHeight = ((header["$DIMTXT"] as number) ?? DIM_TEXT_HEIGHT) * scale;
-  const dimGap = (header["$DIMGAP"] as number) ?? undefined;
+  const arrowSize = (header.$DIMASZ ?? ARROW_SIZE) * scale;
+  const textHeight = (header.$DIMTXT ?? DIM_TEXT_HEIGHT) * scale;
+  const dimGap = header.$DIMGAP;
   const textGap = dimGap !== undefined
     ? dimGap * scale * DIM_TEXT_GAP_MULTIPLIER * 2
     : textHeight * DIM_TEXT_GAP_MULTIPLIER;
   const extLineDash = EXTENSION_LINE_DASH_SIZE * scale;
   const extLineGap = EXTENSION_LINE_GAP_SIZE * scale;
-  const extLineExtension = ((header["$DIMEXE"] as number) ?? EXTENSION_LINE_EXTENSION) * scale;
+  const extLineExtension = (header.$DIMEXE ?? EXTENSION_LINE_EXTENSION) * scale;
 
-  const dimtsz = (header["$DIMTSZ"] as number) ?? 0;
-  const dimblk = (header["$DIMBLK"] as string) ?? "";
+  const dimtsz = header.$DIMTSZ ?? 0;
+  const dimblk = header.$DIMBLK ?? "";
   const useTicks = dimtsz > 0 || isTickBlock(dimblk);
   // When using ticks: DIMTSZ provides explicit size, otherwise fall back to arrowSize
   const tickSize = !useTicks ? 0 : dimtsz > 0 ? dimtsz * scale : arrowSize;
@@ -123,12 +124,12 @@ export function mergeEntityDimVars(
 export function applyDimStyleVars(
   base: DimVars,
   dimStyle: DxfDimStyle,
-  header?: Record<string, unknown>,
+  header?: DxfHeader,
 ): DimVars {
   const result = { ...base };
 
   // DIMSCALE: DIMSTYLE overrides header $DIMSCALE
-  const headerDimScale = (header?.["$DIMSCALE"] as number | undefined) ?? 1;
+  const headerDimScale = header?.$DIMSCALE ?? 1;
   const styleDimScale = dimStyle.dimscale;
   const scale = (styleDimScale ?? headerDimScale) || 1;
 
@@ -138,7 +139,7 @@ export function applyDimStyleVars(
     result.textGap = result.textHeight * DIM_TEXT_GAP_MULTIPLIER;
   } else if (styleDimScale !== undefined && styleDimScale !== headerDimScale) {
     // DIMSTYLE only overrides DIMSCALE — re-scale header DIMTXT with new scale
-    const headerDimTxt = (header?.["$DIMTXT"] as number | undefined) ?? DIM_TEXT_HEIGHT;
+    const headerDimTxt = header?.$DIMTXT ?? DIM_TEXT_HEIGHT;
     result.textHeight = headerDimTxt * scale;
     result.textGap = result.textHeight * DIM_TEXT_GAP_MULTIPLIER;
   }
@@ -148,7 +149,7 @@ export function applyDimStyleVars(
     result.arrowSize = dimStyle.dimasz * scale;
   } else if (styleDimScale !== undefined && styleDimScale !== headerDimScale) {
     // DIMSTYLE only overrides DIMSCALE — re-scale header DIMASZ with new scale
-    const headerDimAsz = (header?.["$DIMASZ"] as number | undefined) ?? ARROW_SIZE;
+    const headerDimAsz = header?.$DIMASZ ?? ARROW_SIZE;
     result.arrowSize = headerDimAsz * scale;
   }
 
@@ -166,7 +167,7 @@ export function applyDimStyleVars(
   if (dimStyle.dimexe !== undefined) {
     result.extLineExtension = dimStyle.dimexe * scale;
   } else if (styleDimScale !== undefined && styleDimScale !== headerDimScale) {
-    const headerDimExe = (header?.["$DIMEXE"] as number | undefined) ?? EXTENSION_LINE_EXTENSION;
+    const headerDimExe = header?.$DIMEXE ?? EXTENSION_LINE_EXTENSION;
     result.extLineExtension = headerDimExe * scale;
   }
 

@@ -8,6 +8,7 @@ import {
   MIN_ARC_SEGMENTS,
 } from "@/constants";
 import { createBulgeArc } from "./primitives";
+import { generateEllipsePoints } from "./curvePoints";
 
 const getEdgeStartPoint = (edge: HatchEdge): { x: number; y: number } => {
   if (edge.type === "line") {
@@ -19,59 +20,18 @@ const getEdgeStartPoint = (edge: HatchEdge): { x: number; y: number } => {
       y: edge.center.y + edge.radius * Math.sin(startRad),
     };
   } else if (edge.type === "ellipse") {
-    const pts = ellipseEdgeToPoints(edge, 1);
+    const pts = generateEllipsePoints(
+      edge.center.x, edge.center.y, 0,
+      edge.majorAxisEndPoint.x, edge.majorAxisEndPoint.y,
+      edge.axisRatio, edge.startAngle, edge.endAngle,
+      edge.ccw, 1,
+    );
     return pts.length > 0 ? { x: pts[0].x, y: pts[0].y } : { x: 0, y: 0 };
   } else if (edge.type === "spline") {
     const pts = splineEdgeToPoints(edge);
     return pts.length > 0 ? { x: pts[0].x, y: pts[0].y } : { x: 0, y: 0 };
   }
   return { x: 0, y: 0 };
-};
-
-const ellipseEdgeToPoints = (
-  edge: { center: DxfVertex; majorAxisEndPoint: DxfVertex; axisRatio: number; startAngle: number; endAngle: number; ccw: boolean },
-  segmentOverride = 0,
-): THREE.Vector3[] => {
-  const majorX = edge.majorAxisEndPoint.x;
-  const majorY = edge.majorAxisEndPoint.y;
-  const majorLength = Math.sqrt(majorX * majorX + majorY * majorY);
-  if (majorLength < EPSILON) return [];
-  const minorLength = majorLength * edge.axisRatio;
-  const rotation = Math.atan2(majorY, majorX);
-
-  let startAngle = edge.startAngle; // already in radians for HATCH ellipse edge
-  let endAngle = edge.endAngle;
-
-  const isFullEllipse =
-    Math.abs(endAngle - startAngle - 2 * Math.PI) < EPSILON ||
-    Math.abs(endAngle - startAngle) < EPSILON;
-  if (isFullEllipse) {
-    startAngle = 0;
-    endAngle = 2 * Math.PI;
-  }
-
-  let sweepAngle = endAngle - startAngle;
-  if (edge.ccw) {
-    if (sweepAngle < 0) sweepAngle += 2 * Math.PI;
-  } else {
-    if (sweepAngle > 0) sweepAngle -= 2 * Math.PI;
-  }
-
-  const segments = segmentOverride > 0 ? segmentOverride : Math.max(
-    MIN_ARC_SEGMENTS,
-    Math.floor((Math.abs(sweepAngle) * CIRCLE_SEGMENTS) / (2 * Math.PI)),
-  );
-
-  const points: THREE.Vector3[] = [];
-  for (let i = 0; i <= segments; i++) {
-    const t = startAngle + (i / segments) * sweepAngle;
-    const localX = majorLength * Math.cos(t);
-    const localY = minorLength * Math.sin(t);
-    const worldX = edge.center.x + localX * Math.cos(rotation) - localY * Math.sin(rotation);
-    const worldY = edge.center.y + localX * Math.sin(rotation) + localY * Math.cos(rotation);
-    points.push(new THREE.Vector3(worldX, worldY, 0));
-  }
-  return points;
 };
 
 const splineEdgeToPoints = (
@@ -204,7 +164,12 @@ export const addEdgeToPath = (shapePath: THREE.ShapePath, edge: HatchEdge): void
       !edge.ccw, // THREE.js: aClockwise=true means CW, DXF ccw=true means CCW
     );
   } else if (edge.type === "ellipse") {
-    const pts = ellipseEdgeToPoints(edge);
+    const pts = generateEllipsePoints(
+      edge.center.x, edge.center.y, 0,
+      edge.majorAxisEndPoint.x, edge.majorAxisEndPoint.y,
+      edge.axisRatio, edge.startAngle, edge.endAngle,
+      edge.ccw,
+    );
     for (let i = 1; i < pts.length; i++) {
       shapePath.currentPath.lineTo(pts[i].x, pts[i].y);
     }
@@ -287,7 +252,12 @@ export const boundaryPathToLinePoints = (bp: HatchBoundaryPath): THREE.Vector3[]
           );
         }
       } else if (edge.type === "ellipse") {
-        const ePts = ellipseEdgeToPoints(edge);
+        const ePts = generateEllipsePoints(
+          edge.center.x, edge.center.y, 0,
+          edge.majorAxisEndPoint.x, edge.majorAxisEndPoint.y,
+          edge.axisRatio, edge.startAngle, edge.endAngle,
+          edge.ccw,
+        );
         // Skip first point if points already exist (to avoid duplicates at edge junctions)
         const startIdx = points.length > 0 ? 1 : 0;
         for (let i = startIdx; i < ePts.length; i++) {
@@ -358,6 +328,7 @@ export const boundaryPathToPoint2DArray = (bp: HatchBoundaryPath): Point2D[] => 
           });
         }
       } else if (edge.type === "ellipse") {
+        // Inline ellipse calculation to avoid Vector3 allocation (performance path)
         const majorX = edge.majorAxisEndPoint.x;
         const majorY = edge.majorAxisEndPoint.y;
         const majorLength = Math.sqrt(majorX * majorX + majorY * majorY);

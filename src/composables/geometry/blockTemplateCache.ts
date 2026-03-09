@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { DxfEntity } from "@/types/dxf";
 import { resolveEntityColor } from "@/utils/colorResolver";
 import { GeometryCollector } from "./mergeCollectors";
-import { type EntityColorContext, getLineMaterial, getMeshMaterial, getPointsMaterial } from "./primitives";
+import { type RenderContext, getLineMaterial, getMeshMaterial, getPointsMaterial } from "./primitives";
 import { LINETYPE_DOT_SIZE } from "@/constants";
 
 // ─── Interfaces ──────────────────────────────────────────────────────
@@ -10,7 +10,7 @@ import { LINETYPE_DOT_SIZE } from "@/constants";
 /** Params for the collectEntity callback passed to buildBlockTemplate */
 export interface CollectEntityParams {
   entity: DxfEntity;
-  colorCtx: EntityColorContext;
+  colorCtx: RenderContext;
   collector: GeometryCollector;
   layer: string;
   worldMatrix?: THREE.Matrix4;
@@ -77,7 +77,7 @@ export function transformFlatVertices(src: number[], me: number[]): number[] {
 export function buildBlockTemplate(
   blockName: string,
   blockEntities: DxfEntity[],
-  colorCtx: EntityColorContext,
+  colorCtx: RenderContext,
   collectEntityFn: (p: CollectEntityParams) => boolean,
 ): BlockTemplate {
   const tempCollector = new GeometryCollector();
@@ -276,14 +276,14 @@ export function addSharedBlockInstance(
   insertLayer: string,
   insertColor: string,
   worldMatrix: THREE.Matrix4,
-  colorCtx: EntityColorContext,
+  colorCtx: RenderContext,
 ): void {
   for (const entry of shared.entries) {
     const layer = entry.rawLayer === INHERIT_LAYER ? insertLayer : entry.rawLayer;
     const color = entry.rawColor === BYBLOCK_COLOR ? insertColor : entry.rawColor;
 
     if (entry.lineGeo) {
-      const mat = getLineMaterial(color, colorCtx.materialCache);
+      const mat = getLineMaterial(color, colorCtx.materials.line);
       const obj = new THREE.LineSegments(entry.lineGeo, mat);
       obj.matrixAutoUpdate = false;
       obj.matrix.copy(worldMatrix);
@@ -293,7 +293,7 @@ export function addSharedBlockInstance(
     }
 
     if (entry.meshGeo) {
-      const mat = getMeshMaterial(color, colorCtx.meshMaterialCache);
+      const mat = getMeshMaterial(color, colorCtx.materials.mesh);
       const obj = new THREE.Mesh(entry.meshGeo, mat);
       obj.matrixAutoUpdate = false;
       obj.matrix.copy(worldMatrix);
@@ -303,7 +303,7 @@ export function addSharedBlockInstance(
     }
 
     if (entry.pointsGeo) {
-      const mat = getPointsMaterial(color, colorCtx.pointsMaterialCache);
+      const mat = getPointsMaterial(color, colorCtx.materials.points);
       const obj = new THREE.Points(entry.pointsGeo, mat);
       obj.matrixAutoUpdate = false;
       obj.matrix.copy(worldMatrix);

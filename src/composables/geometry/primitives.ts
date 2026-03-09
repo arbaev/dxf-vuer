@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Font } from "opentype.js";
 import type { DxfLayer, DxfLineType, DxfStyle, DxfDimStyle } from "@/types/dxf";
+import type { MaterialCacheStore } from "./materialCache";
 import { applyLinetypePattern, type PatternGeometry } from "@/utils/linetypeResolver";
 import {
   EPSILON,
@@ -12,30 +13,57 @@ import {
   LINETYPE_DOT_SIZE,
 } from "@/constants";
 
-export interface EntityColorContext {
+/** Color resolution context — needed by ALL entity handlers */
+export interface ColorContext {
   layers: Record<string, DxfLayer>;
-  blockColor?: string; // INSERT entity color for ByBlock inheritance
-  materialCache: Map<string, THREE.LineBasicMaterial>;
-  meshMaterialCache: Map<string, THREE.MeshBasicMaterial>;
-  pointsMaterialCache: Map<string, THREE.PointsMaterial>;
+  blockColor?: string;
+  darkTheme?: boolean;
+}
+
+/** Linetype resolution context */
+export interface LinetypeContext {
   lineTypes: Record<string, DxfLineType>;
   globalLtScale: number;
-  headerLtScale: number; // Original $LTSCALE value (before auto-scaling)
+  headerLtScale: number;
   blockLineType?: string;
-  darkTheme?: boolean;
+}
+
+/** Text rendering context */
+export interface TextContext {
+  font: Font;
+  serifFont?: Font;
+  styles?: Record<string, DxfStyle>;
+  defaultTextHeight: number;
+  mirrText?: boolean;
+}
+
+/** Dimension rendering context */
+export interface DimensionContext {
+  dimVars: import("./dimensions").DimVars;
+  dimStyles?: Record<string, DxfDimStyle>;
+  headerDimlunit?: number;
+  blockHandleToName?: Map<string, string>;
+}
+
+/** Full rendering context — composition of all sub-contexts */
+export interface RenderContext extends ColorContext, LinetypeContext {
+  materials: MaterialCacheStore;
   font?: Font; // Vector text font (null = canvas fallback)
   serifFont?: Font; // Lazy-loaded serif font for serif text styles
   styles?: Record<string, DxfStyle>; // STYLE table for font classification
+  defaultTextHeight: number; // $TEXTSIZE from header (fallback for entities without explicit height)
+  mirrText?: boolean; // $MIRRTEXT: true = mirror text with geometry, false (default) = keep readable
   pdMode?: number; // $PDMODE header variable (point display mode)
   pointDisplaySize?: number; // Computed PDSIZE in drawing units
   dimVars?: import("./dimensions").DimVars; // Resolved dimension variables
-  defaultTextHeight: number; // $TEXTSIZE from header (fallback for entities without explicit height)
-  mirrText?: boolean; // $MIRRTEXT: true = mirror text with geometry, false (default) = keep readable
-  xlineClipSize?: number; // Half-length for clipping XLINE/RAY to drawing extents
   dimStyles?: Record<string, DxfDimStyle>; // DIMSTYLE table for dimension formatting
   headerDimlunit?: number; // $DIMLUNIT from header (fallback for dimension formatting)
   blockHandleToName?: Map<string, string>; // BLOCK_RECORD handle → name (for DIMBLK resolution)
+  xlineClipSize?: number; // Half-length for clipping XLINE/RAY to drawing extents
 }
+
+/** @deprecated Use RenderContext instead */
+export type EntityColorContext = RenderContext;
 
 export const degreesToRadians = (degrees: number): number =>
   (degrees * Math.PI) / DEGREES_TO_RADIANS_DIVISOR;
