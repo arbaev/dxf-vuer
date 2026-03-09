@@ -98,9 +98,9 @@
         <div class="feature-card">
           <h3>Built-in Parser</h3>
           <p>
-            Custom DXF parser with zero external dependencies. 16 entity types including dimensions,
-            hatches, splines, and block attributes. Async parsing in a Web Worker keeps the UI
-            responsive.
+            Custom DXF parser with zero external dependencies. 21 entity types including dimensions,
+            hatches, splines, multilines, construction lines, and block attributes. Async parsing in
+            a Web Worker keeps the UI responsive.
           </p>
         </div>
         <div class="feature-card">
@@ -125,10 +125,11 @@
           </p>
         </div>
         <div class="feature-card">
-          <h3>16 Entity Types</h3>
+          <h3>21 Entity Types</h3>
           <p>
-            Lines, arcs, splines, hatches with 25 AutoCAD patterns, dimensions, block inserts with
-            attributes, leader/multileader. Linetypes, OCS transforms, and paper space filtering.
+            Lines, arcs, splines, multilines, construction lines, hatches with 25 AutoCAD patterns,
+            architectural dimensions, block inserts with attributes, leader/multileader. Linetypes,
+            OCS transforms, and paper space filtering.
           </p>
         </div>
         <div class="feature-card">

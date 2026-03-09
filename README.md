@@ -14,11 +14,11 @@ Vue 3 component for viewing DXF files in the browser. Built-in DXF parser, Three
 
 ## Features
 
-- **16 DXF entity types** rendered: LINE, CIRCLE, ARC, ELLIPSE, SPLINE, POLYLINE, LWPOLYLINE, TEXT, MTEXT, DIMENSION, HATCH, INSERT, SOLID, 3DFACE, LEADER, MULTILEADER — plus ATTRIB within INSERT blocks
+- **21 DXF entity types** rendered: LINE, CIRCLE, ARC, ELLIPSE, SPLINE, POLYLINE, LWPOLYLINE, TEXT, MTEXT, DIMENSION, HATCH, INSERT, SOLID, 3DFACE, LEADER, MULTILEADER, MLINE, XLINE, RAY, ATTDEF, HELIX — plus ATTRIB within INSERT blocks
 - **Linetype rendering** — DASHED, HIDDEN, CENTER, PHANTOM, DOT, DASHDOT and other DXF line patterns with entity/layer/block resolution and LTSCALE support
 - **Hatch patterns** — 25 built-in AutoCAD patterns (ANSI31–38, BRICK, DOTS, NET, HEX, GOST_* etc.) with scale, angle, dot elements, multi-boundary even-odd clipping
 - **OCS support** — Arbitrary Axis Algorithm for correct rendering of mirrored/rotated entities
-- **Vector text rendering** — crisp text at any zoom via opentype.js triangulated glyphs; embedded Noto Sans Light font with lazy-loaded Noto Serif; bold, italic, stacked fractions, and inline MTEXT formatting; custom font loading via `fontUrl` prop
+- **Vector text rendering** — crisp text at any zoom via opentype.js triangulated glyphs; embedded Liberation Sans Regular font with lazy-loaded Liberation Serif; bold, italic, underline, stacked fractions, tab stops, and inline MTEXT formatting; custom font loading via `fontUrl` prop
 - **Built-in DXF parser** — no external parser dependencies, custom scanner with full type casting
 - **Parser-only entry point** — use `dxf-vuer/parser` in Node.js, React, or any JS/TS project (zero dependencies)
 - **TypeScript** — strict types, full `.d.ts` declarations
@@ -34,7 +34,7 @@ Vue 3 component for viewing DXF files in the browser. Built-in DXF parser, Three
 - **Paper space filtering** — paper space entities (title blocks, borders) automatically excluded
 - **World coordinates** — optional cursor position display in drawing units
 - **Fullscreen mode** — built-in fullscreen button in the viewer toolbar
-- **Bundle sizes** — ~790 KB main bundle (includes embedded font + opentype.js), ~43 KB parser-only chunk (zero dependencies), ~646 KB serif font chunk (lazy-loaded only when needed)
+- **Bundle sizes** — ~1000 KB main bundle (includes embedded font + opentype.js), ~49 KB parser-only chunk (zero dependencies), ~525 KB serif font chunk (lazy-loaded only when needed)
 
 ## Installation
 
@@ -175,11 +175,13 @@ import { resolveEntityColor } from 'dxf-vuer'
 
 ## Supported DXF Entities
 
-**Rendered** (16 types): LINE, CIRCLE, ARC, ELLIPSE, POINT, POLYLINE, LWPOLYLINE, SPLINE, TEXT, MTEXT, DIMENSION, INSERT, SOLID, 3DFACE, HATCH, LEADER, MULTILEADER
+**Rendered** (21 types): LINE, CIRCLE, ARC, ELLIPSE, POINT, POLYLINE, LWPOLYLINE, SPLINE, TEXT, MTEXT, DIMENSION, INSERT, SOLID, 3DFACE, HATCH, LEADER, MULTILEADER, MLINE, XLINE, RAY, ATTDEF
 
 **Rendered within INSERT**: ATTRIB (attribute text with alignment, rotation, individual color)
 
-**Parsed but not rendered**: ATTDEF, VIEWPORT, IMAGE, WIPEOUT
+**Rendered via SPLINE**: HELIX (parsed as spline data, rendered through the spline pipeline)
+
+**Parsed but not rendered**: 3DSOLID, VIEWPORT, IMAGE, WIPEOUT
 
 ## CSS Customization
 
@@ -215,7 +217,7 @@ Vue 3.5, TypeScript 5.9, Three.js 0.182, Vite 7, opentype.js 1.3.
 
 ## Acknowledgements
 
-The DXF parser architecture was inspired by and initially ported from [dxf-parser](https://github.com/gdsestimating/dxf-parser) by GDS Estimating. The codebase has since been substantially rewritten in TypeScript with a modular structure, 22 entity handlers (7 new), linetype/OCS/hatch pattern systems, and a comprehensive test suite.
+The DXF parser architecture was inspired by and initially ported from [dxf-parser](https://github.com/gdsestimating/dxf-parser) by GDS Estimating. The codebase has since been substantially rewritten in TypeScript with a modular structure, 25 entity handlers (10 new), linetype/OCS/hatch pattern systems, and a comprehensive test suite.
 
 ## License
 

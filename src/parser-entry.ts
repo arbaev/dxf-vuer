@@ -31,6 +31,8 @@ export type {
   DxfMLeaderEntity,
   DxfAttdefEntity,
   DxfAttribEntity,
+  DxfMlineEntity,
+  DxfXlineEntity,
   DxfUnknownEntity,
   DxfEntity,
   DxfLayer,
@@ -39,6 +41,7 @@ export type {
   DxfBlock,
   DxfData,
   DxfStatistics,
+  DxfDimStyle,
 } from "./types/dxf";
 
 export {
@@ -59,4 +62,6 @@ export {
   isMLeaderEntity,
   isAttdefEntity,
   isAttribEntity,
+  isMlineEntity,
+  isXlineEntity,
 } from "./types/dxf";

@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-03-09
+
+### Added
+
+- **MLINE entity** — multiline entities with multiple parallel line elements, individual element colors and linetypes
+- **XLINE entity** — construction lines (infinite in both directions), clipped to drawing extents for rendering
+- **RAY entity** — rays (infinite in one direction), clipped to drawing extents for rendering
+- **HELIX entity** — parsed as SPLINE, rendered through the existing spline pipeline
+- **ATTDEF rendering** — attribute definitions now rendered as text (previously parse-only)
+- **3DSOLID parser** — 3DSOLID entities parsed (not rendered, data stored for future use)
+- **DIMSTYLE table** — dimension style table fully parsed with 40+ dimension variables (DIMBLK, DIMSCALE, DIMTXT, etc.)
+- **BLOCK_RECORD table** — block record table parsed for handle-to-name mapping
+- **INSUNITS support** — `$INSUNITS` header variable parsed; `getInsUnitsScale()` utility for unit conversion
+- **Architectural units** — dimension text formatted in feet-inches notation (DIMLUNIT=4) with fractions
+- **Architectural ticks** — oblique tick marks for dimension lines (DIMTSZ > 0, DIMBLK tick patterns)
+- **Text underline** — MTEXT `\L...\l` underline formatting rendered as line segments below text
+- **Tab support** — MTEXT tab characters (`\t`, `^I`) rendered with 4×textHeight tab stops (AutoCAD standard)
+- **3D polygon mesh** — POLYLINE entities with `is3dPolygonMesh` flag rendered as wireframe grids
+- **PDMODE 34** — point symbol rendering with cross-in-circle style
+- **$MIRRTEXT support** — mirrored text in blocks with negative X scale respects `$MIRRTEXT` header variable
+- Test suite expanded from 648 to 789 cases across 34 files (was 27)
+
+### Fixed
+
+- Dimension lines: rotated dimensions, angular dimensions, overshoot lines, text gap adjustment, radial/diametric placement
+- Dimension text: architectural formatting, stacked fractions, DIMSCALE/DIMVARS support
+- Text rendering: text height from DIMSTYLE, leading spaces preserved, height format application, textSize parameter
+- Hatch patterns: solid fill optimization (86× faster on large files), spline edge parsing, donut shapes, parquette pattern
+- MTEXT: word wrapping optimization (O(n) incremental), tab indentation, `\H` height format apply
+- Polyline: bulge=1 arcs, closed LWPOLYLINE, `closed` parameter support, polyline resolution, polyface mesh
+- Ellipse: arc sweep direction, OCS transform
+- Linetype: pattern scaling, auto-LTSCALE computation from extents
+- Leader: path type handling, tick marks, arrow sizing
+- 3D entities: 3DFACE parsing, parse robustness for 3D entities
+- Entity visibility: `visible` parameter support for entities
+- Objects rendering order preserved
+- DXF files without TABLES section parsed correctly
+
+### Changed
+
+- **Fonts**: Noto Sans Light → Liberation Sans Regular (Arial-metrically-compatible, ~410 KB embedded); Noto Serif Light → Liberation Serif Regular (Times New Roman-compatible, ~525 KB lazy-loaded)
+- **Bundle sizes**: main ~790 KB → ~1000 KB, parser chunk ~43 KB → ~49 KB, serif font chunk ~646 KB → ~525 KB
+- Entity parsers: 22 → 25 handlers (added mline, xline, 3dsolid)
+- Refactored geometry function signatures to use options objects instead of positional parameters
+- INSERT entity parser now includes additional parameters (column/row counts, spacing)
+
 ## [1.3.0] - 2026-03-05
 
 ### Added
@@ -134,6 +180,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dual package exports**: `dxf-vuer` (full library) and `dxf-vuer/parser` (parser only), plus `dxf-vuer/style.css`
 - **Demo application** deployed at [dxf-vuer.netlify.app](https://dxf-vuer.netlify.app)
 
+[1.4.0]: https://github.com/arbaev/dxf-vuer/releases/tag/v1.4.0
 [1.3.0]: https://github.com/arbaev/dxf-vuer/releases/tag/v1.3.0
 [1.2.0]: https://github.com/arbaev/dxf-vuer/releases/tag/v1.2.0
 [1.1.0]: https://github.com/arbaev/dxf-vuer/releases/tag/v1.1.0
