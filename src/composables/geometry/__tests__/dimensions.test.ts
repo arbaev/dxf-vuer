@@ -610,6 +610,48 @@ describe("formatArchitectural", () => {
     expect(formatArchitectural(12, 3)).toBe("1'-0\"");
     expect(formatArchitectural(0, 3)).toBe("0'-0\"");
   });
+
+  // Fractional inches — stacked fraction notation
+  it("formats 9.5 inches as 9\\S1/2;\" (half inch)", () => {
+    expect(formatArchitectural(9.5)).toBe("9\\S1/2;\"");
+  });
+
+  it("formats 9.49999 (≈9.5) as 9\\S1/2;\"", () => {
+    expect(formatArchitectural(9.49999999994543)).toBe("9\\S1/2;\"");
+  });
+
+  it("formats 9.506 (≈9.5) as 9\\S1/2;\"", () => {
+    expect(formatArchitectural(9.506632848266236)).toBe("9\\S1/2;\"");
+  });
+
+  it("formats 6.25 inches as 6\\S1/4;\" (quarter inch)", () => {
+    expect(formatArchitectural(6.25)).toBe("6\\S1/4;\"");
+  });
+
+  it("formats 6.75 inches as 6\\S3/4;\" (three quarters)", () => {
+    expect(formatArchitectural(6.75)).toBe("6\\S3/4;\"");
+  });
+
+  it("formats 0.5 inches as \\S1/2;\" (fraction only)", () => {
+    expect(formatArchitectural(0.5)).toBe("\\S1/2;\"");
+  });
+
+  it("formats 114.5 inches as 9'-6\\S1/2;\" (feet + inches + fraction)", () => {
+    expect(formatArchitectural(114.5)).toBe("9'-6\\S1/2;\"");
+  });
+
+  it("formats 12.125 inches as 1'-\\S1/8;\" (feet + fraction, no whole inches)", () => {
+    expect(formatArchitectural(12.125)).toBe("1'-\\S1/8;\"");
+  });
+
+  it("rounds up fraction that exceeds denominator", () => {
+    // 11.97 inches → fraction rounds to 16/16 = 1 → carry to 12 → 1'
+    expect(formatArchitectural(11.97)).toBe("1'");
+  });
+
+  it("handles negative fractional value", () => {
+    expect(formatArchitectural(-6.5)).toBe("-6\\S1/2;\"");
+  });
 });
 
 // =====================================================================

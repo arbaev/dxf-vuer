@@ -419,63 +419,11 @@ const DXF_LINE_SPACING_BASE = 5 / 3;
 const STACKED_RATIO = 0.6;
 /** Small gap between main text and stacked fraction, as ratio of height */
 const STACKED_H_GAP = 0.1;
-/** Default MTEXT tab stop interval: every 4 × text height (AutoCAD default) */
-const DEFAULT_TAB_MULTIPLIER = 4;
-
 /**
- * Measure the width of a text line with tab stop support.
- * Splits text by tab characters and advances to the next tab stop after each segment.
- * @returns Width in world units.
+ * AutoCAD default MTEXT tab stop multiplier: 4 × textHeight.
+ * With an Arial-compatible font (Liberation Sans) this matches AutoCAD behaviour.
  */
-function measureLineWithTabs(
-  font: Font, text: string, emScale: number, tabStopWidth: number,
-): number {
-  if (!text.includes("\t")) {
-    return measureText(font, text).totalAdvance * emScale;
-  }
-  const segments = text.split("\t");
-  let worldX = 0;
-  for (let i = 0; i < segments.length; i++) {
-    if (segments[i]) {
-      worldX += measureText(font, segments[i]).totalAdvance * emScale;
-    }
-    // After each segment except the last, advance to next tab stop
-    if (i < segments.length - 1) {
-      worldX = Math.ceil((worldX + 1e-6) / tabStopWidth) * tabStopWidth;
-    }
-  }
-  return worldX;
-}
-
-/**
- * Replace tab characters with the appropriate number of spaces
- * to visually approximate tab stop positions.
- */
-function expandTabsToSpaces(
-  font: Font, text: string, emScale: number, tabStopWidth: number,
-): string {
-  if (!text.includes("\t")) return text;
-
-  const spaceAdvance = measureText(font, " ").totalAdvance * emScale;
-  if (spaceAdvance <= 0) return text.replace(/\t/g, "    ");
-
-  const segments = text.split("\t");
-  let result = segments[0];
-  let worldX = segments[0] ? measureText(font, segments[0]).totalAdvance * emScale : 0;
-
-  for (let i = 1; i < segments.length; i++) {
-    const nextStop = Math.ceil((worldX + 1e-6) / tabStopWidth) * tabStopWidth;
-    const gap = nextStop - worldX;
-    const numSpaces = Math.max(1, Math.round(gap / spaceAdvance));
-    result += " ".repeat(numSpaces);
-    worldX = nextStop;
-    if (segments[i]) {
-      result += segments[i];
-      worldX += measureText(font, segments[i]).totalAdvance * emScale;
-    }
-  }
-  return result;
-}
+const TAB_STOP_MULTIPLIER = 4;
 
 /**
  * Map MTEXT horizontal alignment string to HAlign enum.
@@ -506,7 +454,9 @@ function wrapTextToWidth(font: Font, text: string, height: number, maxWidth: num
   for (let i = 1; i < words.length; i++) {
     const wordAdv = measureText(font, words[i]).totalAdvance;
     const testAdv = lineAdv + spaceAdv + wordAdv;
-    if (testAdv * emScale > maxWidth && currentLine.length > 0) {
+    // 2% tolerance: font metric rounding (sCapHeight override, advance precision)
+    // can make text slightly wider than the original AutoCAD measurement
+    if (testAdv * emScale > maxWidth * 1.02 && currentLine.length > 0) {
       lines.push(currentLine);
       currentLine = words[i];
       lineAdv = wordAdv;
@@ -642,7 +592,8 @@ export function addMTextToCollector(p: MTextParams): void {
   const lineSpacing = (lineSpacingFactor || 1) * DXF_LINE_SPACING_BASE;
 
   // 1. Tab expansion + Word wrapping
-  const tabStopWidth = DEFAULT_TAB_MULTIPLIER * defaultHeight;
+  // Tab stop = 4 × textHeight (AutoCAD default)
+  const tabStopWidth = TAB_STOP_MULTIPLIER * defaultHeight;
   const expandedLines: MTextLine[] = [];
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const line = lines[lineIdx];
@@ -653,52 +604,17 @@ export function addMTextToCollector(p: MTextParams): void {
     }
 
     let processedText = line.text;
-    let insertEmptyLine = false;
+    const hadTabs = processedText.includes("\t");
 
-    // Expand tab characters with proper tab stop positions
-    if (processedText.includes("\t")) {
-      const lineHeight = line.height || defaultHeight;
-      const emScale = lineHeight / getCapHeightRatio(font);
-
-      // Check if trailing tabs push beyond column width (causes visual line wrap).
-      // Two checks:
-      //  Strict: fullWidth > width — tabs definitely exceed column (works for any font).
-      //  Relaxed: fullWidth > width - tabStopWidth — the line with tabs reached the
-      //    last tab column before the boundary. With font substitution (e.g. Noto Sans
-      //    for Arial) text can be slightly narrower, landing one tab stop short of where
-      //    the original font would push it past the column width. Only applied when the
-      //    next line is not already empty (avoid double spacing from \P\P).
-      if (width && width > 0 && /\t$/.test(processedText)) {
-        const fullWidth = measureLineWithTabs(font, processedText, emScale, tabStopWidth);
-        const trimmed = processedText.replace(/\t+$/, "");
-        const trimmedWidth = trimmed.includes("\t")
-          ? measureLineWithTabs(font, trimmed, emScale, tabStopWidth)
-          : trimmed ? measureText(font, trimmed).totalAdvance * emScale : 0;
-
-        if (trimmedWidth <= width) {
-          if (fullWidth > width) {
-            // Strict: tabs definitely exceed column width
-            insertEmptyLine = true;
-          } else if (fullWidth > width - tabStopWidth) {
-            // Relaxed: within one tab stop of boundary — check next line
-            const nextText = lineIdx + 1 < lines.length ? lines[lineIdx + 1].text : "";
-            const nextIsEmpty = !nextText || !nextText.replace(/\t/g, "").trim();
-            if (!nextIsEmpty) {
-              insertEmptyLine = true;
-            }
-          }
-        }
-      }
-
-      // Expand tabs to spaces. Always trim trailing tabs — they serve only
-      // as width markers for the wrapping check above, not as visible content.
-      // Keeping them would produce trailing spaces that cause spurious word wrapping.
-      const textForExpansion = processedText.replace(/\t+$/, "");
-      processedText = expandTabsToSpaces(font, textForExpansion, emScale, tabStopWidth);
+    // Tab-containing lines define columnar layout (tables, schedules).
+    // Keep \t characters — they will be rendered at exact tab stop positions.
+    // Strip trailing tabs — they are column-width padding, not visible content.
+    if (hadTabs) {
+      processedText = processedText.replace(/\t+$/, "");
     }
 
-    // Word wrap (only when width constraint is set)
-    if (width && width > 0) {
+    // Word wrap (only when width constraint is set and line has no tabs)
+    if (!hadTabs && width && width > 0) {
       const lineHeight = line.height || defaultHeight;
       const margin = line.leftMargin || 0;
       const effectiveWidth = width - margin;
@@ -713,11 +629,6 @@ export function addMTextToCollector(p: MTextParams): void {
       }
     } else {
       expandedLines.push({ ...line, text: processedText });
-    }
-
-    // Insert empty line when trailing tabs exceeded column width
-    if (insertEmptyLine) {
-      expandedLines.push({ text: "", color: line.color, height: line.height });
     }
   }
 
@@ -753,7 +664,6 @@ export function addMTextToCollector(p: MTextParams): void {
   const cos = Math.cos(rotation);
   const sin = Math.sin(rotation);
   let lineYOffset = 0; // accumulates downward (negative Y in local coords)
-
   for (const line of expandedLines) {
     const lineHeight = line.height || defaultHeight;
     const lineColor = line.color || color;
@@ -781,6 +691,32 @@ export function addMTextToCollector(p: MTextParams): void {
         height: lineHeight, posX: worldX, posY: worldY, posZ, rotation, hAlign,
         bold: line.bold, italic: line.italic,
       });
+    } else if (line.text.includes("\t")) {
+      // Render tab-separated segments at exact tab stop positions.
+      // Tab grid = multiples of tabStopWidth (4 × defaultHeight).
+      // With sCapHeight overridden to match Arial, positions match AutoCAD exactly.
+      const segments = line.text.split("\t");
+      const emScale = lineHeight / getCapHeightRatio(lineFont);
+      let segLocalX = 0;
+      for (let si = 0; si < segments.length; si++) {
+        if (segments[si]) {
+          const segWX = worldX + segLocalX * cos;
+          const segWY = worldY + segLocalX * sin;
+          addTextToCollector({
+            collector, layer, color: lineColor, font: lineFont,
+            text: segments[si], height: lineHeight,
+            posX: segWX, posY: segWY, posZ,
+            rotation, hAlign: HAlign.LEFT, vAlign: rowVAlign,
+            bold: line.bold, italic: line.italic,
+            underline: line.underline,
+          });
+          segLocalX += measureText(lineFont, segments[si]).totalAdvance * emScale;
+        }
+        // Advance to next tab stop after each segment except the last
+        if (si < segments.length - 1) {
+          segLocalX = Math.ceil((segLocalX + 1e-6) / tabStopWidth) * tabStopWidth;
+        }
+      }
     } else {
       addTextToCollector({
         collector, layer, color: lineColor, font: lineFont,
@@ -813,6 +749,7 @@ export function measureDimensionTextWidth(font: Font, rawText: string, height: n
     const mainText = stackedMatch[1].trim();
     const topText = stackedMatch[2].trim();
     const bottomText = stackedMatch[3].trim();
+    const suffixText = stackedMatch[4]?.trim() || "";
 
     const stackedHeight = height * STACKED_RATIO;
     const capRatio = getCapHeightRatio(font);
@@ -825,8 +762,9 @@ export function measureDimensionTextWidth(font: Font, rawText: string, height: n
       : 0;
     const stackedWidth = Math.max(topAdvance, bottomAdvance);
     const gap = mainText ? mainEmScale * STACKED_H_GAP : 0;
+    const suffixAdvance = suffixText ? measureText(font, suffixText).totalAdvance * mainEmScale : 0;
 
-    return mainAdvance + gap + stackedWidth;
+    return mainAdvance + gap + stackedWidth + suffixAdvance;
   }
 
   // Plain text: strip remaining \S patterns
@@ -856,6 +794,7 @@ export function addDimensionTextToCollector(p: DimensionTextParams): void {
     const mainText = stackedMatch[1].trim();
     const topText = stackedMatch[2].trim();
     const bottomText = stackedMatch[3].trim();
+    const suffixText = stackedMatch[4]?.trim() || "";
     const stackedHeight = height * STACKED_RATIO;
 
     const cos = Math.cos(rotation);
@@ -872,7 +811,8 @@ export function addDimensionTextToCollector(p: DimensionTextParams): void {
       : 0;
     const stackedWidth = Math.max(topAdvance, bottomAdvance);
     const gap = mainText ? mainEmScale * STACKED_H_GAP : 0;
-    const totalWidth = mainAdvance + gap + stackedWidth;
+    const suffixAdvance = suffixText ? measureText(font, suffixText).totalAdvance * mainEmScale : 0;
+    const totalWidth = mainAdvance + gap + stackedWidth + suffixAdvance;
 
     // Horizontal alignment offset
     let offsetX = 0;
@@ -895,7 +835,8 @@ export function addDimensionTextToCollector(p: DimensionTextParams): void {
     }
 
     // Fractions: centered vertically around posY (= dimension midpoint).
-    const vGap = mainEmScale * 0.04;
+    // Extra gap so digits don't touch the horizontal separator line.
+    const vGap = mainEmScale * 0.12;
     const topMetrics = topText ? measureText(font, topText) : null;
     const bottomMetrics = bottomText ? measureText(font, bottomText) : null;
     const topVisualH = topMetrics
@@ -909,8 +850,9 @@ export function addDimensionTextToCollector(p: DimensionTextParams): void {
 
     if (topText && topMetrics) {
       const topBaseY = halfStack - topMetrics.bounds.yMax * stackedEmScale;
-      const topX = curX - topBaseY * sin;
-      const topY = curY + topBaseY * cos;
+      const topCenterX = (stackedWidth - topAdvance) / 2;
+      const topX = curX + topCenterX * cos - topBaseY * sin;
+      const topY = curY + topCenterX * sin + topBaseY * cos;
       addTextToCollector({
         collector, layer, color, font, text: topText, height: stackedHeight,
         posX: topX, posY: topY, posZ,
@@ -921,12 +863,50 @@ export function addDimensionTextToCollector(p: DimensionTextParams): void {
 
     if (bottomText && bottomMetrics) {
       const bottomBaseY = -halfStack - bottomMetrics.bounds.yMin * stackedEmScale;
-      const bottomX = curX - bottomBaseY * sin;
-      const bottomY = curY + bottomBaseY * cos;
+      const bottomCenterX = (stackedWidth - bottomAdvance) / 2;
+      const bottomX = curX + bottomCenterX * cos - bottomBaseY * sin;
+      const bottomY = curY + bottomCenterX * sin + bottomBaseY * cos;
       addTextToCollector({
         collector, layer, color, font, text: bottomText, height: stackedHeight,
         posX: bottomX, posY: bottomY, posZ,
         rotation, hAlign: HAlign.LEFT, vAlign: VAlign.BASELINE,
+        transform,
+      });
+    }
+
+    // Horizontal separator line between numerator and denominator
+    // Line extends slightly beyond digits (overshoot) and is centered
+    if (topText && bottomText) {
+      const overshoot = stackedWidth * 0.08;
+      const lineX1 = -overshoot;
+      const lineX2 = stackedWidth + overshoot;
+      let wx1 = curX + lineX1 * cos;
+      let wy1 = curY + lineX1 * sin;
+      let wz1 = posZ;
+      let wx2 = curX + lineX2 * cos;
+      let wy2 = curY + lineX2 * sin;
+      let wz2 = posZ;
+      if (transform) {
+        const t1x = transform[0] * wx1 + transform[4] * wy1 + transform[8] * wz1 + transform[12];
+        const t1y = transform[1] * wx1 + transform[5] * wy1 + transform[9] * wz1 + transform[13];
+        const t1z = transform[2] * wx1 + transform[6] * wy1 + transform[10] * wz1 + transform[14];
+        wx1 = t1x; wy1 = t1y; wz1 = t1z;
+        const t2x = transform[0] * wx2 + transform[4] * wy2 + transform[8] * wz2 + transform[12];
+        const t2y = transform[1] * wx2 + transform[5] * wy2 + transform[9] * wz2 + transform[13];
+        const t2z = transform[2] * wx2 + transform[6] * wy2 + transform[10] * wz2 + transform[14];
+        wx2 = t2x; wy2 = t2y; wz2 = t2z;
+      }
+      collector.addLineSegments(layer, color, [wx1, wy1, wz1, wx2, wy2, wz2]);
+    }
+
+    // Suffix text after stacked fraction (e.g. the " in 9\S1/2;")
+    if (suffixText) {
+      const suffX = curX + stackedWidth * cos;
+      const suffY = curY + stackedWidth * sin;
+      addTextToCollector({
+        collector, layer, color, font, text: suffixText, height,
+        posX: suffX, posY: suffY, posZ,
+        rotation, hAlign: HAlign.LEFT, vAlign: VAlign.MIDDLE,
         transform,
       });
     }

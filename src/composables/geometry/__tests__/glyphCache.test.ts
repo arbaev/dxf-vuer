@@ -81,7 +81,7 @@ describe("glyphCache", () => {
     });
 
     it("returns custom glyph for U+2300 (⌀ diameter sign)", () => {
-      // U+2300 DIAMETER SIGN is not in Noto Sans Light
+      // U+2300 DIAMETER SIGN is not in Liberation Sans
       expect(font.charToGlyphIndex("\u2300")).toBe(0);
       const data = getTriangulatedGlyph(font, "\u2300");
       expect(data).not.toBeNull();
@@ -104,9 +104,9 @@ describe("glyphCache", () => {
 
     it("returns different data for different characters", () => {
       const dataA = getTriangulatedGlyph(font, "A");
-      const dataB = getTriangulatedGlyph(font, "B");
-      expect(dataA).not.toBe(dataB);
-      expect(dataA!.advance).not.toBe(dataB!.advance);
+      const dataI = getTriangulatedGlyph(font, "i");
+      expect(dataA).not.toBe(dataI);
+      expect(dataA!.advance).not.toBe(dataI!.advance);
     });
 
     it("triangulates Cyrillic character (Д)", () => {

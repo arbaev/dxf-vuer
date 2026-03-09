@@ -6,12 +6,12 @@ describe("fontManager", () => {
     it("returns an opentype.js Font object", () => {
       const font = loadDefaultFont();
       expect(font).toBeDefined();
-      expect(font.unitsPerEm).toBe(1000);
+      expect(font.unitsPerEm).toBe(2048);
     });
 
-    it("has Noto Sans Light font family", () => {
+    it("has Liberation Sans font family", () => {
       const font = loadDefaultFont();
-      expect(font.names.fontFamily.en).toBe("Noto Sans Light");
+      expect(font.names.fontFamily.en).toBe("Liberation Sans");
     });
 
     it("has valid ascender and descender", () => {
@@ -52,6 +52,12 @@ describe("fontManager", () => {
       const font2 = loadDefaultFont();
       expect(font1).toBe(font2);
     });
+
+    it("has sCapHeight overridden to match Arial (1467)", () => {
+      const font = loadDefaultFont();
+      const os2 = (font as { tables?: { os2?: { sCapHeight?: number } } }).tables?.os2;
+      expect(os2?.sCapHeight).toBe(1467);
+    });
   });
 
   describe("getDefaultFont", () => {
@@ -59,7 +65,7 @@ describe("fontManager", () => {
       loadDefaultFont();
       const font = getDefaultFont();
       expect(font).not.toBeNull();
-      expect(font!.unitsPerEm).toBe(1000);
+      expect(font!.unitsPerEm).toBe(2048);
     });
   });
 });

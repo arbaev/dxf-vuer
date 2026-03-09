@@ -610,7 +610,14 @@ export const formatDimNumber = (value: number): string =>
   parseFloat(value.toFixed(DIM_TEXT_DECIMAL_PLACES)).toString();
 
 /**
+ * Max fraction denominator for architectural dimensions.
+ * 2^4 = 16 → 1/16" precision (standard DIMDEC=4).
+ */
+const ARCH_FRAC_DENOM = 16;
+
+/**
  * Format a measurement in inches as architectural: feet'-inches".
+ * Fractional inches are displayed using \S stacked notation (e.g. 6\S1/2;").
  * dimzin controls zero suppression (DXF code 78):
  *   bit 0 (1): suppress leading zeros in decimals (not relevant here)
  *   bit 1 (2): suppress trailing zeros in decimals (not relevant here)
@@ -621,32 +628,59 @@ export const formatDimNumber = (value: number): string =>
 export const formatArchitectural = (totalInches: number, dimzin?: number): string => {
   const sign = totalInches < 0 ? "-" : "";
   const abs = Math.abs(totalInches);
-  const feet = Math.floor(abs / 12);
-  const inches = Math.round(abs % 12);
+  let feet = Math.floor(abs / 12);
+  const remInches = abs - feet * 12;
+  let wholeInches = Math.floor(remInches);
+  const fracPart = remInches - wholeInches;
 
-  // Handle rounding: 11.5+ inches rounds up to next foot
-  const finalFeet = inches >= 12 ? feet + 1 : feet;
-  const finalInches = inches >= 12 ? 0 : inches;
+  // Convert fractional part to nearest fraction with power-of-2 denominator
+  let fracNum = 0;
+  let fracDen = 1;
+  if (fracPart > 1 / (ARCH_FRAC_DENOM * 2)) {
+    fracNum = Math.round(fracPart * ARCH_FRAC_DENOM);
+    fracDen = ARCH_FRAC_DENOM;
+    if (fracNum >= fracDen) {
+      // Fraction rounds up to next whole inch
+      fracNum = 0;
+      wholeInches++;
+      if (wholeInches >= 12) { feet++; wholeInches -= 12; }
+    } else {
+      // Reduce fraction by GCD
+      let a = fracNum, b = fracDen;
+      while (b) { const t = b; b = a % t; a = t; }
+      fracNum /= a;
+      fracDen /= a;
+    }
+  }
 
+  const hasFrac = fracNum > 0;
   const zin = dimzin ?? 0;
-  const suppressZeroFeet = (zin & 4) !== 0;
-  const suppressZeroInches = (zin & 8) !== 0;
 
-  // dimzin=0: suppress both zero feet and zero inches (AutoCAD default for architectural)
+  // Build the inches part: whole inches + optional stacked fraction + quote
+  let inchPart = "";
+  if (wholeInches > 0 && hasFrac) {
+    inchPart = wholeInches + "\\S" + fracNum + "/" + fracDen + ";\"";
+  } else if (hasFrac) {
+    inchPart = "\\S" + fracNum + "/" + fracDen + ";\"";
+  } else if (wholeInches > 0) {
+    inchPart = wholeInches + "\"";
+  }
+
+  // Combine feet and inches with zero suppression
   if (zin === 0) {
-    if (finalFeet === 0 && finalInches === 0) return sign + "0\"";
-    if (finalFeet === 0) return sign + finalInches + "\"";
-    if (finalInches === 0) return sign + finalFeet + "'";
-    return sign + finalFeet + "'-" + finalInches + "\"";
+    if (feet === 0 && !inchPart) return sign + "0\"";
+    if (feet === 0) return sign + inchPart;
+    if (!inchPart) return sign + feet + "'";
+    return sign + feet + "'-" + inchPart;
   }
 
-  if (finalFeet === 0 && suppressZeroFeet) {
-    return sign + finalInches + "\"";
+  if (feet === 0 && (zin & 4) !== 0) {
+    return sign + (inchPart || "0\"");
   }
-  if (finalInches === 0 && suppressZeroInches) {
-    return sign + finalFeet + "'";
+  if (!inchPart && (zin & 8) !== 0) {
+    return sign + feet + "'";
   }
-  return sign + finalFeet + "'-" + finalInches + "\"";
+  return sign + feet + "'-" + (inchPart || "0\"");
 };
 
 /**
