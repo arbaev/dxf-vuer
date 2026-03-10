@@ -49,12 +49,12 @@
 
     <main class="app-main">
       <section class="hero">
-        <h1>DXF Viewer for Vue 3</h1>
+        <h1>Typescript DXF Parser &amp; Renderer</h1>
         <p class="hero-subtitle">
-          View AutoCAD DXF drawings in the browser. Built-in parser, Three.js rendering,
-          TypeScript-ready.
+          Parse and render AutoCAD DXF files with Three.js. Use standalone with any framework or as
+          a ready-made Vue 3 component.
         </p>
-        <code class="hero-install">npm install dxf-vuer three</code>
+        <code class="hero-install">npm install dxf-vuer dxf-render three</code>
       </section>
 
       <div v-if="error" class="error-message">
@@ -113,8 +113,8 @@
         <div class="feature-card">
           <h3>WebGL Rendering</h3>
           <p>
-            Three.js-powered rendering with TAA anti-aliasing, pan, zoom, layer visibility,
-            instant dark theme switching, drag-and-drop, and PNG export.
+            Three.js-powered rendering with TAA anti-aliasing, pan, zoom, layer visibility, instant
+            dark theme switching, drag-and-drop, and PNG export.
           </p>
         </div>
         <div class="feature-card">
@@ -135,16 +135,27 @@
         <div class="feature-card">
           <h3>Framework Flexible</h3>
           <p>
-            Vue 3 component or standalone parser via dxf-vuer/parser. Works in Node.js, React, or
-            any JS runtime. Full TypeScript support with composables for custom builds.
+            Vue 3 component via dxf-vuer, or use
+            <a
+              href="https://www.npmjs.com/package/dxf-render"
+              target="_blank"
+              rel="noopener noreferrer"
+              >dxf-render</a
+            >
+            standalone with React, Svelte, or vanilla JS. Parser-only mode for Node.js. Full
+            TypeScript support.
           </p>
         </div>
       </section>
 
       <footer class="app-footer">
         MIT License &middot;
+        <a href="https://www.npmjs.com/package/dxf-render" target="_blank" rel="noopener noreferrer"
+          >dxf-render</a
+        >
+        &middot;
         <a href="https://www.npmjs.com/package/dxf-vuer" target="_blank" rel="noopener noreferrer"
-          >npm</a
+          >dxf-vuer</a
         >
         &middot;
         <a href="https://github.com/arbaev/dxf-kit" target="_blank" rel="noopener noreferrer"
