@@ -1,5 +1,7 @@
 import { ref } from "vue";
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { TAARenderPass } from "three/examples/jsm/postprocessing/TAARenderPass.js";
 import { useOrbitControls } from "./useOrbitControls";
 import {
   CAMERA_NEAR_PLANE,
@@ -35,6 +37,10 @@ export function useThreeScene() {
   let scene: THREE.Scene | null = null;
   let camera: THREE.OrthographicCamera | null = null;
   let renderer: THREE.WebGLRenderer | null = null;
+  let composer: EffectComposer | null = null;
+  // accumulateIndex exists at runtime but is missing from @types/three
+  let taaPass: (TAARenderPass & { accumulateIndex: number }) | null = null;
+  let accumulationFrameId: number | null = null;
 
   const {
     initControls,
@@ -142,7 +148,7 @@ export function useThreeScene() {
 
     try {
       renderer = new THREE.WebGLRenderer({
-        antialias: true,
+        antialias: false,
         alpha: true,
         preserveDrawingBuffer: true,
       });
@@ -155,6 +161,12 @@ export function useThreeScene() {
       error.value = `WebGL initialization error: ${errorMessage}`;
       return;
     }
+
+    // TAA post-processing: accumulates jittered frames when idle for smooth AA
+    composer = new EffectComposer(renderer);
+    taaPass = new TAARenderPass(scene, camera) as TAARenderPass & { accumulateIndex: number };
+    taaPass.accumulate = true;
+    composer.addPass(taaPass);
 
     container.appendChild(renderer.domElement);
 
@@ -183,6 +195,13 @@ export function useThreeScene() {
 
     cleanupControls();
 
+    stopAccumulation();
+    if (composer) {
+      composer.dispose();
+      composer = null;
+      taaPass = null;
+    }
+
     if (renderer) {
       renderer.dispose();
       if (renderer.domElement && renderer.domElement.parentElement) {
@@ -197,6 +216,39 @@ export function useThreeScene() {
     error.value = null;
   };
 
+  const stopAccumulation = () => {
+    if (accumulationFrameId !== null) {
+      cancelAnimationFrame(accumulationFrameId);
+      accumulationFrameId = null;
+    }
+  };
+
+  const accumulateFrame = () => {
+    if (!composer || !taaPass) return;
+    // 32 jitter offsets for full TAA quality
+    if (taaPass.accumulateIndex >= 32) {
+      accumulationFrameId = null;
+      return;
+    }
+    composer.render();
+    accumulationFrameId = requestAnimationFrame(accumulateFrame);
+  };
+
+  // Render one frame immediately, then start TAA accumulation loop
+  const renderScene = () => {
+    if (!composer || !taaPass) return;
+    stopAccumulation();
+    taaPass.accumulateIndex = -1;
+    composer.render();
+    accumulationFrameId = requestAnimationFrame(accumulateFrame);
+  };
+
+  const resizeComposer = (width: number, height: number) => {
+    if (composer) {
+      composer.setSize(width, height);
+    }
+  };
+
   const getScene = () => scene;
   const getCamera = () => camera;
   const getRenderer = () => renderer;
@@ -207,6 +259,8 @@ export function useThreeScene() {
     initThreeJS,
     cleanup,
     disposeObject3D,
+    renderScene,
+    resizeComposer,
     getScene,
     getCamera,
     getRenderer,

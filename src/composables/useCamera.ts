@@ -39,6 +39,7 @@ export function useCamera() {
     camera: THREE.OrthographicCamera | null,
     renderer: THREE.WebGLRenderer | null,
     scene: THREE.Scene | null,
+    afterResize?: (width: number, height: number) => void,
   ) => {
     if (isResizing) {
       return;
@@ -71,7 +72,11 @@ export function useCamera() {
 
       renderer.setSize(containerWidth, containerHeight);
 
-      renderer.render(scene, camera);
+      if (afterResize) {
+        afterResize(containerWidth, containerHeight);
+      } else {
+        renderer.render(scene, camera);
+      }
     });
   };
 

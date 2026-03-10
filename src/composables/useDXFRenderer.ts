@@ -42,6 +42,8 @@ export function useDXFRenderer() {
     initThreeJS: initThreeJSScene,
     cleanup: cleanupScene,
     disposeObject3D,
+    renderScene,
+    resizeComposer,
     getScene,
     getCamera,
     getRenderer,
@@ -54,13 +56,7 @@ export function useDXFRenderer() {
   const { fitCameraToBox, handleResize: handleCameraResize, resetResizing } = useCamera();
 
   const render = () => {
-    const scene = getScene();
-    const camera = getCamera();
-    const renderer = getRenderer();
-
-    if (renderer && scene && camera) {
-      renderer.render(scene, camera);
-    }
+    renderScene();
   };
 
   const initThreeJS = (container: HTMLDivElement, options: ThreeJSOptions = {}) => {
@@ -215,7 +211,10 @@ export function useDXFRenderer() {
   };
 
   const handleResize = (container: HTMLDivElement) => {
-    handleCameraResize(container, getCamera(), getRenderer(), getScene());
+    handleCameraResize(container, getCamera(), getRenderer(), getScene(), (w, h) => {
+      resizeComposer(w, h);
+      renderScene();
+    });
   };
 
   const resetView = () => {
