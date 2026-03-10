@@ -82,7 +82,16 @@ export function collectDimensionEntity(
         // No explicit DIMTSZ -> tick size always follows arrow size
         // (entity XDATA may override arrowSize after base tickSize was set)
         dv.tickSize = dv.arrowSize;
+      } else {
+        // DIMBLK is not a tick block → use standard arrows
+        dv.useTicks = false;
+        dv.tickSize = 0;
       }
+    } else if (dv.useTicks && dimStyleEntry.dimtsz === 0) {
+      // DIMSTYLE explicitly sets DIMTSZ=0 with no custom DIMBLK → default arrows
+      // (overrides header $DIMBLK=ARCHTICK that may have set useTicks=true)
+      dv.useTicks = false;
+      dv.tickSize = 0;
     }
   }
 
