@@ -63,10 +63,11 @@
           v-for="sample in samples"
           :key="sample.file"
           class="sample-btn"
-          :class="{ active: currentFileName === sample.label }"
+          :class="{ active: currentFileName === sample.label, loading: loadingSampleFile === sample.file }"
           :disabled="isLoadingSample"
           @click="loadSample(sample)"
         >
+          <span v-if="loadingSampleFile === sample.file" class="sample-spinner" />
           {{ sample.label }}
           <span v-if="sample.hint" class="sample-hint">{{ sample.hint }}</span>
         </button>
@@ -197,6 +198,7 @@ const error = ref<string | null>(null);
 const currentFileName = ref<string>("");
 const dxfViewerRef = ref<InstanceType<typeof DXFViewer> | null>(null);
 const isLoadingSample = ref(false);
+const loadingSampleFile = ref<string | null>(null);
 
 const samples = [
   { file: "/entities.dxf", label: "Basic Entities" },
@@ -210,12 +212,14 @@ const samples = [
 async function loadSample(sample: { file: string; label: string }) {
   if (isLoadingSample.value) return;
   isLoadingSample.value = true;
+  loadingSampleFile.value = sample.file;
   error.value = null;
   unsupportedEntities.value = [];
   try {
     const response = await fetch(sample.file);
     const text = await response.text();
     currentFileName.value = sample.label;
+    loadingSampleFile.value = null;
     if (dxfViewerRef.value) {
       dxfViewerRef.value.loadDXFFromText(text);
     }
@@ -223,6 +227,7 @@ async function loadSample(sample: { file: string; label: string }) {
     error.value = `Failed to load ${sample.label}`;
   } finally {
     isLoadingSample.value = false;
+    loadingSampleFile.value = null;
   }
 }
 
@@ -458,6 +463,26 @@ const resetView = () => {
 .sample-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.sample-btn.loading {
+  opacity: 0.7;
+}
+
+.sample-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .sample-hint {
