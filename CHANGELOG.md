@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## dxf-render [1.0.3] / dxf-vuer [2.0.2] - 2026-03-11
+
+### Added
+
+- **README: "Why dxf-render?" section** — key advantages before Installation
+- **README: Comparison table** — feature-by-feature comparison with dxf-viewer, dxf-parser, three-dxf
+- **README: React and Svelte examples** — full working Quick Start examples with correct API usage
+- **README: StackBlitz buttons** — "Open in StackBlitz" badges in both package READMEs
+- **README: CI badge** — GitHub Actions CI status badge in both package READMEs
+- **StackBlitz examples** — standalone examples in `examples/` for vanilla-ts, React, and Vue
+- **Demo: sample DXF files** — 6 built-in examples with load buttons (Basic Entities, Linetypes, Electric Schematic, Hatch Patterns, Floor Plan, House Plan)
+- **GitHub issue templates** — bug report, feature request, DXF rendering issue
+- **npm keywords** — added browser-cad, dxf-renderer, cad-viewer, 2d-cad to dxf-render
+
+### Fixed
+
+- **README: Quick Start code** — all examples now use correct API signatures for `useCamera()` and `useOrbitControls()`
+
 ## dxf-vuer [2.0.0] / dxf-render [1.0.0] - 2026-03-10
 
 ### Added

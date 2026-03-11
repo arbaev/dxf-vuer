@@ -1,6 +1,6 @@
 {
   "name": "dxf-vuer",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Vue 3 DXF file viewer — render AutoCAD DXF drawings in the browser with Three.js. Built-in parser, vector text rendering, TypeScript support.",
   "type": "module",
   "license": "MIT",
