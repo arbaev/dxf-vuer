@@ -1,6 +1,6 @@
 {
   "name": "dxf-render",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "DXF parser and Three.js renderer — parse and render AutoCAD DXF files in the browser. Framework-agnostic.",
   "type": "module",
   "license": "MIT",
@@ -23,7 +23,11 @@
     "engineering",
     "drawing",
     "technical-drawing",
-    "typescript"
+    "typescript",
+    "browser-cad",
+    "dxf-renderer",
+    "cad-viewer",
+    "2d-cad"
   ],
   "main": "./dist/dxf-render-index.es.js",
   "module": "./dist/dxf-render-index.es.js",
