@@ -2,6 +2,7 @@ import { ref } from "vue";
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { TAARenderPass } from "three/examples/jsm/postprocessing/TAARenderPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import {
   useOrbitControls,
   CAMERA_NEAR_PLANE,
@@ -167,6 +168,8 @@ export function useThreeScene() {
     taaPass = new TAARenderPass(scene, camera) as TAARenderPass & { accumulateIndex: number };
     taaPass.accumulate = true;
     composer.addPass(taaPass);
+    // OutputPass converts from linear to sRGB color space for correct color display
+    composer.addPass(new OutputPass());
 
     container.appendChild(renderer.domElement);
 
