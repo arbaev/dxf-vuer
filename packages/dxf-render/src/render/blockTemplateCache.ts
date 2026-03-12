@@ -277,7 +277,18 @@ export function addSharedBlockInstance(
   insertColor: string,
   worldMatrix: THREE.Matrix4,
   colorCtx: RenderContext,
+  originOffset?: { x: number; y: number; z: number },
 ): void {
+  // Adjust worldMatrix to include origin offset: T(-offset) * worldMatrix
+  // so that final coordinates = worldCoord - offset (matches collector offset)
+  let mat4 = worldMatrix;
+  if (originOffset && (originOffset.x !== 0 || originOffset.y !== 0)) {
+    mat4 = worldMatrix.clone();
+    mat4.elements[12] -= originOffset.x;
+    mat4.elements[13] -= originOffset.y;
+    mat4.elements[14] -= originOffset.z;
+  }
+
   for (const entry of shared.entries) {
     const layer = entry.rawLayer === INHERIT_LAYER ? insertLayer : entry.rawLayer;
     const color = entry.rawColor === BYBLOCK_COLOR ? insertColor : entry.rawColor;
@@ -286,7 +297,7 @@ export function addSharedBlockInstance(
       const mat = getLineMaterial(color, colorCtx.materials);
       const obj = new THREE.LineSegments(entry.lineGeo, mat);
       obj.matrixAutoUpdate = false;
-      obj.matrix.copy(worldMatrix);
+      obj.matrix.copy(mat4);
       obj.frustumCulled = false;
       obj.userData.layerName = layer;
       group.add(obj);
@@ -296,7 +307,7 @@ export function addSharedBlockInstance(
       const mat = getMeshMaterial(color, colorCtx.materials);
       const obj = new THREE.Mesh(entry.meshGeo, mat);
       obj.matrixAutoUpdate = false;
-      obj.matrix.copy(worldMatrix);
+      obj.matrix.copy(mat4);
       obj.frustumCulled = false;
       obj.userData.layerName = layer;
       group.add(obj);
@@ -306,7 +317,7 @@ export function addSharedBlockInstance(
       const mat = getPointsMaterial(color, colorCtx.materials);
       const obj = new THREE.Points(entry.pointsGeo, mat);
       obj.matrixAutoUpdate = false;
-      obj.matrix.copy(worldMatrix);
+      obj.matrix.copy(mat4);
       obj.frustumCulled = false;
       obj.userData.layerName = layer;
       group.add(obj);
@@ -324,7 +335,7 @@ export function addSharedBlockInstance(
       if (isThemeAdaptiveColor(color)) colorCtx.materials.trackThemeMaterial(mat, color);
       const obj = new THREE.Points(entry.dotsGeo, mat);
       obj.matrixAutoUpdate = false;
-      obj.matrix.copy(worldMatrix);
+      obj.matrix.copy(mat4);
       obj.frustumCulled = false;
       obj.userData.layerName = layer;
       group.add(obj);

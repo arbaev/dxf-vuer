@@ -74,6 +74,7 @@ export async function createThreeObjectsFromDXF(
 ): Promise<{
   group: THREE.Group;
   materials: MaterialCacheStore;
+  originOffset: { x: number; y: number; z: number };
   warnings?: string;
   unsupportedEntities?: string[];
 }> {
@@ -90,7 +91,7 @@ export async function createThreeObjectsFromDXF(
 
   if (!dxf.entities || dxf.entities.length === 0) {
     console.warn("DXF does not contain entities!");
-    return { group, materials: new MaterialCacheStore() };
+    return { group, materials: new MaterialCacheStore(), originOffset: { x: 0, y: 0, z: 0 } };
   }
 
   const layers: Record<string, DxfLayer> = {};
@@ -212,7 +213,16 @@ export async function createThreeObjectsFromDXF(
     colorCtx.xlineClipSize = Math.sqrt(dx * dx + dy * dy) * 2;
   }
 
-  const collector = new GeometryCollector();
+  // Origin offset: subtract bounding box center from all coordinates before
+  // storing in Float32Array. Prevents precision loss for large GIS coordinates.
+  const originOffset: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
+  if (extMin && extMax && extMax.x > extMin.x && extMax.y > extMin.y) {
+    originOffset.x = (extMin.x + extMax.x) / 2;
+    originOffset.y = (extMin.y + extMax.y) / 2;
+  }
+
+  colorCtx.originOffset = originOffset;
+  const collector = new GeometryCollector(originOffset);
   const errors: string[] = [];
   const unsupportedTypes: string[] = [];
 
@@ -273,7 +283,7 @@ export async function createThreeObjectsFromDXF(
   for (let index = 0; index < dxf.entities.length; index++) {
     if (signal?.aborted) {
       colorCtx.materials.disposeAll();
-      return { group, materials };
+      return { group, materials, originOffset };
     }
 
     const entity = dxf.entities[index];
@@ -348,7 +358,7 @@ export async function createThreeObjectsFromDXF(
 
   if (signal?.aborted) {
     colorCtx.materials.disposeAll();
-    return { group, materials };
+    return { group, materials, originOffset };
   }
 
   // Flush merged geometry into Three.js objects
@@ -378,10 +388,11 @@ export async function createThreeObjectsFromDXF(
     return {
       group,
       materials,
+      originOffset,
       warnings: errorSummary,
       unsupportedEntities: unsupportedTypes.length > 0 ? unsupportedTypes : undefined,
     };
   }
 
-  return { group, materials };
+  return { group, materials, originOffset };
 }

@@ -57,6 +57,18 @@ export class GrowableFloat32Array {
     this.length += n;
   }
 
+  /** Push flat [x,y,z, ...] array with per-vertex offset subtraction */
+  pushArrayWithOffset3(arr: number[], ox: number, oy: number, oz: number): void {
+    const n = arr.length;
+    if (this.length + n > this.buffer.length) this.grow(n);
+    for (let i = 0; i < n; i += 3) {
+      this.buffer[this.length + i] = arr[i] - ox;
+      this.buffer[this.length + i + 1] = arr[i + 1] - oy;
+      this.buffer[this.length + i + 2] = arr[i + 2] - oz;
+    }
+    this.length += n;
+  }
+
   at(index: number): number {
     return this.buffer[index];
   }
@@ -141,6 +153,17 @@ export class GeometryCollector {
   /** Overlay mesh triangle indices */
   readonly overlayIndices = new Map<string, GrowableUint32Array>();
 
+  /** Origin offset subtracted from all coordinates for Float32 precision */
+  readonly ox: number;
+  readonly oy: number;
+  readonly oz: number;
+
+  constructor(originOffset?: { x: number; y: number; z: number }) {
+    this.ox = originOffset?.x ?? 0;
+    this.oy = originOffset?.y ?? 0;
+    this.oz = originOffset?.z ?? 0;
+  }
+
   private static makeKey(layer: string, color: string): string {
     return `${layer}::${color}`;
   }
@@ -162,10 +185,11 @@ export class GeometryCollector {
     if (points.length < 2) return;
     const key = GeometryCollector.makeKey(layer, color);
     const arr = this.getOrCreateFloat32(this.lineSegments, key);
+    const { ox, oy, oz } = this;
     for (let i = 0; i < points.length - 1; i++) {
       const a = points[i];
       const b = points[i + 1];
-      arr.push6(a.x, a.y, a.z, b.x, b.y, b.z);
+      arr.push6(a.x - ox, a.y - oy, a.z - oz, b.x - ox, b.y - oy, b.z - oz);
     }
   }
 
@@ -177,7 +201,7 @@ export class GeometryCollector {
     if (flatData.length < 6) return;
     const key = GeometryCollector.makeKey(layer, color);
     const arr = this.getOrCreateFloat32(this.lineSegments, key);
-    arr.pushArray(flatData);
+    arr.pushArrayWithOffset3(flatData, this.ox, this.oy, this.oz);
   }
 
   /** Add point positions (flat [x,y,z, ...]) */
@@ -185,14 +209,14 @@ export class GeometryCollector {
     if (flatData.length < 3) return;
     const key = GeometryCollector.makeKey(layer, color);
     const arr = this.getOrCreateFloat32(this.points, key);
-    arr.pushArray(flatData);
+    arr.pushArrayWithOffset3(flatData, this.ox, this.oy, this.oz);
   }
 
   /** Add a single point */
   addPoint(layer: string, color: string, x: number, y: number, z: number): void {
     const key = GeometryCollector.makeKey(layer, color);
     const arr = this.getOrCreateFloat32(this.points, key);
-    arr.push3(x, y, z);
+    arr.push3(x - this.ox, y - this.oy, z - this.oz);
   }
 
   /** Add linetype dot positions (rendered with smaller LINETYPE_DOT_SIZE) */
@@ -200,7 +224,7 @@ export class GeometryCollector {
     if (flatData.length < 3) return;
     const key = GeometryCollector.makeKey(layer, color);
     const arr = this.getOrCreateFloat32(this.linetypeDots, key);
-    arr.pushArray(flatData);
+    arr.pushArrayWithOffset3(flatData, this.ox, this.oy, this.oz);
   }
 
   /**
@@ -241,7 +265,7 @@ export class GeometryCollector {
     // Offset indices by existing vertex count
     const vertexOffset = vArr.length / 3;
     iArr.pushArrayWithOffset(indices, vertexOffset);
-    vArr.pushArray(vertices);
+    vArr.pushArrayWithOffset3(vertices, this.ox, this.oy, this.oz);
   }
 
   /**

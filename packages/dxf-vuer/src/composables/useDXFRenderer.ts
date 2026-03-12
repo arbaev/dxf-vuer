@@ -130,27 +130,32 @@ export function useDXFRenderer() {
     state.currentMaterials = result.materials;
 
     if (camera) {
+      const oo = result.originOffset;
+      state.originOffset.set(oo.x, oo.y, 0);
+
       const extMin = dxf.header?.["$EXTMIN"] as { x: number; y: number; z?: number } | undefined;
       const extMax = dxf.header?.["$EXTMAX"] as { x: number; y: number; z?: number } | undefined;
 
       let box: THREE.Box3;
       if (extMin && extMax && extMin.x < extMax.x && extMin.y < extMax.y) {
+        // Translate header extents to offset coordinates
         box = new THREE.Box3(
-          new THREE.Vector3(extMin.x, extMin.y, extMin.z ?? 0),
-          new THREE.Vector3(extMax.x, extMax.y, extMax.z ?? 0),
+          new THREE.Vector3(extMin.x - oo.x, extMin.y - oo.y, extMin.z ?? 0),
+          new THREE.Vector3(extMax.x - oo.x, extMax.y - oo.y, extMax.z ?? 0),
         );
       } else {
         box = new THREE.Box3().setFromObject(result.group);
       }
 
-      const center = box.getCenter(new THREE.Vector3());
+      // If origin offset was applied by the renderer, geometry is already near zero.
+      // Otherwise, shift group to origin for camera/controls (old fallback behavior).
+      if (oo.x === 0 && oo.y === 0) {
+        const center = box.getCenter(new THREE.Vector3());
+        state.originOffset.set(center.x, center.y, 0);
+        result.group.position.set(-center.x, -center.y, 0);
+        box.translate(new THREE.Vector3(-center.x, -center.y, 0));
+      }
 
-      // Shift group to origin for float32 precision on large coordinates
-      state.originOffset.set(center.x, center.y, 0);
-      result.group.position.set(-center.x, -center.y, 0);
-      box.translate(new THREE.Vector3(-center.x, -center.y, 0));
-
-      // OrbitControls target at origin (group already shifted)
       setOrbitTarget(0, 0, 0);
       fitCameraToBox(box, camera);
       saveOrbitState();

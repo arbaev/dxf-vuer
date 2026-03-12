@@ -60,6 +60,7 @@ export interface RenderContext extends ColorContext, LinetypeContext {
   headerDimlunit?: number; // $DIMLUNIT from header (fallback for dimension formatting)
   blockHandleToName?: Map<string, string>; // BLOCK_RECORD handle → name (for DIMBLK resolution)
   xlineClipSize?: number; // Half-length for clipping XLINE/RAY to drawing extents
+  originOffset?: { x: number; y: number; z: number }; // Subtracted from coords for Float32 precision
 }
 
 /** @deprecated Use RenderContext instead */

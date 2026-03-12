@@ -220,7 +220,7 @@ export async function collectInsertEntity(
     // Shared geometry path: GPU stores block geometry once, each INSERT is just a matrix
     const shared = sharedBlockGeos?.get(insertEntity.name);
     if (shared) {
-      addSharedBlockInstance(shared, fallbackGroup, insertLayer, insertColor, worldMatrix, colorCtx);
+      addSharedBlockInstance(shared, fallbackGroup, insertLayer, insertColor, worldMatrix, colorCtx, colorCtx.originOffset);
     } else {
       // Flat copy fallback (should not normally happen)
       instantiateBlockTemplate(template, collector, insertLayer, insertColor, worldMatrix);
