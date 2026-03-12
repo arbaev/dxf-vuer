@@ -1,6 +1,6 @@
 import { ref, computed } from "vue";
 import type { DxfLayer } from "dxf-render";
-import { rgbNumberToHex, ACI_PALETTE } from "dxf-render";
+import { rgbNumberToHex, ACI_PALETTE, resolveThemeColor } from "dxf-render";
 
 export interface LayerState {
   name: string;
@@ -11,6 +11,8 @@ export interface LayerState {
   entityCount: number;
   /** True when layer color is ACI 7/255 (theme-dependent) */
   isAci7: boolean;
+  /** Sentinel key for theme-adaptive colors (ACI 7/255, 250-252) */
+  themeSentinel?: string;
 }
 
 export function useLayers() {
@@ -23,13 +25,15 @@ export function useLayers() {
   ) => {
     const newLayers = new Map<string, LayerState>();
     for (const [name, layer] of Object.entries(dxfLayers)) {
-      const isAci7 = layer.colorIndex === 7 || layer.colorIndex === 255;
+      const ci = layer.colorIndex;
+      const isAci7 = ci === 7 || ci === 255;
+      const isGrayAdaptive = ci >= 250 && ci <= 251;
+      const themeSentinel = isAci7 ? "\0ACI7" : isGrayAdaptive ? "\0ACI" + ci : undefined;
       let color = "#FFFFFF";
-      if (layer.colorIndex >= 1 && layer.colorIndex <= 255) {
-        // ACI 7 and 255 are white in the palette but rendered as black on light / white on dark
-        color = isAci7
-          ? (darkTheme ? "#ffffff" : "#000000")
-          : rgbNumberToHex(ACI_PALETTE[layer.colorIndex]);
+      if (ci >= 1 && ci <= 255) {
+        color = themeSentinel
+          ? resolveThemeColor(themeSentinel, darkTheme)
+          : rgbNumberToHex(ACI_PALETTE[ci]);
       }
 
       newLayers.set(name, {
@@ -39,7 +43,8 @@ export function useLayers() {
         locked: layer.locked ?? false,
         color,
         entityCount: entityLayerCounts[name] || 0,
-        isAci7,
+        isAci7: isAci7 || isGrayAdaptive,
+        themeSentinel,
       });
     }
 
@@ -92,10 +97,11 @@ export function useLayers() {
   const layerList = computed(() => Array.from(layers.value.values()));
 
   const updateLayerThemeColors = (darkTheme: boolean) => {
-    const aci7Color = darkTheme ? "#ffffff" : "#000000";
     for (const layer of layers.value.values()) {
-      if (layer.isAci7) {
-        layer.color = aci7Color;
+      if (layer.themeSentinel) {
+        layer.color = resolveThemeColor(layer.themeSentinel, darkTheme);
+      } else if (layer.isAci7) {
+        layer.color = darkTheme ? "#ffffff" : "#000000";
       }
     }
   };

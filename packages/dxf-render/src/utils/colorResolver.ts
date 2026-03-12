@@ -8,17 +8,50 @@ export const ACI7_COLOR = "\0ACI7";
 export const resolveAci7Hex = (darkTheme?: boolean): string =>
   darkTheme ? "#ffffff" : "#000000";
 
+/** Check if a color key is a theme-adaptive sentinel (starts with \0) */
+export const isThemeAdaptiveColor = (color: string): boolean =>
+  color.charCodeAt(0) === 0;
+
+/**
+ * Resolve any theme-adaptive sentinel to a concrete hex color.
+ * ACI 7/255: black on light, white on dark.
+ * ACI 250-251: dark grays that invert to light grays in dark mode
+ * so they remain visible against a dark background.
+ */
+export function resolveThemeColor(sentinel: string, darkTheme?: boolean): string {
+  if (sentinel === ACI7_COLOR) return darkTheme ? "#ffffff" : "#000000";
+  // Sentinel format: "\0ACI<index>"
+  const idx = parseInt(sentinel.slice(4));
+  const rgb = ACI_PALETTE[idx];
+  if (!darkTheme || rgb === undefined) {
+    return rgb !== undefined ? rgbNumberToHex(rgb) : "#000000";
+  }
+  // Invert grayscale: R=G=B, so just invert the red channel
+  const r = (rgb >> 16) & 0xFF;
+  const inv = 255 - r;
+  return "#" + ((inv << 16) | (inv << 8) | inv).toString(16).padStart(6, "0");
+}
+
 export function rgbNumberToHex(rgbNumber: number): string {
   return "#" + (rgbNumber & 0xFFFFFF).toString(16).padStart(6, "0");
 }
 
 /**
+ * Return a theme-adaptive sentinel for ACI grayscale colors
+ * that would be invisible on a dark background (ACI 250-252).
+ */
+const aciGraySentinel = (colorIndex: number): string | null => {
+  if (colorIndex >= 250 && colorIndex <= 251) return "\0ACI" + colorIndex;
+  return null;
+};
+
+/**
  * Resolve entity color following AutoCAD priority rules:
  * trueColor (code 420) > colorIndex (code 62) > layerColor
  *
- * Returns ACI7_COLOR sentinel for ACI 7/255 colors instead of resolving
- * to a concrete hex value. This allows theme-dependent materials to be
- * updated at runtime without full re-render.
+ * Returns sentinel strings for theme-dependent colors (ACI 7/255 and
+ * dark grays 250-251) instead of concrete hex values. This allows
+ * materials to be updated at runtime without full re-render.
  */
 export function resolveEntityColor(
   entity: DxfEntity,
@@ -42,6 +75,9 @@ export function resolveEntityColor(
     if (colorIndex === 7 || colorIndex === 255) {
       return ACI7_COLOR;
     }
+    // Dark ACI grays: theme-adaptive sentinels
+    const graySentinel = aciGraySentinel(colorIndex);
+    if (graySentinel) return graySentinel;
     return rgbNumberToHex(ACI_PALETTE[colorIndex]);
   }
 
@@ -55,12 +91,16 @@ export function resolveEntityColor(
       if (layerColorIndex === 7 || layerColorIndex === 255) {
         return ACI7_COLOR;
       }
+      const layerGraySentinel = aciGraySentinel(layerColorIndex);
+      if (layerGraySentinel) return layerGraySentinel;
       return rgbNumberToHex(layer.color);
     }
     if (layer.colorIndex >= 1 && layer.colorIndex <= 255) {
       if (layer.colorIndex === 7 || layer.colorIndex === 255) {
         return ACI7_COLOR;
       }
+      const layerGraySentinel = aciGraySentinel(layer.colorIndex);
+      if (layerGraySentinel) return layerGraySentinel;
       return rgbNumberToHex(ACI_PALETTE[layer.colorIndex]);
     }
   }

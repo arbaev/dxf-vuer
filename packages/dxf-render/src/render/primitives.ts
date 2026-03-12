@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { Font } from "opentype.js";
 import type { DxfLayer, DxfLineType, DxfStyle, DxfDimStyle } from "@/types/dxf";
 import { MaterialCacheStore } from "./materialCache";
-import { ACI7_COLOR } from "@/utils/colorResolver";
+import { isThemeAdaptiveColor } from "@/utils/colorResolver";
 import { applyLinetypePattern, type PatternGeometry } from "@/utils/linetypeResolver";
 import {
   EPSILON,
@@ -74,10 +74,10 @@ export const getLineMaterial = (
 ): THREE.LineBasicMaterial => {
   let mat = store.line.get(color);
   if (!mat) {
-    const resolved = color === ACI7_COLOR ? store.resolveColor(color) : color;
+    const resolved = isThemeAdaptiveColor(color) ? store.resolveColor(color) : color;
     mat = new THREE.LineBasicMaterial({ color: resolved, depthTest: false, depthWrite: false });
     store.line.set(color, mat);
-    if (color === ACI7_COLOR) store.themeMaterials.add(mat);
+    if (isThemeAdaptiveColor(color)) store.trackThemeMaterial(mat, color);
   }
   return mat;
 };
@@ -88,10 +88,10 @@ export const getMeshMaterial = (
 ): THREE.MeshBasicMaterial => {
   let mat = store.mesh.get(color);
   if (!mat) {
-    const resolved = color === ACI7_COLOR ? store.resolveColor(color) : color;
+    const resolved = isThemeAdaptiveColor(color) ? store.resolveColor(color) : color;
     mat = new THREE.MeshBasicMaterial({ color: resolved, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
     store.mesh.set(color, mat);
-    if (color === ACI7_COLOR) store.themeMaterials.add(mat);
+    if (isThemeAdaptiveColor(color)) store.trackThemeMaterial(mat, color);
   }
   return mat;
 };
@@ -102,7 +102,7 @@ export const getPointsMaterial = (
 ): THREE.PointsMaterial => {
   let mat = store.points.get(color);
   if (!mat) {
-    const resolved = color === ACI7_COLOR ? store.resolveColor(color) : color;
+    const resolved = isThemeAdaptiveColor(color) ? store.resolveColor(color) : color;
     mat = new THREE.PointsMaterial({
       color: resolved,
       size: POINT_MARKER_SIZE,
@@ -111,7 +111,7 @@ export const getPointsMaterial = (
       depthWrite: false,
     });
     store.points.set(color, mat);
-    if (color === ACI7_COLOR) store.themeMaterials.add(mat);
+    if (isThemeAdaptiveColor(color)) store.trackThemeMaterial(mat, color);
   }
   return mat;
 };

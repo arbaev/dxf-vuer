@@ -1,33 +1,39 @@
 import * as THREE from "three";
-import { ACI7_COLOR, resolveAci7Hex } from "@/utils/colorResolver";
+import { isThemeAdaptiveColor, resolveThemeColor } from "@/utils/colorResolver";
+
+type ColorMaterial = THREE.Material & { color: THREE.Color };
 
 /**
  * Consolidated cache for Three.js materials used during DXF rendering.
  * Materials are cached per color key to avoid creating duplicates.
- * Theme-dependent materials (ACI 7) are tracked for instant dark mode switching.
+ * Theme-dependent materials (ACI 7, dark grays) are tracked for instant dark mode switching.
  */
 export class MaterialCacheStore {
   readonly line = new Map<string, THREE.LineBasicMaterial>();
   readonly mesh = new Map<string, THREE.MeshBasicMaterial>();
   readonly points = new Map<string, THREE.PointsMaterial>();
 
-  /** Materials whose color depends on theme (ACI 7 sentinel) */
-  readonly themeMaterials = new Set<THREE.Material & { color: THREE.Color }>();
+  /** Materials whose color depends on theme — maps material to its sentinel key */
+  readonly themeMaterials = new Map<ColorMaterial, string>();
 
   /** Current dark theme state */
   darkTheme = false;
 
-  /** Resolve color string — replaces ACI7 sentinel with concrete hex */
+  /** Resolve color string — replaces theme-adaptive sentinels with concrete hex */
   resolveColor(color: string): string {
-    return color === ACI7_COLOR ? resolveAci7Hex(this.darkTheme) : color;
+    return isThemeAdaptiveColor(color) ? resolveThemeColor(color, this.darkTheme) : color;
+  }
+
+  /** Register a material as theme-dependent */
+  trackThemeMaterial(mat: ColorMaterial, sentinel: string): void {
+    this.themeMaterials.set(mat, sentinel);
   }
 
   /** Update all theme-dependent materials for new theme */
   switchTheme(darkTheme: boolean): void {
     this.darkTheme = darkTheme;
-    const hex = resolveAci7Hex(darkTheme);
-    for (const mat of this.themeMaterials) {
-      mat.color.set(hex);
+    for (const [mat, sentinel] of this.themeMaterials) {
+      mat.color.set(resolveThemeColor(sentinel, darkTheme));
     }
   }
 

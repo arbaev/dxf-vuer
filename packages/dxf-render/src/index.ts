@@ -17,7 +17,7 @@ export { useOrbitControls } from "./scene/useOrbitControls";
 export { loadDefaultFont, loadFont, getDefaultFont, loadSerifFont, getSerifFont } from "./render/text/fontManager";
 
 // Utils
-export { resolveEntityColor, rgbNumberToHex, ACI7_COLOR, resolveAci7Hex } from "./utils/colorResolver";
+export { resolveEntityColor, rgbNumberToHex, ACI7_COLOR, resolveAci7Hex, isThemeAdaptiveColor, resolveThemeColor } from "./utils/colorResolver";
 export { resolveEntityLinetype, scalePattern, applyLinetypePattern } from "./utils/linetypeResolver";
 export { default as ACI_PALETTE } from "./parser/acadColorIndex";
 

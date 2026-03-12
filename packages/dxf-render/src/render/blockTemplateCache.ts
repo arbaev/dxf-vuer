@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { DxfEntity } from "@/types/dxf";
-import { resolveEntityColor, ACI7_COLOR } from "@/utils/colorResolver";
+import { resolveEntityColor, isThemeAdaptiveColor } from "@/utils/colorResolver";
 import { GeometryCollector } from "./mergeCollectors";
 import { type RenderContext, getLineMaterial, getMeshMaterial, getPointsMaterial } from "./primitives";
 import { LINETYPE_DOT_SIZE } from "@/constants";
@@ -321,7 +321,7 @@ export function addSharedBlockInstance(
         depthTest: false,
         depthWrite: false,
       });
-      if (color === ACI7_COLOR) colorCtx.materials.themeMaterials.add(mat);
+      if (isThemeAdaptiveColor(color)) colorCtx.materials.trackThemeMaterial(mat, color);
       const obj = new THREE.Points(entry.dotsGeo, mat);
       obj.matrixAutoUpdate = false;
       obj.matrix.copy(worldMatrix);

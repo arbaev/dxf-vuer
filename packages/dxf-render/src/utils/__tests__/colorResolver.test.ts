@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rgbNumberToHex, resolveEntityColor, ACI7_COLOR, resolveAci7Hex } from "@/utils/colorResolver";
+import { rgbNumberToHex, resolveEntityColor, ACI7_COLOR, resolveAci7Hex, isThemeAdaptiveColor, resolveThemeColor } from "@/utils/colorResolver";
 import type { DxfEntity, DxfLayer } from "@/types/dxf";
 
 // Helper to create a minimal DxfEntity for testing color resolution.
@@ -73,6 +73,82 @@ describe("ACI7_COLOR sentinel", () => {
   it("is a non-empty string that is not a valid hex color", () => {
     expect(ACI7_COLOR).toBeTruthy();
     expect(ACI7_COLOR).not.toMatch(/^#[0-9a-f]{6}$/i);
+  });
+});
+
+// ── isThemeAdaptiveColor ───────────────────────────────────────────────
+
+describe("isThemeAdaptiveColor", () => {
+  it("returns true for ACI7_COLOR sentinel", () => {
+    expect(isThemeAdaptiveColor(ACI7_COLOR)).toBe(true);
+  });
+
+  it("returns true for ACI 250 sentinel", () => {
+    const entity = makeEntity({ colorIndex: 250 });
+    const color = resolveEntityColor(entity, {});
+    expect(isThemeAdaptiveColor(color)).toBe(true);
+  });
+
+  it("returns false for regular hex color", () => {
+    expect(isThemeAdaptiveColor("#ff0000")).toBe(false);
+  });
+});
+
+// ── resolveThemeColor ─────────────────────────────────────────────────
+
+describe("resolveThemeColor", () => {
+  it("resolves ACI7 to black on light, white on dark", () => {
+    expect(resolveThemeColor(ACI7_COLOR, false)).toBe("#000000");
+    expect(resolveThemeColor(ACI7_COLOR, true)).toBe("#ffffff");
+  });
+
+  it("resolves ACI 250 to dark gray on light, light gray on dark", () => {
+    const sentinel = "\0ACI250";
+    expect(resolveThemeColor(sentinel, false)).toBe("#333333");
+    expect(resolveThemeColor(sentinel, true)).toBe("#cccccc");
+  });
+
+  it("resolves ACI 251 to inverted gray in dark mode", () => {
+    const sentinel = "\0ACI251";
+    const light = resolveThemeColor(sentinel, false);
+    const dark = resolveThemeColor(sentinel, true);
+    expect(light).not.toBe(dark);
+    // Dark mode should be lighter than light mode
+    expect(parseInt(dark.slice(1, 3), 16)).toBeGreaterThan(parseInt(light.slice(1, 3), 16));
+  });
+});
+
+// ── resolveEntityColor — ACI 250-252 sentinels ────────────────────────
+
+describe("resolveEntityColor — dark gray sentinels", () => {
+  it("returns sentinel for ACI 250", () => {
+    const color = resolveEntityColor(makeEntity({ colorIndex: 250 }), {});
+    expect(isThemeAdaptiveColor(color)).toBe(true);
+    expect(color).not.toBe(ACI7_COLOR);
+  });
+
+  it("returns sentinel for ACI 251", () => {
+    const color = resolveEntityColor(makeEntity({ colorIndex: 251 }), {});
+    expect(isThemeAdaptiveColor(color)).toBe(true);
+  });
+
+  it("returns regular hex for ACI 252 (not adaptive)", () => {
+    const color = resolveEntityColor(makeEntity({ colorIndex: 252 }), {});
+    expect(isThemeAdaptiveColor(color)).toBe(false);
+    expect(color).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+
+  it("trueColor overrides ACI 250 sentinel", () => {
+    const entity = makeEntity({ colorIndex: 250, color: 0xFF0000 });
+    const color = resolveEntityColor(entity, {});
+    expect(color).toBe("#ff0000");
+  });
+
+  it("returns sentinel for ByLayer with layer colorIndex 250", () => {
+    const layers = { "L1": { colorIndex: 250, color: 0x333333 } as unknown as DxfLayer };
+    const entity = makeEntity({ layer: "L1" });
+    const color = resolveEntityColor(entity, layers);
+    expect(isThemeAdaptiveColor(color)).toBe(true);
   });
 });
 
