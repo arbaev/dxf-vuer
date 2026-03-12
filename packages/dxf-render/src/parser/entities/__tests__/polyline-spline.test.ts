@@ -204,6 +204,30 @@ describe("parseLWPolyline", () => {
     expect(entity.vertices).toHaveLength(3);
   });
 
+  // -- Single-vertex lwpolyline -----------------------------------------------
+
+  it("parses single-vertex lwpolyline (1 vertex)", () => {
+    const { scanner, group } = createScannerAt(
+      "0", "LWPOLYLINE",
+      "8", "Layer1",
+      "90", "1",
+      "70", "0",
+      "10", "5.5",
+      "20", "3.3",
+      "30", "1.1",
+      "0", "ENDSEC",
+      "0", "EOF",
+    );
+
+    const entity = parseLWPolyline(scanner, group) as ILWPolylineEntity;
+
+    expect(entity.type).toBe("LWPOLYLINE");
+    expect(entity.vertices).toHaveLength(1);
+    expect(entity.vertices[0].x).toBe(5.5);
+    expect(entity.vertices[0].y).toBe(3.3);
+    expect(entity.vertices[0].z).toBe(1.1);
+  });
+
   // -- Vertices with bulge ----------------------------------------------------
 
   it("parses vertices with bulge (code 42)", () => {

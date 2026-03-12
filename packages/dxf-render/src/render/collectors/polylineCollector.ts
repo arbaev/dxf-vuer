@@ -244,7 +244,19 @@ const addPolygonMeshEdges = (
 export function collectPolyline(p: CollectEntityParams): boolean {
   const { entity, colorCtx, collector, layer, worldMatrix, overrideColor } = p;
 
-  if (!isPolylineEntity(entity) || entity.vertices.length <= 1) return false;
+  if (!isPolylineEntity(entity)) return false;
+  if (entity.vertices.length === 0) return true; // degenerate: skip silently
+  if (entity.vertices.length === 1) {
+    // Single-vertex polyline: render as a point
+    const entityColor = overrideColor ?? resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor);
+    const v = entity.vertices[0];
+    const pt = new THREE.Vector3(v.x, v.y, v.z ?? 0);
+    const ocsMatrix = buildOcsMatrix(entity.extrusionDirection);
+    if (ocsMatrix) pt.applyMatrix4(ocsMatrix);
+    if (worldMatrix) pt.applyMatrix4(worldMatrix);
+    collector.addPoint(layer, entityColor, pt.x, pt.y, pt.z);
+    return true;
+  }
 
   const entityColor = overrideColor ?? resolveEntityColor(entity, colorCtx.layers, colorCtx.blockColor);
   const ltInfo = resolveEntityLinetype(
