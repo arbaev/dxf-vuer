@@ -11,7 +11,7 @@ export { computePolylinePoints } from "./render/collectors";
 
 // Scene helpers
 export { useCamera } from "./scene/useCamera";
-export { useOrbitControls } from "./scene/useOrbitControls";
+export { useControls, useOrbitControls } from "./scene/useControls";
 
 // Fonts
 export { loadDefaultFont, loadFont, getDefaultFont, loadSerifFont, getSerifFont } from "./render/text/fontManager";

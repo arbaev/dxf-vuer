@@ -4,7 +4,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { TAARenderPass } from "three/addons/postprocessing/TAARenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import {
-  useOrbitControls,
+  useControls,
   CAMERA_NEAR_PLANE,
   CAMERA_FAR_PLANE,
   CAMERA_INITIAL_Z_POSITION,
@@ -50,7 +50,7 @@ export function useThreeScene() {
     saveState: saveOrbitState,
     resetCamera: resetOrbitControls,
     cleanup: cleanupControls,
-  } = useOrbitControls();
+  } = useControls();
 
   const checkWebGLSupport = (): boolean => {
     try {

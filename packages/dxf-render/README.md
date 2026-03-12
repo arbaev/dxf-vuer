@@ -42,7 +42,7 @@ import {
   createThreeObjectsFromDXF,
   loadDefaultFont,
   useCamera,
-  useOrbitControls,
+  useControls,
 } from "dxf-render";
 import * as THREE from "three";
 
@@ -74,7 +74,7 @@ const renderer = new THREE.WebGLRenderer({ canvas: myCanvas });
 renderer.setSize(myCanvas.clientWidth, myCanvas.clientHeight);
 
 const { fitCameraToBox } = useCamera();
-const { initControls } = useOrbitControls();
+const { initControls } = useControls();
 
 initControls(camera, myCanvas);
 fitCameraToBox(new THREE.Box3().setFromObject(group), camera);
@@ -119,7 +119,7 @@ import {
   createThreeObjectsFromDXF,
   loadDefaultFont,
   useCamera,
-  useOrbitControls,
+  useControls,
 } from "dxf-render";
 
 export function DxfViewer({ dxfText }: { dxfText: string }) {
@@ -148,7 +148,7 @@ export function DxfViewer({ dxfText }: { dxfText: string }) {
     );
 
     const { fitCameraToBox } = useCamera();
-    const { initControls } = useOrbitControls();
+    const { initControls } = useControls();
     let disposed = false;
 
     (async () => {
@@ -186,7 +186,7 @@ export function DxfViewer({ dxfText }: { dxfText: string }) {
     createThreeObjectsFromDXF,
     loadDefaultFont,
     useCamera,
-    useOrbitControls,
+    useControls,
   } from "dxf-render";
 
   export let dxfText;
@@ -212,7 +212,7 @@ export function DxfViewer({ dxfText }: { dxfText: string }) {
     );
 
     const { fitCameraToBox } = useCamera();
-    const { initControls } = useOrbitControls();
+    const { initControls } = useControls();
 
     await loadDefaultFont();
     const dxf = parseDxf(dxfText);
@@ -259,7 +259,7 @@ export function DxfViewer({ dxfText }: { dxfText: string }) {
 ### Scene helpers
 
 - `useCamera(domElement)` — orthographic camera with `fitCameraToBox()`
-- `useOrbitControls(camera, domElement)` — pan/zoom controls (no rotation)
+- `useControls(camera, domElement)` — pan/zoom controls (no rotation), mobile touch support
 
 ### Fonts
 

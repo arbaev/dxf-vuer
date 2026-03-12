@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { MapControls } from "three/addons/controls/MapControls.js";
 
 const ENABLE_DAMPING = false;
 const DAMPING_FACTOR = 0.05;
@@ -16,11 +16,11 @@ const MOUSE_BUTTONS = {
   RIGHT: THREE.MOUSE.PAN,
 };
 
-export function useOrbitControls() {
-  let controls: OrbitControls | null = null;
+export function useControls() {
+  let controls: MapControls | null = null;
 
   const initControls = (camera: THREE.Camera, domElement: HTMLElement) => {
-    controls = new OrbitControls(camera, domElement);
+    controls = new MapControls(camera, domElement);
 
     controls.enableDamping = ENABLE_DAMPING;
     controls.dampingFactor = DAMPING_FACTOR;
@@ -80,3 +80,6 @@ export function useOrbitControls() {
     cleanup,
   };
 }
+
+/** @deprecated Use `useControls` instead */
+export const useOrbitControls = useControls;

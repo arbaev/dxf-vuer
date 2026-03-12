@@ -562,6 +562,7 @@ defineExpose({
   border: 2px solid var(--dxf-vuer-border-color, #e0e0e0);
   border-radius: var(--dxf-vuer-border-radius, 4px);
   overflow: hidden;
+  touch-action: none;
 }
 
 .file-name-overlay {
