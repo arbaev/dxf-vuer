@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dxf-render — Leaflet Example</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="toolbar">
+    <label>
+      <input type="file" accept=".dxf" id="file-input" hidden />
+      Open DXF file
+    </label>
+
+    <div class="geo-controls">
+      <label class="geo-label">Lat <input type="number" id="input-lat" step="0.0001" /></label>
+      <label class="geo-label">Lng <input type="number" id="input-lng" step="0.0001" /></label>
+      <label class="geo-label">m/unit <input type="number" id="input-scale" step="0.001" min="0" /></label>
+      <label class="geo-label">Rot° <input type="number" id="input-rotation" step="1" /></label>
+      <button id="apply-btn">Apply</button>
+    </div>
+
+    <span class="status-group">
+      <label class="toggle-label"><input type="checkbox" id="toggle-dxf" checked /> DXF</label>
+      <span id="status">Loading sample...</span>
+    </span>
+  </div>
+  <div id="map"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

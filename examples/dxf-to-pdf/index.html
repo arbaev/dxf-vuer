@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dxf-render — DXF to PDF</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="toolbar">
+    <label>
+      <input type="file" accept=".dxf" id="file-input" hidden />
+      Open DXF file
+    </label>
+
+    <select id="page-size">
+      <option value="a4">A4</option>
+      <option value="a3">A3</option>
+      <option value="a1">A1</option>
+    </select>
+
+    <select id="orientation">
+      <option value="landscape">Landscape</option>
+      <option value="portrait">Portrait</option>
+    </select>
+
+    <button id="export-btn" disabled>Export PDF</button>
+
+    <span id="status">Select a .dxf file to preview and export</span>
+  </div>
+
+  <div id="preview-container">
+    <canvas id="preview"></canvas>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

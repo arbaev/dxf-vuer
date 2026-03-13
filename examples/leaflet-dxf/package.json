@@ -1,0 +1,18 @@
+{
+  "name": "dxf-render-leaflet-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build"
+  },
+  "dependencies": {
+    "dxf-render": "^1.1.0",
+    "leaflet": "^1.9.4"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.18",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1"
+  }
+}

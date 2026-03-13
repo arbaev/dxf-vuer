@@ -1,0 +1,19 @@
+{
+  "name": "dxf-render-pdf-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build"
+  },
+  "dependencies": {
+    "dxf-render": "^1.1.0",
+    "three": "^0.182.0",
+    "jspdf": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.182.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1"
+  }
+}
