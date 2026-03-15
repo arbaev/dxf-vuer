@@ -90,6 +90,10 @@
         </button>
       </div>
 
+      <p class="controls-hint">
+        {{ isTouchDevice ? 'Pinch to zoom · Drag to pan' : 'Scroll to zoom · Drag to pan' }}
+      </p>
+
       <div v-if="error" class="error-message">
         <svg
           width="20"
@@ -182,7 +186,8 @@ import { FileUploader, UnsupportedEntities, DXFViewer } from "dxf-vuer";
 import "dxf-vuer/style.css";
 import type { DxfData } from "dxf-render";
 
-const isDark = ref(false);
+const isDark = ref(window.matchMedia("(prefers-color-scheme: dark)").matches);
+const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 const copied = ref(false);
 
 async function copyInstallCommand() {
@@ -693,6 +698,14 @@ const resetView = () => {
 
 .sample-btn.active .sample-hint--heavy {
   color: #ffcdd2;
+}
+
+.controls-hint {
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  margin: 0 0 var(--spacing-sm);
 }
 
 .error-message {
