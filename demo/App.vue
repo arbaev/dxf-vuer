@@ -57,19 +57,72 @@
         </p>
         <div class="hero-install-wrapper">
           <code class="hero-install">npm install dxf-vuer dxf-render three</code>
-          <button
-            class="copy-btn"
-            aria-label="Copy install command"
-            @click="copyInstallCommand"
-          >
-            <svg v-if="!copied" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button class="copy-btn" aria-label="Copy install command" @click="copyInstallCommand">
+            <svg
+              v-if="!copied"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
             </svg>
-            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              v-else
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </button>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <span class="hero-stat-value">21</span>
+            <span class="hero-stat-label">entity types</span>
+          </div>
+          <div class="hero-stat-divider" />
+          <div class="hero-stat">
+            <span class="hero-stat-value">−78%</span>
+            <span class="hero-stat-label">draw calls</span>
+          </div>
+          <div class="hero-stat-divider" />
+          <div class="hero-stat">
+            <span class="hero-stat-value">874</span>
+            <span class="hero-stat-label">tests</span>
+          </div>
+          <div class="hero-stat-divider" />
+          <div class="hero-stat">
+            <span class="hero-stat-value">Web Worker</span>
+            <span class="hero-stat-label">parsing</span>
+          </div>
+        </div>
+        <div class="hero-cta">
+          <button class="cta-btn cta-btn--primary" @click="scrollToViewer">Try it now</button>
+          <a
+            class="cta-btn cta-btn--secondary"
+            href="https://github.com/arbaev/dxf-kit"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"
+              />
+            </svg>
+            GitHub
+          </a>
         </div>
       </section>
 
@@ -79,19 +132,24 @@
           v-for="sample in samples"
           :key="sample.file"
           class="sample-btn"
-          :class="{ active: currentFileName === sample.label, loading: loadingSampleFile === sample.file }"
+          :class="{
+            active: currentFileName === sample.label,
+            loading: loadingSampleFile === sample.file,
+          }"
           :disabled="isLoadingSample"
           :aria-label="`Load sample: ${sample.label} (${sample.size})`"
           @click="loadSample(sample)"
         >
           <span v-if="loadingSampleFile === sample.file" class="sample-spinner" />
           {{ sample.label }}
-          <span class="sample-hint" :class="{ 'sample-hint--heavy': sample.heavy }">{{ sample.size }}</span>
+          <span class="sample-hint" :class="{ 'sample-hint--heavy': sample.heavy }">{{
+            sample.size
+          }}</span>
         </button>
       </div>
 
       <p class="controls-hint">
-        {{ isTouchDevice ? 'Pinch to zoom · Drag to pan' : 'Scroll to zoom · Drag to pan' }}
+        {{ isTouchDevice ? "Pinch to zoom · Drag to pan" : "Scroll to zoom · Drag to pan" }}
       </p>
 
       <div v-if="error" class="error-message">
@@ -112,7 +170,7 @@
 
       <UnsupportedEntities v-if="unsupportedEntities.length > 0" :entities="unsupportedEntities" />
 
-      <div class="viewer-container">
+      <div id="viewer" class="viewer-container">
         <DXFViewer
           ref="dxfViewerRef"
           :dxf-data="dxfData"
@@ -198,6 +256,10 @@ import type { DxfData } from "dxf-render";
 
 const isDark = ref(window.matchMedia("(prefers-color-scheme: dark)").matches);
 const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
+function scrollToViewer() {
+  document.getElementById("viewer")?.scrollIntoView({ behavior: "smooth" });
+}
 const copied = ref(false);
 
 async function copyInstallCommand() {
@@ -262,14 +324,26 @@ const features = [
 ];
 
 const whatsNew = [
-  { version: "1.2.0", text: "Variable-width polylines with per-vertex tapering, arrows, and donuts" },
-  { version: "1.2.0", text: "GIS origin translation — large UTM/state plane coordinates without precision loss" },
+  {
+    version: "1.2.0",
+    text: "Variable-width polylines with per-vertex tapering, arrows, and donuts",
+  },
+  {
+    version: "1.2.0",
+    text: "GIS origin translation — large UTM/state plane coordinates without precision loss",
+  },
   { version: "1.2.0", text: "Touch support — native one-finger pan on mobile devices" },
   { version: "1.1.0", text: "Theme-adaptive ACI 250-251 colors — dark grays invert in dark mode" },
-  { version: "1.5.0", text: "TAA anti-aliasing — 32-frame temporal accumulation for crisp text and edges" },
+  {
+    version: "1.5.0",
+    text: "TAA anti-aliasing — 32-frame temporal accumulation for crisp text and edges",
+  },
   { version: "1.5.0", text: "Instant dark mode — theme switching without full re-render" },
   { version: "1.4.0", text: "MLINE, XLINE, RAY entities — multilines and construction lines" },
-  { version: "1.4.0", text: "25 built-in hatch patterns with solid fill optimization (86× faster)" },
+  {
+    version: "1.4.0",
+    text: "25 built-in hatch patterns with solid fill optimization (86× faster)",
+  },
 ];
 
 const STACKBLITZ_BASE = "https://stackblitz.com/github/arbaev/dxf-kit/tree/main/examples";
@@ -277,7 +351,8 @@ const STACKBLITZ_BASE = "https://stackblitz.com/github/arbaev/dxf-kit/tree/main/
 const examples = [
   {
     title: "Vanilla TypeScript",
-    description: "Minimal setup with dxf-render and Three.js — parse, render, and display a DXF file.",
+    description:
+      "Minimal setup with dxf-render and Three.js — parse, render, and display a DXF file.",
     url: `${STACKBLITZ_BASE}/vanilla-ts?file=src/main.ts&title=dxf-render+Vanilla+TS`,
     icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>',
   },
@@ -289,19 +364,22 @@ const examples = [
   },
   {
     title: "Vue 3",
-    description: "Drop-in DXF viewer using the dxf-vuer component — dark theme, layers, and export.",
+    description:
+      "Drop-in DXF viewer using the dxf-vuer component — dark theme, layers, and export.",
     url: `${STACKBLITZ_BASE}/vue?file=src/App.vue&title=dxf-vuer+Vue+3`,
     icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3l10 19L22 3"/><path d="M6.5 3L12 14.5 17.5 3"/></svg>',
   },
   {
     title: "Leaflet + DXF",
-    description: "Overlay DXF on OpenStreetMap with geo-referencing — parser-only, no Three.js. Includes Florence city center sample.",
+    description:
+      "Overlay DXF on OpenStreetMap with geo-referencing — parser-only, no Three.js. Includes Florence city center sample.",
     url: `${STACKBLITZ_BASE}/leaflet-dxf?file=src/main.ts&title=dxf-render+Leaflet`,
     icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>',
   },
   {
     title: "DXF to PDF",
-    description: "Export DXF drawings to PDF — offscreen Three.js rendering with page size and orientation options.",
+    description:
+      "Export DXF drawings to PDF — offscreen Three.js rendering with page size and orientation options.",
     url: `${STACKBLITZ_BASE}/dxf-to-pdf?file=src/main.ts&title=dxf-render+PDF+Export`,
     icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
   },
@@ -453,7 +531,7 @@ const resetView = () => {
 
 .hero {
   text-align: center;
-  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-md);
+  padding: 3rem var(--spacing-lg) 3rem;
   max-width: var(--content-max-width);
   margin: 0 auto;
 }
@@ -481,6 +559,7 @@ const resetView = () => {
   border-radius: var(--border-radius);
   background-color: #f5f5f5;
   overflow: hidden;
+  margin: var(--spacing-sm) 0;
 }
 
 .hero-install {
@@ -504,7 +583,9 @@ const resetView = () => {
   border-left: 1px solid var(--border-color);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: color 0.15s, background-color 0.15s;
+  transition:
+    color 0.15s,
+    background-color 0.15s;
 }
 
 .copy-btn:hover {
@@ -514,6 +595,90 @@ const resetView = () => {
 
 .copy-btn svg {
   flex-shrink: 0;
+}
+
+.hero-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+.cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 24px;
+  border-radius: var(--border-radius);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+  border: none;
+}
+
+.cta-btn--primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.cta-btn--primary:hover {
+  background: #3a7bc8;
+}
+
+.cta-btn--secondary {
+  background: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.cta-btn--secondary:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.cta-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.hero-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.hero-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.hero-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.hero-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hero-stat-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--border-color);
 }
 
 .features {
@@ -635,7 +800,9 @@ const resetView = () => {
   text-decoration: none;
   color: inherit;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .example-card:hover {
@@ -743,7 +910,9 @@ const resetView = () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sample-hint {
@@ -848,6 +1017,15 @@ const resetView = () => {
 
 .app.dark .copy-btn {
   border-left-color: #444;
+}
+
+.app.dark .cta-btn--secondary {
+  border-color: #444;
+}
+
+.app.dark .cta-btn--secondary:hover {
+  border-color: #6b8fd4;
+  color: #6b8fd4;
 }
 
 .app.dark .feature-card {
