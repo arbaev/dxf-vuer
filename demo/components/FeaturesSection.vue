@@ -55,9 +55,9 @@ const features = [
 
 .feature-card {
   padding: var(--spacing-lg);
-  border: 1px solid var(--border-color);
+  border: none;
   border-radius: var(--border-radius);
-  background: var(--card-bg, white);
+  background: transparent;
 }
 
 .feature-card h3 {
