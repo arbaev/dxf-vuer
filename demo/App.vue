@@ -1,59 +1,70 @@
 <template>
   <div class="app" :class="{ dark: isDark }">
-    <header class="app-header">
-      <a href="/" class="app-logo">DXF Vuer</a>
-
-      <FileUploader @file-selected="handleFileSelected" />
-
+    <div class="top-actions">
+      <a
+        class="top-action-btn"
+        href="https://github.com/arbaev/dxf-kit"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="View on GitHub"
+        title="View on GitHub"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"
+          />
+        </svg>
+      </a>
       <button
-        class="theme-toggle"
+        class="top-action-btn"
         @click="isDark = !isDark"
         :title="isDark ? 'Light mode' : 'Dark mode'"
         :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
       >
-        <svg
-          v-if="isDark"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle cx="12" cy="12" r="5" />
-          <line x1="12" y1="1" x2="12" y2="3" />
-          <line x1="12" y1="21" x2="12" y2="23" />
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-          <line x1="1" y1="12" x2="3" y2="12" />
-          <line x1="21" y1="12" x2="23" y2="12" />
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-        </svg>
-        <svg
-          v-else
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-        </svg>
+      <svg
+        v-if="isDark"
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="5" />
+        <line x1="12" y1="1" x2="12" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="23" />
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+        <line x1="1" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="12" x2="23" y2="12" />
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      </svg>
+      <svg
+        v-else
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
       </button>
-    </header>
+    </div>
 
     <main class="app-main">
       <section class="hero">
-        <h1>Typescript DXF Parser &amp; Renderer</h1>
+        <span class="hero-brand">dxf-render</span>
+        <h1>Render AutoCAD DXF Drawings in&nbsp;the&nbsp;Browser</h1>
         <p class="hero-subtitle">
-          Parse and render AutoCAD DXF files with Three.js. Use standalone with any framework or as
-          a ready-made Vue 3 component.
+          TypeScript DXF parser and Three.js WebGL renderer. Use standalone with React, Svelte, or
+          vanilla JS — or as a drop-in Vue&nbsp;3 component.
         </p>
         <div class="hero-install-wrapper">
           <code class="hero-install">npm install dxf-vuer dxf-render three</code>
@@ -108,44 +119,34 @@
             <span class="hero-stat-label">parsing</span>
           </div>
         </div>
-        <div class="hero-cta">
-          <button class="cta-btn cta-btn--primary" @click="scrollToViewer">Try it now</button>
-          <a
-            class="cta-btn cta-btn--secondary"
-            href="https://github.com/arbaev/dxf-kit"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"
-              />
-            </svg>
-            GitHub
-          </a>
-        </div>
       </section>
 
+      <div class="upload-area">
+        <FileUploader @file-selected="handleFileSelected" />
+      </div>
+
       <div class="sample-buttons">
-        <span class="sample-label">Examples:</span>
-        <button
-          v-for="sample in samples"
-          :key="sample.file"
-          class="sample-btn"
-          :class="{
-            active: currentFileName === sample.label,
-            loading: loadingSampleFile === sample.file,
-          }"
-          :disabled="isLoadingSample"
-          :aria-label="`Load sample: ${sample.label} (${sample.size})`"
-          @click="loadSample(sample)"
-        >
-          <span v-if="loadingSampleFile === sample.file" class="sample-spinner" />
-          {{ sample.label }}
-          <span class="sample-hint" :class="{ 'sample-hint--heavy': sample.heavy }">{{
-            sample.size
-          }}</span>
-        </button>
+        <span class="sample-label">or try built-in samples:</span>
+        <div class="sample-list">
+          <button
+            v-for="sample in samples"
+            :key="sample.file"
+            class="sample-btn"
+            :class="{
+              active: currentFileName === sample.label,
+              loading: loadingSampleFile === sample.file,
+            }"
+            :disabled="isLoadingSample"
+            :aria-label="`Load sample: ${sample.label} (${sample.size})`"
+            @click="loadSample(sample)"
+          >
+            <span v-if="loadingSampleFile === sample.file" class="sample-spinner" />
+            {{ sample.label }}
+            <span class="sample-hint" :class="{ 'sample-hint--heavy': sample.heavy }">{{
+              sample.size
+            }}</span>
+          </button>
+        </div>
       </div>
 
       <p class="controls-hint">
@@ -223,9 +224,6 @@ import ExamplesSection from "./components/ExamplesSection.vue";
 const isDark = ref(window.matchMedia("(prefers-color-scheme: dark)").matches);
 const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
-function scrollToViewer() {
-  document.getElementById("viewer")?.scrollIntoView({ behavior: "smooth" });
-}
 const copied = ref(false);
 
 async function copyInstallCommand() {
@@ -342,45 +340,38 @@ const resetView = () => {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  position: relative;
 }
 
-.app-header {
+.top-actions {
+  position: fixed;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  z-index: 100;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-md);
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-  color: white;
-  padding: var(--spacing-md) var(--spacing-lg);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  gap: 8px;
 }
 
-.app-logo {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.5px;
-  white-space: nowrap;
-  text-decoration: none;
-  color: inherit;
-}
-
-.theme-toggle {
+.top-action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: white;
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  color: white;
-  padding: 6px;
+  color: var(--text-secondary);
+  width: 36px;
+  height: 36px;
+  padding: 0;
   cursor: pointer;
-  transition: background-color 0.2s;
-  flex-shrink: 0;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  text-decoration: none;
 }
 
-.theme-toggle:hover {
-  background: rgba(255, 255, 255, 0.25);
+.top-action-btn:hover {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .app-main {
@@ -407,11 +398,26 @@ const resetView = () => {
   margin: 0 auto;
 }
 
+.hero-brand {
+  display: inline-block;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  background: #f0f4ff;
+  padding: 4px 12px;
+  border-radius: 999px;
+  margin-bottom: var(--spacing-md);
+  letter-spacing: 0.5px;
+}
+
 .hero h1 {
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 2.5rem;
+  font-weight: 800;
   color: var(--text-color);
   margin-bottom: var(--spacing-sm);
+  letter-spacing: -0.5px;
+  line-height: 1.15;
 }
 
 .hero-subtitle {
@@ -468,53 +474,6 @@ const resetView = () => {
   flex-shrink: 0;
 }
 
-.hero-cta {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-  margin-top: var(--spacing-md);
-}
-
-.cta-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 24px;
-  border-radius: var(--border-radius);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  text-decoration: none;
-  border: none;
-}
-
-.cta-btn--primary {
-  background: var(--primary-color);
-  color: white;
-}
-
-.cta-btn--primary:hover {
-  background: #3a7bc8;
-}
-
-.cta-btn--secondary {
-  background: transparent;
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-}
-
-.cta-btn--secondary:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
-
-.cta-btn:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
-}
-
 .hero-stats {
   display: flex;
   align-items: center;
@@ -568,18 +527,53 @@ const resetView = () => {
   text-decoration: underline;
 }
 
+.upload-area {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.upload-area :deep(.file-uploader) {
+  max-width: none;
+  flex: none;
+}
+
+.upload-area :deep(.file-button) {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(74, 144, 217, 0.3);
+  backdrop-filter: none;
+}
+
+.upload-area :deep(.file-button:hover) {
+  background: #3a7bc8;
+  box-shadow: 0 4px 12px rgba(74, 144, 217, 0.4);
+}
+
 .sample-buttons {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 8px;
   margin-bottom: var(--spacing-md);
-  flex-wrap: wrap;
 }
 
 .sample-label {
   color: var(--text-secondary);
-  font-weight: 500;
+  font-size: 0.8125rem;
+}
+
+.sample-list {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .sample-btn {
@@ -674,30 +668,33 @@ const resetView = () => {
 }
 
 @media (max-width: 768px) {
-  .app-header {
-    padding: var(--spacing-sm) var(--spacing-md);
-  }
-
-  .app-logo {
-    font-size: 1.25rem;
-  }
-
   .app-main {
     padding: var(--spacing-md);
   }
 
+  .hero {
+    padding: 2rem var(--spacing-md) 1.5rem;
+  }
+
   .hero h1 {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
   }
 
   .hero-subtitle {
     font-size: 1rem;
   }
 
+  .hero-stats {
+    gap: var(--spacing-sm);
+  }
+
+  .hero-stat-value {
+    font-size: 1.25rem;
+  }
+
   .viewer-container {
     height: 50vh;
   }
-
 }
 
 /* Reduced motion */
@@ -712,7 +709,7 @@ const resetView = () => {
 }
 
 /* Focus visible */
-.theme-toggle:focus-visible,
+.top-action-btn:focus-visible,
 .copy-btn:focus-visible,
 .sample-btn:focus-visible {
   outline: 2px solid var(--primary-color);
@@ -729,6 +726,22 @@ const resetView = () => {
   color: var(--text-color);
 }
 
+.app.dark .top-action-btn {
+  background: #1e1e1e;
+  border-color: #444;
+  color: #999;
+}
+
+.app.dark .top-action-btn:hover {
+  color: #6b8fd4;
+  border-color: #6b8fd4;
+}
+
+.app.dark .hero-brand {
+  background: #1a2744;
+  color: #6b8fd4;
+}
+
 .app.dark .hero-install-wrapper {
   background-color: #1e1e1e;
   border-color: #444;
@@ -736,15 +749,6 @@ const resetView = () => {
 
 .app.dark .copy-btn {
   border-left-color: #444;
-}
-
-.app.dark .cta-btn--secondary {
-  border-color: #444;
-}
-
-.app.dark .cta-btn--secondary:hover {
-  border-color: #6b8fd4;
-  color: #6b8fd4;
 }
 
 .app.dark .sample-btn {
