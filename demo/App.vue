@@ -9,6 +9,7 @@
         class="theme-toggle"
         @click="isDark = !isDark"
         :title="isDark ? 'Light mode' : 'Dark mode'"
+        :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
       >
         <svg
           v-if="isDark"
@@ -54,7 +55,22 @@
           Parse and render AutoCAD DXF files with Three.js. Use standalone with any framework or as
           a ready-made Vue 3 component.
         </p>
-        <code class="hero-install">npm install dxf-vuer dxf-render three</code>
+        <div class="hero-install-wrapper">
+          <code class="hero-install">npm install dxf-vuer dxf-render three</code>
+          <button
+            class="copy-btn"
+            aria-label="Copy install command"
+            @click="copyInstallCommand"
+          >
+            <svg v-if="!copied" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </button>
+        </div>
       </section>
 
       <div class="sample-buttons">
@@ -65,11 +81,12 @@
           class="sample-btn"
           :class="{ active: currentFileName === sample.label, loading: loadingSampleFile === sample.file }"
           :disabled="isLoadingSample"
+          :aria-label="`Load sample: ${sample.label} (${sample.size})`"
           @click="loadSample(sample)"
         >
           <span v-if="loadingSampleFile === sample.file" class="sample-spinner" />
           {{ sample.label }}
-          <span v-if="sample.hint" class="sample-hint">{{ sample.hint }}</span>
+          <span class="sample-hint" :class="{ 'sample-hint--heavy': sample.heavy }">{{ sample.size }}</span>
         </button>
       </div>
 
@@ -111,57 +128,10 @@
       </div>
 
       <section class="features">
-        <div class="feature-card">
-          <h3>Built-in Parser</h3>
-          <p>
-            Custom DXF parser with zero external dependencies. 21 entity types including dimensions,
-            hatches, splines, multilines, construction lines, and block attributes. Async parsing in
-            a Web Worker keeps the UI responsive.
-          </p>
-        </div>
-        <div class="feature-card">
-          <h3>Vector Text</h3>
-          <p>
-            Crisp text at any zoom level via opentype.js triangulated glyphs. Sans and serif fonts,
-            bold and italic, stacked fractions, MTEXT formatting. Custom font loading supported.
-          </p>
-        </div>
-        <div class="feature-card">
-          <h3>WebGL Rendering</h3>
-          <p>
-            Three.js-powered rendering with TAA anti-aliasing, pan, zoom, layer visibility, instant
-            dark theme switching, drag-and-drop, and PNG export.
-          </p>
-        </div>
-        <div class="feature-card">
-          <h3>High Performance</h3>
-          <p>
-            Geometry merging cuts draw calls by 78%. Block template caching, time-sliced rendering
-            with progress bar. Text batched as geometry with all other entities.
-          </p>
-        </div>
-        <div class="feature-card">
-          <h3>21 Entity Types</h3>
-          <p>
-            Lines, arcs, splines, multilines, construction lines, hatches with 25 AutoCAD patterns,
-            architectural dimensions, block inserts with attributes, leader/multileader.
-            Variable-width polylines with per-vertex tapering, arrows, and donuts.
-            Linetypes, OCS transforms, and paper space filtering.
-          </p>
-        </div>
-        <div class="feature-card">
-          <h3>Framework Flexible</h3>
-          <p>
-            Vue 3 component via dxf-vuer, or use
-            <a
-              href="https://www.npmjs.com/package/dxf-render"
-              target="_blank"
-              rel="noopener noreferrer"
-              >dxf-render</a
-            >
-            standalone with React, Svelte, or vanilla JS. Parser-only mode for Node.js. Full
-            TypeScript support.
-          </p>
+        <div v-for="feature in features" :key="feature.title" class="feature-card">
+          <div class="feature-icon" v-html="feature.icon" />
+          <h3>{{ feature.title }}</h3>
+          <p v-html="feature.body" />
         </div>
       </section>
 
@@ -213,6 +183,25 @@ import "dxf-vuer/style.css";
 import type { DxfData } from "dxf-render";
 
 const isDark = ref(false);
+const copied = ref(false);
+
+async function copyInstallCommand() {
+  try {
+    await navigator.clipboard.writeText("npm install dxf-vuer dxf-render three");
+    copied.value = true;
+    setTimeout(() => (copied.value = false), 2000);
+  } catch {
+    // Fallback for older browsers
+    const el = document.createElement("textarea");
+    el.value = "npm install dxf-vuer dxf-render three";
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
+    copied.value = true;
+    setTimeout(() => (copied.value = false), 2000);
+  }
+}
 watch(isDark, (dark) => {
   document.body.style.backgroundColor = dark ? "#121212" : "";
 });
@@ -223,6 +212,39 @@ const currentFileName = ref<string>("");
 const dxfViewerRef = ref<InstanceType<typeof DXFViewer> | null>(null);
 const isLoadingSample = ref(false);
 const loadingSampleFile = ref<string | null>(null);
+
+const features = [
+  {
+    title: "Built-in Parser",
+    icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+    body: "Custom DXF parser with zero external dependencies. 21 entity types including dimensions, hatches, splines, multilines, construction lines, and block attributes. Async parsing in a Web Worker keeps the UI responsive.",
+  },
+  {
+    title: "Vector Text",
+    icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>',
+    body: "Crisp text at any zoom level via opentype.js triangulated glyphs. Sans and serif fonts, bold and italic, stacked fractions, MTEXT formatting. Custom font loading supported.",
+  },
+  {
+    title: "WebGL Rendering",
+    icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+    body: "Three.js-powered rendering with TAA anti-aliasing, pan, zoom, layer visibility, instant dark theme switching, drag-and-drop, and PNG export.",
+  },
+  {
+    title: "High Performance",
+    icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    body: "Geometry merging cuts draw calls by 78%. Block template caching, time-sliced rendering with progress bar. Text batched as geometry with all other entities.",
+  },
+  {
+    title: "21 Entity Types",
+    icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+    body: "Lines, arcs, splines, multilines, construction lines, hatches with 25 AutoCAD patterns, architectural dimensions, block inserts with attributes, leader/multileader. Variable-width polylines with per-vertex tapering, arrows, and donuts. Linetypes, OCS transforms, and paper space filtering.",
+  },
+  {
+    title: "Framework Flexible",
+    icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+    body: 'Vue 3 component via dxf-vuer, or use <a href="https://www.npmjs.com/package/dxf-render" target="_blank" rel="noopener noreferrer">dxf-render</a> standalone with React, Svelte, or vanilla JS. Parser-only mode for Node.js. Full TypeScript support.',
+  },
+];
 
 const STACKBLITZ_BASE = "https://stackblitz.com/github/arbaev/dxf-kit/tree/main/examples";
 
@@ -260,15 +282,15 @@ const examples = [
 ];
 
 const samples = [
-  { file: "/entities.dxf", label: "Basic Entities" },
-  { file: "/samples/linetypes.dxf", label: "Line Types & Widths" },
-  { file: "/samples/electric.dxf", label: "Electric Schematic" },
-  { file: "/samples/hatch-patterns.dxf", label: "Hatch Patterns" },
-  { file: "/samples/floorplan.dxf", label: "Floor Plan" },
-  { file: "/samples/house-plan.dxf", label: "House Plan", hint: "17 MB" },
+  { file: "/entities.dxf", label: "Basic Entities", size: "191 KB" },
+  { file: "/samples/linetypes.dxf", label: "Line Types & Widths", size: "3 KB" },
+  { file: "/samples/electric.dxf", label: "Electric Schematic", size: "220 KB" },
+  { file: "/samples/hatch-patterns.dxf", label: "Hatch Patterns", size: "164 KB" },
+  { file: "/samples/floorplan.dxf", label: "Floor Plan", size: "1.1 MB" },
+  { file: "/samples/house-plan.dxf", label: "House Plan", size: "17 MB", heavy: true },
 ];
 
-async function loadSample(sample: { file: string; label: string }) {
+async function loadSample(sample: { file: string; label: string; size: string; heavy?: boolean }) {
   if (isLoadingSample.value) return;
   isLoadingSample.value = true;
   loadingSampleFile.value = sample.file;
@@ -425,16 +447,47 @@ const resetView = () => {
   line-height: 1.6;
 }
 
+.hero-install-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background-color: #f5f5f5;
+  overflow: hidden;
+}
+
 .hero-install {
   display: inline-block;
   padding: var(--spacing-sm) var(--spacing-md);
-  background-color: #f5f5f5;
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  background-color: transparent;
+  border: none;
   font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
   font-size: 0.9rem;
   color: var(--text-color);
   user-select: all;
+}
+
+.copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-sm) 10px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.copy-btn:hover {
+  color: var(--primary-color);
+  background-color: rgba(74, 144, 217, 0.08);
+}
+
+.copy-btn svg {
+  flex-shrink: 0;
 }
 
 .features {
@@ -465,6 +518,18 @@ const resetView = () => {
   color: var(--text-secondary);
   line-height: 1.6;
   margin: 0;
+}
+
+.feature-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #f0f4ff;
+  color: var(--primary-color);
+  margin-bottom: var(--spacing-sm);
 }
 
 .examples {
@@ -620,6 +685,16 @@ const resetView = () => {
   margin-left: 4px;
 }
 
+.sample-hint--heavy {
+  color: #d32f2f;
+  opacity: 1;
+  font-weight: 600;
+}
+
+.sample-btn.active .sample-hint--heavy {
+  color: #ffcdd2;
+}
+
 .error-message {
   display: flex;
   align-items: center;
@@ -672,6 +747,15 @@ const resetView = () => {
   }
 }
 
+/* Focus visible */
+.theme-toggle:focus-visible,
+.copy-btn:focus-visible,
+.sample-btn:focus-visible,
+.example-card:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
 /* Dark theme */
 .app.dark {
   --bg-color: #121212;
@@ -682,9 +766,13 @@ const resetView = () => {
   color: var(--text-color);
 }
 
-.app.dark .hero-install {
+.app.dark .hero-install-wrapper {
   background-color: #1e1e1e;
   border-color: #444;
+}
+
+.app.dark .copy-btn {
+  border-left-color: #444;
 }
 
 .app.dark .feature-card {
@@ -716,6 +804,11 @@ const resetView = () => {
   background-color: #3a1c1e;
   color: #f5a0a5;
   border-color: #5c2b2e;
+}
+
+.app.dark .feature-icon {
+  background: #1a2744;
+  color: #6b8fd4;
 }
 
 .app.dark .example-card {
