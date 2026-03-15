@@ -139,6 +139,16 @@
         </div>
       </section>
 
+      <section class="whats-new">
+        <h2>What's New</h2>
+        <div class="whats-new-list">
+          <div v-for="item in whatsNew" :key="item.text" class="whats-new-item">
+            <span class="whats-new-version">{{ item.version }}</span>
+            <span class="whats-new-text">{{ item.text }}</span>
+          </div>
+        </div>
+      </section>
+
       <section class="examples">
         <h2>Examples</h2>
         <p class="examples-subtitle">
@@ -249,6 +259,17 @@ const features = [
     icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
     body: 'Vue 3 component via dxf-vuer, or use <a href="https://www.npmjs.com/package/dxf-render" target="_blank" rel="noopener noreferrer">dxf-render</a> standalone with React, Svelte, or vanilla JS. Parser-only mode for Node.js. Full TypeScript support.',
   },
+];
+
+const whatsNew = [
+  { version: "1.2.0", text: "Variable-width polylines with per-vertex tapering, arrows, and donuts" },
+  { version: "1.2.0", text: "GIS origin translation — large UTM/state plane coordinates without precision loss" },
+  { version: "1.2.0", text: "Touch support — native one-finger pan on mobile devices" },
+  { version: "1.1.0", text: "Theme-adaptive ACI 250-251 colors — dark grays invert in dark mode" },
+  { version: "1.5.0", text: "TAA anti-aliasing — 32-frame temporal accumulation for crisp text and edges" },
+  { version: "1.5.0", text: "Instant dark mode — theme switching without full re-render" },
+  { version: "1.4.0", text: "MLINE, XLINE, RAY entities — multilines and construction lines" },
+  { version: "1.4.0", text: "25 built-in hatch patterns with solid fill optimization (86× faster)" },
 ];
 
 const STACKBLITZ_BASE = "https://stackblitz.com/github/arbaev/dxf-kit/tree/main/examples";
@@ -537,6 +558,47 @@ const resetView = () => {
   margin-bottom: var(--spacing-sm);
 }
 
+.whats-new {
+  max-width: var(--content-max-width);
+  margin: var(--spacing-lg) auto 0;
+  text-align: center;
+}
+
+.whats-new h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-color);
+  margin-bottom: var(--spacing-md);
+}
+
+.whats-new-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.whats-new-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  padding: 6px 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.whats-new-version {
+  flex-shrink: 0;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  background: #f0f4ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
 .examples {
   max-width: var(--content-max-width);
   margin: var(--spacing-lg) auto 0;
@@ -817,6 +879,11 @@ const resetView = () => {
   background-color: #3a1c1e;
   color: #f5a0a5;
   border-color: #5c2b2e;
+}
+
+.app.dark .whats-new-version {
+  background: #1a2744;
+  color: #6b8fd4;
 }
 
 .app.dark .feature-icon {
